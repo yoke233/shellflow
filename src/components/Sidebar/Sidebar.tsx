@@ -36,14 +36,7 @@ export function Sidebar({
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800">
       <div className="flex items-center justify-between p-3 border-b border-zinc-800">
-        <h1 className="text-sm font-semibold text-zinc-300">OneManBand</h1>
-        <button
-          onClick={onAddProject}
-          className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-          title="Add Project"
-        >
-          <Plus size={16} />
-        </button>
+        <h1 className="text-sm font-semibold text-zinc-300">One Man Band</h1>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -59,10 +52,11 @@ export function Sidebar({
             </button>
           </div>
         ) : (
-          projects.map((project) => (
+          <>
+          {projects.map((project) => (
             <div key={project.id} className="mb-2">
               <div
-                className="flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-800 text-zinc-300"
+                className="group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-800 text-zinc-300"
                 onClick={() => toggleProject(project.id)}
               >
                 {expandedProjects.has(project.id) ? (
@@ -80,7 +74,7 @@ export function Sidebar({
                   className="p-0.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100"
                   title="Add Workspace"
                 >
-                  <Plus size={12} />
+                  <Plus size={14} />
                 </button>
               </div>
 
@@ -113,7 +107,15 @@ export function Sidebar({
                 </div>
               )}
             </div>
-          ))
+          ))}
+          <button
+            onClick={onAddProject}
+            className="flex items-center gap-2 px-2 py-1.5 mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+          >
+            <Plus size={12} />
+            Add project
+          </button>
+          </>
         )}
       </div>
     </div>
