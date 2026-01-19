@@ -161,6 +161,16 @@ fn get_changed_files(workspace_path: &str) -> Result<Vec<FileChange>> {
     git::get_changed_files(path).map_err(map_err)
 }
 
+#[tauri::command]
+fn start_watching(app: AppHandle, workspace_id: String, workspace_path: String) {
+    watcher::watch_workspace(app, workspace_id, workspace_path);
+}
+
+#[tauri::command]
+fn stop_watching(workspace_id: String) {
+    watcher::stop_watching(&workspace_id);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = Arc::new(AppState::load_or_default());
@@ -181,7 +191,14 @@ pub fn run() {
             pty_resize,
             pty_kill,
             get_changed_files,
+            start_watching,
+            stop_watching,
         ])
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                watcher::stop_all_watchers();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

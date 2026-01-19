@@ -116,9 +116,12 @@ pub fn get_changed_files(workspace_path: &Path) -> Result<Vec<FileChange>, GitEr
     for entry in statuses.iter() {
         if let Some(path) = entry.path() {
             let status = entry.status();
-            let file_status = if status.contains(Status::WT_NEW) || status.contains(Status::INDEX_NEW)
-            {
+            let file_status = if status.contains(Status::INDEX_NEW) {
+                // Staged new file
                 FileStatus::Added
+            } else if status.contains(Status::WT_NEW) {
+                // Untracked file
+                FileStatus::Untracked
             } else if status.contains(Status::WT_MODIFIED)
                 || status.contains(Status::INDEX_MODIFIED)
             {
@@ -131,8 +134,6 @@ pub fn get_changed_files(workspace_path: &Path) -> Result<Vec<FileChange>, GitEr
                 || status.contains(Status::INDEX_RENAMED)
             {
                 FileStatus::Renamed
-            } else if status.contains(Status::WT_NEW) {
-                FileStatus::Untracked
             } else {
                 continue;
             };

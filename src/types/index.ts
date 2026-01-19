@@ -24,6 +24,6 @@ export interface PtyOutput {
 }
 
 export interface FilesChanged {
-  workspace_id: string;
+  workspace_path: string;
   files: FileChange[];
 }

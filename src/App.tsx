@@ -15,7 +15,7 @@ function App() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const activeWorkspace = openWorkspaces.find((w) => w.id === activeWorkspaceId) || null;
-  const { files: changedFiles } = useGitStatus(activeWorkspace?.path || null);
+  const { files: changedFiles } = useGitStatus(activeWorkspace);
 
   const handleAddProject = useCallback(async () => {
     const path = await selectFolder();
