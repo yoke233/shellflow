@@ -1,4 +1,4 @@
-# OneManBand
+# One Man Band
 
 A desktop application for macOS that orchestrates git worktrees and launches Claude Code CLI instances in each.
 
@@ -40,8 +40,8 @@ npm run tauri build
 ```
 
 The built application will be available at:
-- `src-tauri/target/release/bundle/macos/OneManBand.app`
-- `src-tauri/target/release/bundle/dmg/OneManBand_*.dmg`
+- `src-tauri/target/release/bundle/macos/One Man Band.app`
+- `src-tauri/target/release/bundle/dmg/One Man Band_*.dmg`
 
 ## Architecture
 
