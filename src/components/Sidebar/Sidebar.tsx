@@ -35,11 +35,7 @@ export function Sidebar({
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 border-r border-zinc-800">
-      <div className="flex items-center justify-between p-3 border-b border-zinc-800">
-        <h1 className="text-sm font-semibold text-zinc-300">One Man Band</h1>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto p-2 pt-3">
         {projects.length === 0 ? (
           <div className="text-center py-8 text-zinc-500 text-sm">
             <FolderGit2 className="mx-auto mb-2" size={32} />
