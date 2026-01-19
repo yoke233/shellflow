@@ -23,7 +23,11 @@ export function RightPanel({ workspace, changedFiles, terminalConfig }: RightPan
 
   return (
     <div className="h-full bg-zinc-900 border-l border-zinc-800 flex flex-col">
-      <PanelGroup orientation="vertical" className="flex-1">
+      <PanelGroup
+        orientation="vertical"
+        className="flex-1"
+        onLayoutChange={() => { window.dispatchEvent(new Event('resize')); }}
+      >
         <Panel defaultSize="50%" minSize="20%">
           <div className="h-full w-full overflow-hidden">
             <ChangedFiles files={changedFiles} />

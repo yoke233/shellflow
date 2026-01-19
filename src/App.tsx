@@ -110,7 +110,11 @@ function App() {
       )}
 
       {/* Main content */}
-      <PanelGroup orientation="horizontal" className="flex-1">
+      <PanelGroup
+        orientation="horizontal"
+        className="flex-1"
+        onLayoutChange={() => { window.dispatchEvent(new Event('resize')); }}
+      >
         {/* Sidebar */}
         <Panel defaultSize="15%" minSize="10%" maxSize="30%">
           <div className="h-full w-full">
