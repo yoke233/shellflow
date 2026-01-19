@@ -2,15 +2,17 @@ import { useState, useCallback } from 'react';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { ClaudePane } from './components/ClaudePane/ClaudePane';
 import { RightPanel } from './components/RightPanel/RightPanel';
+import { ConfirmModal } from './components/ConfirmModal';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { useGitStatus } from './hooks/useGitStatus';
 import { selectFolder } from './lib/tauri';
 import { Workspace } from './types';
 
 function App() {
-  const { projects, addProject, createWorkspace } = useWorkspaces();
+  const { projects, addProject, createWorkspace, deleteWorkspace } = useWorkspaces();
   const [openWorkspaces, setOpenWorkspaces] = useState<Workspace[]>([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const activeWorkspace = openWorkspaces.find((w) => w.id === activeWorkspaceId) || null;
   const { files: changedFiles } = useGitStatus(activeWorkspace?.path || null);
@@ -67,8 +69,42 @@ function App() {
     [activeWorkspaceId, openWorkspaces]
   );
 
+  const handleDeleteWorkspace = useCallback((workspaceId: string) => {
+    setPendingDeleteId(workspaceId);
+  }, []);
+
+  const confirmDeleteWorkspace = useCallback(async () => {
+    if (!pendingDeleteId) return;
+    try {
+      await deleteWorkspace(pendingDeleteId);
+      setOpenWorkspaces((prev) => prev.filter((w) => w.id !== pendingDeleteId));
+      if (activeWorkspaceId === pendingDeleteId) {
+        const remaining = openWorkspaces.filter((w) => w.id !== pendingDeleteId);
+        setActiveWorkspaceId(remaining.length > 0 ? remaining[remaining.length - 1].id : null);
+      }
+    } catch (err) {
+      console.error('Failed to delete workspace:', err);
+    } finally {
+      setPendingDeleteId(null);
+    }
+  }, [deleteWorkspace, pendingDeleteId, activeWorkspaceId, openWorkspaces]);
+
+  const pendingWorkspace = pendingDeleteId
+    ? openWorkspaces.find((w) => w.id === pendingDeleteId) ||
+      projects.flatMap((p) => p.workspaces).find((w) => w.id === pendingDeleteId)
+    : null;
+
   return (
     <div className="h-screen w-screen overflow-hidden flex">
+      {pendingDeleteId && pendingWorkspace && (
+        <ConfirmModal
+          title="Delete Workspace"
+          message={`Are you sure you want to delete "${pendingWorkspace.name}"? This will remove the worktree and cannot be undone.`}
+          confirmLabel="Delete"
+          onConfirm={confirmDeleteWorkspace}
+          onCancel={() => setPendingDeleteId(null)}
+        />
+      )}
       {/* Sidebar */}
       <div className="w-64 flex-shrink-0 h-full">
         <Sidebar
@@ -87,6 +123,7 @@ function App() {
           activeWorkspaceId={activeWorkspaceId}
           onSelectTab={handleSelectTab}
           onCloseTab={handleCloseTab}
+          onDeleteWorkspace={handleDeleteWorkspace}
         />
       </div>
 
