@@ -312,33 +312,34 @@ function App() {
   }, [activeWorktreeId]);
 
   // Close drawer tab handler
-  const handleCloseDrawerTab = useCallback((tabId: string) => {
-    if (!activeWorktreeId) return;
+  const handleCloseDrawerTab = useCallback((tabId: string, worktreeId?: string) => {
+    const targetWorktreeId = worktreeId ?? activeWorktreeId;
+    if (!targetWorktreeId) return;
 
-    const current = drawerStates.get(activeWorktreeId);
+    const current = drawerStates.get(targetWorktreeId);
     if (!current) return;
 
     const remaining = current.tabs.filter(t => t.id !== tabId);
 
-    // If closing the last tab, collapse the drawer panel
-    if (remaining.length === 0) {
+    // If closing the last tab for the active worktree, collapse the drawer panel
+    if (remaining.length === 0 && targetWorktreeId === activeWorktreeId) {
       drawerPanelRef.current?.collapse();
     }
 
     setDrawerStates((prev) => {
-      const current = prev.get(activeWorktreeId);
+      const current = prev.get(targetWorktreeId);
       if (!current) return prev;
 
       const remaining = current.tabs.filter(t => t.id !== tabId);
       const next = new Map(prev);
 
       if (remaining.length === 0) {
-        next.set(activeWorktreeId, { ...current, isOpen: false, tabs: [], activeTabId: null });
+        next.set(targetWorktreeId, { ...current, isOpen: false, tabs: [], activeTabId: null });
       } else {
         const newActiveTabId = current.activeTabId === tabId
           ? remaining[remaining.length - 1].id
           : current.activeTabId;
-        next.set(activeWorktreeId, { ...current, tabs: remaining, activeTabId: newActiveTabId });
+        next.set(targetWorktreeId, { ...current, tabs: remaining, activeTabId: newActiveTabId });
       }
       return next;
     });
@@ -687,6 +688,7 @@ function App() {
                             tab.id === activeDrawerState?.activeTabId
                           }
                           terminalConfig={config.terminal}
+                          onClose={() => handleCloseDrawerTab(tab.id, worktreeId)}
                         />
                       </div>
                     ))

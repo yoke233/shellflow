@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RotateCcw } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
 import '@xterm/xterm/css/xterm.css';
@@ -32,6 +32,8 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
   const initializedRef = useRef(false);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
+  const [hasExited, setHasExited] = useState(false);
+  const [exitInfo, setExitInfo] = useState<{ command: string; exitCode: number | null } | null>(null);
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
@@ -49,6 +51,22 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
     const unlisten = listen<{ ptyId: string; worktreeId: string }>('pty-ready', (event) => {
       if (event.payload.ptyId === ptyId) {
         setIsReady(true);
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [ptyId]);
+
+  // Listen for pty-exit event
+  useEffect(() => {
+    if (!ptyId) return;
+
+    const unlisten = listen<{ ptyId: string; worktreeId: string; command: string; exitCode: number | null }>('pty-exit', (event) => {
+      if (event.payload.ptyId === ptyId) {
+        setHasExited(true);
+        setExitInfo({ command: event.payload.command, exitCode: event.payload.exitCode });
       }
     });
 
@@ -177,6 +195,27 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
     };
   }, [worktreeId]);
 
+  // Restart handler for when the process exits
+  const handleRestart = useCallback(async () => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) return;
+
+    // Reset state
+    setHasExited(false);
+    setIsReady(false);
+    setExitInfo(null);
+
+    // Clear terminal and show restart message
+    terminal.clear();
+
+    // Spawn new PTY with current terminal size
+    const cols = terminal.cols;
+    const rows = terminal.rows;
+    spawnedAtRef.current = Date.now();
+    await spawn(worktreeId, 'main', cols, rows);
+  }, [spawn, worktreeId]);
+
   // Store resize function in ref to avoid dependency issues
   const resizeRef = useRef(resize);
   const ptyIdRef = useRef(ptyId);
@@ -227,7 +266,7 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
 
   return (
     <div className="relative w-full h-full p-2" style={{ backgroundColor: '#09090b' }}>
-      {!isReady && (
+      {!isReady && !hasExited && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-zinc-950">
           <div className="flex flex-col items-center gap-3 text-zinc-400">
             <Loader2 size={32} className="animate-spin" />
@@ -235,9 +274,32 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
           </div>
         </div>
       )}
+      {hasExited && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-zinc-950/90">
+          <div className="flex flex-col items-center gap-4 text-zinc-400">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-zinc-200 font-medium">
+                {exitInfo?.command ?? 'Process'} exited
+              </span>
+              {exitInfo?.exitCode !== null && exitInfo?.exitCode !== undefined && (
+                <span className="text-sm">
+                  Exit code: {exitInfo.exitCode}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={handleRestart}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
+            >
+              <RotateCcw size={16} />
+              <span>Restart</span>
+            </button>
+          </div>
+        </div>
+      )}
       <div
         ref={containerRef}
-        className={`w-full h-full transition-opacity duration-200 ${isReady ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full transition-opacity duration-200 ${isReady && !hasExited ? 'opacity-100' : 'opacity-0'}`}
       />
     </div>
   );

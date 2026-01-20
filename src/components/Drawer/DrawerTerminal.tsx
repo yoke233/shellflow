@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
+import { listen } from '@tauri-apps/api/event';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
 import '@xterm/xterm/css/xterm.css';
@@ -21,9 +22,10 @@ interface DrawerTerminalProps {
   worktreeId: string;
   isActive: boolean;
   terminalConfig: TerminalConfig;
+  onClose?: () => void;
 }
 
-export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig }: DrawerTerminalProps) {
+export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClose }: DrawerTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -152,6 +154,21 @@ export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig }: Dra
       killRef.current();
     };
   }, [id, worktreeId]);
+
+  // Listen for pty-exit event to auto-close the tab
+  useEffect(() => {
+    if (!ptyId) return;
+
+    const unlisten = listen<{ ptyId: string }>('pty-exit', (event) => {
+      if (event.payload.ptyId === ptyId) {
+        onClose?.();
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [ptyId, onClose]);
 
   // Store resize function in ref
   const resizeRef = useRef(resize);

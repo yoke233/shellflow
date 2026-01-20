@@ -180,11 +180,13 @@ pub fn spawn_pty(
     let app_handle = app.clone();
     let pty_id_clone = pty_id.clone();
     let worktree_id_clone = worktree_id.to_string();
+    let command_name = command.to_string();
     let ready_emitted = Arc::new(AtomicBool::new(false));
     let ready_emitted_clone = ready_emitted.clone();
 
     thread::spawn(move || {
         eprintln!("[PTY:{}] Reader thread started", pty_id_clone);
+        let mut child = child;
         let mut reader = reader;
         let mut buf = [0u8; 4096];
         let mut consecutive_empty = 0;
@@ -261,7 +263,25 @@ pub fn spawn_pty(
                 }
             }
         }
-        eprintln!("[PTY:{}] Reader thread exiting", pty_id_clone);
+        // Wait for child process to get exit status
+        let exit_code = match child.wait() {
+            Ok(status) => {
+                eprintln!("[PTY:{}] Child exited with status: {:?}", pty_id_clone, status);
+                Some(status.exit_code())
+            }
+            Err(e) => {
+                eprintln!("[PTY:{}] Failed to wait for child: {:?}", pty_id_clone, e);
+                None
+            }
+        };
+
+        eprintln!("[PTY:{}] Reader thread exiting, emitting pty-exit event", pty_id_clone);
+        let _ = app_handle.emit("pty-exit", serde_json::json!({
+            "ptyId": pty_id_clone,
+            "worktreeId": worktree_id_clone,
+            "command": command_name,
+            "exitCode": exit_code,
+        }));
     });
 
     Ok(pty_id)
