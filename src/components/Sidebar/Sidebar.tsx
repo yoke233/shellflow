@@ -118,14 +118,14 @@ export function Sidebar({
                     e.stopPropagation();
                     onAddWorktree(project.id);
                   }}
-                  className="p-0.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300"
+                  className="p-0.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100"
                   title="Add Worktree"
                 >
                   <Plus size={14} />
                 </button>
                 <button
                   onClick={(e) => handleKebabClick(e, project)}
-                  className="p-0.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300"
+                  className="p-0.5 rounded hover:bg-zinc-700 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100"
                   title="More options"
                 >
                   <MoreHorizontal size={14} />
