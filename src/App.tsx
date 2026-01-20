@@ -90,7 +90,9 @@ function App() {
     const path = await selectFolder();
     if (path) {
       try {
-        await addProject(path);
+        const project = await addProject(path);
+        // Expand the newly added project
+        setExpandedProjects((prev) => new Set([...prev, project.id]));
       } catch (err) {
         console.error('Failed to add project:', err);
       }
@@ -227,6 +229,7 @@ function App() {
             <Sidebar
               projects={projects}
               selectedWorkspaceId={activeWorkspaceId}
+              openWorkspaceIds={new Set(openWorkspaces.map((w) => w.id))}
               loadingWorkspaces={loadingWorkspaces}
               expandedProjects={expandedProjects}
               onToggleProject={toggleProject}

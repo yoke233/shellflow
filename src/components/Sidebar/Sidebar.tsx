@@ -7,6 +7,7 @@ import { ContextMenu } from '../ContextMenu';
 interface SidebarProps {
   projects: Project[];
   selectedWorkspaceId: string | null;
+  openWorkspaceIds: Set<string>;
   loadingWorkspaces: Set<string>;
   expandedProjects: Set<string>;
   onToggleProject: (projectId: string) => void;
@@ -20,6 +21,7 @@ interface SidebarProps {
 export function Sidebar({
   projects,
   selectedWorkspaceId,
+  openWorkspaceIds,
   loadingWorkspaces,
   expandedProjects,
   onToggleProject,
@@ -85,19 +87,23 @@ export function Sidebar({
           </div>
         ) : (
           <>
-          {projects.map((project) => (
+          {projects.map((project) => {
+            const hasOpenWorkspaces = project.workspaces.some((w) => openWorkspaceIds.has(w.id));
+            return (
             <div key={project.id} className="mb-2">
               <div
-                className="group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-800 text-zinc-300"
+                className={`group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-800 ${
+                  hasOpenWorkspaces ? 'text-zinc-300' : 'text-zinc-500'
+                }`}
                 onClick={() => onToggleProject(project.id)}
                 onContextMenu={(e) => handleProjectContextMenu(e, project)}
               >
                 {expandedProjects.has(project.id) ? (
-                  <ChevronDown size={14} className="text-zinc-500" />
+                  <ChevronDown size={14} className={hasOpenWorkspaces ? 'text-zinc-500' : 'text-zinc-600'} />
                 ) : (
-                  <ChevronRight size={14} className="text-zinc-500" />
+                  <ChevronRight size={14} className={hasOpenWorkspaces ? 'text-zinc-500' : 'text-zinc-600'} />
                 )}
-                <FolderGit2 size={14} className="text-zinc-400" />
+                <FolderGit2 size={14} className={hasOpenWorkspaces ? 'text-zinc-400' : 'text-zinc-600'} />
                 <span className="text-sm truncate flex-1">{project.name}</span>
                 <button
                   onClick={(e) => {
@@ -131,17 +137,21 @@ export function Sidebar({
                   ) : (
                     project.workspaces.map((workspace) => {
                       const isLoading = loadingWorkspaces.has(workspace.id);
+                      const isOpen = openWorkspaceIds.has(workspace.id);
+                      const isSelected = selectedWorkspaceId === workspace.id;
                       return (
                         <div
                           key={workspace.id}
                           onClick={() => onSelectWorkspace(workspace)}
                           className={`group/workspace flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
-                            selectedWorkspaceId === workspace.id
+                            isSelected
                               ? 'bg-zinc-700 text-zinc-100'
-                              : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                              : isOpen
+                                ? 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+                                : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
                           }`}
                         >
-                          <GitBranch size={12} />
+                          <GitBranch size={12} className={isOpen ? '' : 'opacity-50'} />
                           <span className="truncate flex-1">{workspace.name}</span>
                           {isLoading ? (
                             <span title="Starting Claude...">
@@ -166,7 +176,7 @@ export function Sidebar({
                 </div>
               )}
             </div>
-          ))}
+          )})}
           <button
             onClick={onAddProject}
             className="flex items-center gap-2 px-2 py-1.5 mt-2 text-xs text-zinc-500 hover:text-zinc-300"
