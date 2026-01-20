@@ -2,7 +2,8 @@
 name = "onemanband"
 version = "0.1.0"
 description = "Git Worktree Orchestrator"
-authors = ["you"]
+authors = ["Jamie Schembri"]
+license = "MIT"
 edition = "2021"
 
 [lib]

@@ -1,6 +1,7 @@
 {
   "name": "onemanband",
   "description": "Git Worktree Orchestrator",
+  "license": "MIT",
   "private": true,
   "version": "0.1.0",
   "type": "module",
