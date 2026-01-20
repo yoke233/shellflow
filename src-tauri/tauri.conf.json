@@ -30,9 +30,9 @@
     "targets": ["dmg", "deb", "rpm", "appimage", "nsis"],
     "createUpdaterArtifacts": false,
     "icon": [
+      "icons/icon.icns",
       "icons/web/icon-192.png",
       "icons/web/icon-512.png",
-      "icons/macos/AppIcon.icns",
       "icons/web/favicon.ico"
     ],
     "macOS": {

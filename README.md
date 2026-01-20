@@ -169,6 +169,10 @@ Both `main` and `terminal` sections support:
 - **copy.gitIgnored**: Copy gitignored files to new worktrees
 - **copy.except**: Glob patterns to exclude from copying (default: `[".claude"]`)
 
+### Attribution
+
+Drum icon is [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) [VectorPortal](https://vectorportal.com).
+
 ## License
 
 MIT
