@@ -28,11 +28,13 @@ interface DrawerTerminalProps {
   id: string;
   worktreeId: string;
   isActive: boolean;
+  shouldAutoFocus: boolean;
   terminalConfig: TerminalConfig;
   onClose?: () => void;
+  onFocus?: () => void;
 }
 
-export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClose }: DrawerTerminalProps) {
+export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, terminalConfig, onClose, onFocus }: DrawerTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -60,6 +62,12 @@ export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClo
   useEffect(() => {
     writeRef.current = write;
   }, [write]);
+
+  // Store onFocus in ref for use in terminal events
+  const onFocusRef = useRef(onFocus);
+  useEffect(() => {
+    onFocusRef.current = onFocus;
+  }, [onFocus]);
 
   // Initialize terminal
   useEffect(() => {
@@ -132,6 +140,12 @@ export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClo
       writeRef.current(data);
     });
 
+    // Report focus changes to parent via DOM events on container
+    const handleFocus = () => {
+      onFocusRef.current?.();
+    };
+    containerRef.current.addEventListener('focusin', handleFocus);
+
     // Fit terminal and spawn shell
     const initPty = async () => {
       // Wait for next frame to ensure container is laid out
@@ -154,6 +168,7 @@ export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClo
     return () => {
       isMounted = false;
       onDataDisposable.dispose();
+      containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -221,12 +236,12 @@ export function DrawerTerminal({ id, worktreeId, isActive, terminalConfig, onClo
     }
   }, [isActive, ptyId, debouncedResize]);
 
-  // Focus terminal when active
+  // Focus terminal when shouldAutoFocus is true
   useEffect(() => {
-    if (isActive && terminalRef.current) {
+    if (shouldAutoFocus && terminalRef.current) {
       terminalRef.current.focus();
     }
-  }, [isActive]);
+  }, [shouldAutoFocus]);
 
   return (
     <div className="w-full h-full p-2" style={{ backgroundColor: '#18181b' }}>

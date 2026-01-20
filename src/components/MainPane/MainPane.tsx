@@ -6,12 +6,16 @@ interface MainPaneProps {
   openWorktreeIds: Set<string>;
   activeWorktreeId: string | null;
   terminalConfig: TerminalConfig;
+  shouldAutoFocus: boolean;
+  onFocus: (worktreeId: string) => void;
 }
 
 export function MainPane({
   openWorktreeIds,
   activeWorktreeId,
   terminalConfig,
+  shouldAutoFocus,
+  onFocus,
 }: MainPaneProps) {
   if (openWorktreeIds.size === 0 || !activeWorktreeId) {
     return (
@@ -37,7 +41,9 @@ export function MainPane({
           <MainTerminal
             worktreeId={worktreeId}
             isActive={worktreeId === activeWorktreeId}
+            shouldAutoFocus={worktreeId === activeWorktreeId && shouldAutoFocus}
             terminalConfig={terminalConfig}
+            onFocus={() => onFocus(worktreeId)}
           />
         </div>
       ))}

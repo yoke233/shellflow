@@ -29,10 +29,12 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
 interface MainTerminalProps {
   worktreeId: string;
   isActive: boolean;
+  shouldAutoFocus: boolean;
   terminalConfig: TerminalConfig;
+  onFocus?: () => void;
 }
 
-export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTerminalProps) {
+export function MainTerminal({ worktreeId, isActive, shouldAutoFocus, terminalConfig, onFocus }: MainTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -95,6 +97,12 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
   useEffect(() => {
     writeRef.current = write;
   }, [write]);
+
+  // Store onFocus in ref for use in terminal events
+  const onFocusRef = useRef(onFocus);
+  useEffect(() => {
+    onFocusRef.current = onFocus;
+  }, [onFocus]);
 
   // Initialize terminal and spawn PTY
   useEffect(() => {
@@ -170,6 +178,12 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
       writeRef.current(data);
     });
 
+    // Report focus changes to parent via DOM events on container
+    const handleFocus = () => {
+      onFocusRef.current?.();
+    };
+    containerRef.current.addEventListener('focusin', handleFocus);
+
     // Fit terminal and spawn main process with correct size
     const initPty = async () => {
       // Wait for next frame to ensure container is laid out
@@ -194,6 +208,7 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
     return () => {
       isMounted = false;
       onDataDisposable.dispose();
+      containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -264,12 +279,12 @@ export function MainTerminal({ worktreeId, isActive, terminalConfig }: MainTermi
     return () => window.removeEventListener('resize', debouncedResize);
   }, [ptyId, debouncedResize]);
 
-  // Focus terminal when active
+  // Focus terminal when shouldAutoFocus is true
   useEffect(() => {
-    if (isActive && terminalRef.current) {
+    if (shouldAutoFocus && terminalRef.current) {
       terminalRef.current.focus();
     }
-  }, [isActive]);
+  }, [shouldAutoFocus]);
 
   return (
     <div className="relative w-full h-full p-2" style={{ backgroundColor: '#09090b' }}>

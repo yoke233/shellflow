@@ -44,6 +44,9 @@ function createDefaultRightPanelState(): RightPanelState {
   };
 }
 
+// Which pane has focus per worktree
+type FocusedPane = 'main' | 'drawer';
+
 function App() {
   const { projects, addProject, removeProject, createWorktree, deleteWorktree, refresh: refreshProjects } = useWorktrees();
   const { config } = useConfig();
@@ -58,11 +61,17 @@ function App() {
   // Per-worktree right panel state
   const [rightPanelStates, setRightPanelStates] = useState<Map<string, RightPanelState>>(new Map());
 
+  // Per-worktree focus state (which pane has focus)
+  const [focusStates, setFocusStates] = useState<Map<string, FocusedPane>>(new Map());
+
   // Get current worktree's drawer state
   const activeDrawerState = activeWorktreeId ? drawerStates.get(activeWorktreeId) ?? createDefaultDrawerState() : null;
 
   // Get current worktree's right panel state
   const activeRightPanelState = activeWorktreeId ? rightPanelStates.get(activeWorktreeId) ?? createDefaultRightPanelState() : null;
+
+  // Get current worktree's focus state (defaults to 'main')
+  const activeFocusState = activeWorktreeId ? focusStates.get(activeWorktreeId) ?? 'main' : 'main';
 
   // Modal state
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -297,6 +306,13 @@ function App() {
       });
       return next;
     });
+    // Focus the drawer when adding a new tab
+    setFocusStates((prev) => {
+      if (prev.get(activeWorktreeId) === 'drawer') return prev;
+      const next = new Map(prev);
+      next.set(activeWorktreeId, 'drawer');
+      return next;
+    });
   }, [activeWorktreeId]);
 
   // Select drawer tab handler
@@ -307,6 +323,13 @@ function App() {
       if (!current) return prev;
       const next = new Map(prev);
       next.set(activeWorktreeId, { ...current, activeTabId: tabId });
+      return next;
+    });
+    // Also set focus to drawer when clicking a tab
+    setFocusStates((prev) => {
+      if (prev.get(activeWorktreeId) === 'drawer') return prev;
+      const next = new Map(prev);
+      next.set(activeWorktreeId, 'drawer');
       return next;
     });
   }, [activeWorktreeId]);
@@ -321,9 +344,16 @@ function App() {
 
     const remaining = current.tabs.filter(t => t.id !== tabId);
 
-    // If closing the last tab for the active worktree, collapse the drawer panel
+    // If closing the last tab for the active worktree, collapse the drawer panel and focus main
     if (remaining.length === 0 && targetWorktreeId === activeWorktreeId) {
       drawerPanelRef.current?.collapse();
+      // Focus back to main pane when closing last drawer tab
+      setFocusStates((prev) => {
+        if (prev.get(targetWorktreeId) === 'main') return prev;
+        const next = new Map(prev);
+        next.set(targetWorktreeId, 'main');
+        return next;
+      });
     }
 
     setDrawerStates((prev) => {
@@ -344,6 +374,25 @@ function App() {
       return next;
     });
   }, [activeWorktreeId, drawerStates]);
+
+  // Focus state handlers - track which pane has focus per worktree
+  const handleMainPaneFocused = useCallback((worktreeId: string) => {
+    setFocusStates((prev) => {
+      if (prev.get(worktreeId) === 'main') return prev;
+      const next = new Map(prev);
+      next.set(worktreeId, 'main');
+      return next;
+    });
+  }, []);
+
+  const handleDrawerFocused = useCallback((worktreeId: string) => {
+    setFocusStates((prev) => {
+      if (prev.get(worktreeId) === 'drawer') return prev;
+      const next = new Map(prev);
+      next.set(worktreeId, 'drawer');
+      return next;
+    });
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -429,13 +478,18 @@ function App() {
         next.delete(worktreeId);
         return next;
       });
-      // Clean up drawer and right panel state for this worktree
+      // Clean up drawer, right panel, and focus state for this worktree
       setDrawerStates((prev) => {
         const next = new Map(prev);
         next.delete(worktreeId);
         return next;
       });
       setRightPanelStates((prev) => {
+        const next = new Map(prev);
+        next.delete(worktreeId);
+        return next;
+      });
+      setFocusStates((prev) => {
         const next = new Map(prev);
         next.delete(worktreeId);
         return next;
@@ -461,13 +515,18 @@ function App() {
         next.delete(pendingDeleteId);
         return next;
       });
-      // Clean up drawer and right panel state for this worktree
+      // Clean up drawer, right panel, and focus state for this worktree
       setDrawerStates((prev) => {
         const next = new Map(prev);
         next.delete(pendingDeleteId);
         return next;
       });
       setRightPanelStates((prev) => {
+        const next = new Map(prev);
+        next.delete(pendingDeleteId);
+        return next;
+      });
+      setFocusStates((prev) => {
         const next = new Map(prev);
         next.delete(pendingDeleteId);
         return next;
@@ -521,7 +580,7 @@ function App() {
         }
         return next;
       });
-      // Clean up drawer and right panel states for project worktrees
+      // Clean up drawer, right panel, and focus states for project worktrees
       setDrawerStates((prev) => {
         const next = new Map(prev);
         for (const id of projectWorktreeIds) {
@@ -530,6 +589,13 @@ function App() {
         return next;
       });
       setRightPanelStates((prev) => {
+        const next = new Map(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
+        }
+        return next;
+      });
+      setFocusStates((prev) => {
         const next = new Map(prev);
         for (const id of projectWorktreeIds) {
           next.delete(id);
@@ -636,6 +702,8 @@ function App() {
                 openWorktreeIds={openWorktreeIds}
                 activeWorktreeId={activeWorktreeId}
                 terminalConfig={config.main}
+                shouldAutoFocus={activeFocusState === 'main'}
+                onFocus={handleMainPaneFocused}
               />
             </Panel>
 
@@ -687,8 +755,15 @@ function App() {
                             (activeDrawerState?.isOpen ?? false) &&
                             tab.id === activeDrawerState?.activeTabId
                           }
+                          shouldAutoFocus={
+                            worktreeId === activeWorktreeId &&
+                            (activeDrawerState?.isOpen ?? false) &&
+                            tab.id === activeDrawerState?.activeTabId &&
+                            activeFocusState === 'drawer'
+                          }
                           terminalConfig={config.terminal}
                           onClose={() => handleCloseDrawerTab(tab.id, worktreeId)}
+                          onFocus={() => handleDrawerFocused(worktreeId)}
                         />
                       </div>
                     ))
