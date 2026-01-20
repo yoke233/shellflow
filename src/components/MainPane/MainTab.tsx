@@ -164,17 +164,23 @@ export function MainTab({ worktree, isActive, terminalConfig }: MainTabProps) {
     };
   }, [worktree.id]); // Only re-run when worktree changes
 
-  // Handle user input - set up immediately when we have ptyId
+  // Store write function in ref so onData handler can use it immediately
+  const writeRef = useRef(write);
+  useEffect(() => {
+    writeRef.current = write;
+  }, [write]);
+
+  // Handle user input - set up immediately so terminal query responses work
   useEffect(() => {
     const terminal = terminalRef.current;
-    if (!terminal || !ptyId) return;
+    if (!terminal) return;
 
     const disposable = terminal.onData((data) => {
-      write(data);
+      writeRef.current(data);
     });
 
     return () => disposable.dispose();
-  }, [ptyId, write]);
+  }, []);
 
   // Store resize function in ref to avoid dependency issues
   const resizeRef = useRef(resize);
