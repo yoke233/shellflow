@@ -215,10 +215,10 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
     []
   );
 
-  // ResizeObserver for container size changes
+  // ResizeObserver for container size changes - only observe when active to avoid unnecessary work
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !ptyId) return;
+    if (!container || !ptyId || !isActive) return;
 
     const resizeObserver = new ResizeObserver(() => {
       debouncedResize();
@@ -226,7 +226,7 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
 
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
-  }, [ptyId, debouncedResize]);
+  }, [ptyId, isActive, debouncedResize]);
 
   // Fit on active change
   useEffect(() => {
