@@ -38,7 +38,7 @@ export function Drawer({
               <div
                 key={tab.id}
                 onClick={() => onSelectTab(tab.id)}
-                className={`flex items-center gap-2 px-3 cursor-pointer border-r border-zinc-800 min-w-0 ${
+                className={`flex items-center gap-2 px-3 border-r border-zinc-800 min-w-0 ${
                   activeTabId === tab.id
                     ? 'bg-zinc-800 text-zinc-100'
                     : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'

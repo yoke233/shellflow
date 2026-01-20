@@ -85,7 +85,7 @@ export function Sidebar({
     <div className="flex flex-col h-full bg-zinc-900 select-none">
       {/* Drag region for macOS traffic lights */}
       <DragRegion className="h-8 flex-shrink-0" />
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-y-auto px-1 py-1">
         {projects.length === 0 ? (
           <div className="text-center py-8 text-zinc-500 text-sm">
             <FolderGit2 className="mx-auto mb-2" size={32} />
@@ -102,9 +102,9 @@ export function Sidebar({
           {projects.map((project) => {
             const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
             return (
-            <div key={project.id} className="mb-2">
+            <div key={project.id} className="mb-1">
               <div
-                className={`group flex items-center gap-1 px-2 py-1.5 rounded cursor-pointer hover:bg-zinc-800 ${
+                className={`group flex items-center gap-1 px-1.5 py-1 rounded hover:bg-zinc-800 ${
                   hasOpenWorktrees ? 'text-zinc-300' : 'text-zinc-500'
                 }`}
                 onClick={() => onToggleProject(project.id)}
@@ -137,11 +137,11 @@ export function Sidebar({
               </div>
 
               {expandedProjects.has(project.id) && (
-                <div className="ml-4 mt-1 space-y-0.5">
+                <div className="ml-3">
                   {project.worktrees.length === 0 ? (
                     <button
                       onClick={() => onAddWorktree(project.id)}
-                      className="flex items-center gap-2 px-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+                      className="flex items-center gap-1.5 px-1.5 py-0.5 text-xs text-zinc-500 hover:text-zinc-300"
                     >
                       <Plus size={12} />
                       Add worktree
@@ -155,7 +155,7 @@ export function Sidebar({
                         <div
                           key={worktree.id}
                           onClick={() => onSelectWorktree(worktree)}
-                          className={`group/worktree flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
+                          className={`group/worktree flex items-center gap-1.5 px-1.5 py-1 rounded text-sm ${
                             isSelected
                               ? 'bg-zinc-700 text-zinc-100'
                               : isOpen
@@ -205,7 +205,7 @@ export function Sidebar({
           )})}
           <button
             onClick={onAddProject}
-            className="flex items-center gap-2 px-2 py-1.5 mt-2 text-xs text-zinc-500 hover:text-zinc-300"
+            className="flex items-center gap-1.5 px-1.5 py-1 mt-1 text-xs text-zinc-500 hover:text-zinc-300"
           >
             <Plus size={12} />
             Add project

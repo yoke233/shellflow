@@ -35,7 +35,7 @@ export function ChangedFiles({ files }: ChangedFilesProps) {
               return (
                 <li
                   key={file.path}
-                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-800 cursor-pointer group"
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-800 group"
                 >
                   <span className={`flex-shrink-0 w-4 text-xs font-mono ${config.color}`}>
                     {config.label}

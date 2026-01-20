@@ -250,7 +250,7 @@ export function MergeModal({
                 After merge
               </label>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteWorktree}
@@ -259,7 +259,7 @@ export function MergeModal({
                   />
                   Delete worktree
                 </label>
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteLocalBranch}
@@ -268,7 +268,7 @@ export function MergeModal({
                   />
                   Delete local branch
                 </label>
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteRemoteBranch}
@@ -290,7 +290,7 @@ export function MergeModal({
                 Cleanup options
               </label>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteWorktree}
@@ -299,7 +299,7 @@ export function MergeModal({
                   />
                   Delete worktree
                 </label>
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteLocalBranch}
@@ -308,7 +308,7 @@ export function MergeModal({
                   />
                   Delete local branch
                 </label>
-                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                <label className="flex items-center gap-2 text-sm text-zinc-400">
                   <input
                     type="checkbox"
                     checked={deleteRemoteBranch}
