@@ -1,8 +1,10 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { listen } from '@tauri-apps/api/event';
+import { Loader2 } from 'lucide-react';
 import { Workspace } from '../../types';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
@@ -29,6 +31,7 @@ export function MainTab({ workspace, isActive, terminalConfig }: MainTabProps) {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const spawnedAtRef = useRef<number>(0); // Track when we spawned to avoid early resizes
+  const [isReady, setIsReady] = useState(false);
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
@@ -38,6 +41,21 @@ export function MainTab({ workspace, isActive, terminalConfig }: MainTabProps) {
   }, []);
 
   const { ptyId, spawn, write, resize, kill } = usePty(handleOutput);
+
+  // Listen for pty-ready event
+  useEffect(() => {
+    if (!ptyId) return;
+
+    const unlisten = listen<{ ptyId: string; workspaceId: string }>('pty-ready', (event) => {
+      if (event.payload.ptyId === ptyId) {
+        setIsReady(true);
+      }
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [ptyId]);
 
   // Store spawn/kill in refs so they're stable for the effect
   const spawnRef = useRef(spawn);
@@ -209,10 +227,21 @@ export function MainTab({ workspace, isActive, terminalConfig }: MainTabProps) {
   }, [isActive]);
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ backgroundColor: '#09090b' }}
-    />
+    <div className="relative w-full h-full" style={{ backgroundColor: '#09090b' }}>
+      {/* Loading overlay */}
+      {!isReady && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 bg-zinc-950">
+          <div className="flex flex-col items-center gap-3 text-zinc-400">
+            <Loader2 size={32} className="animate-spin" />
+            <span className="text-sm">Starting Claude...</span>
+          </div>
+        </div>
+      )}
+      {/* Terminal container */}
+      <div
+        ref={containerRef}
+        className={`w-full h-full transition-opacity duration-200 ${isReady ? 'opacity-100' : 'opacity-0'}`}
+      />
+    </div>
   );
 }

@@ -3,6 +3,7 @@ use parking_lot::Mutex;
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -161,6 +162,10 @@ pub fn spawn_pty(
     // Spawn reader thread
     let app_handle = app.clone();
     let pty_id_clone = pty_id.clone();
+    let workspace_id_clone = workspace_id.to_string();
+    let is_main_command = command == "main";
+    let ready_emitted = Arc::new(AtomicBool::new(false));
+    let ready_emitted_clone = ready_emitted.clone();
 
     thread::spawn(move || {
         eprintln!("[PTY:{}] Reader thread started", pty_id_clone);
@@ -189,6 +194,16 @@ pub fn spawn_pty(
                     total_bytes += n;
                     if read_count <= 5 || read_count % 100 == 0 {
                         eprintln!("[PTY:{}] Read {} bytes (total: {})", pty_id_clone, n, total_bytes);
+                    }
+
+                    // Emit pty-ready event on first substantial output for main command
+                    if is_main_command && !ready_emitted_clone.load(Ordering::SeqCst) && total_bytes > 50 {
+                        ready_emitted_clone.store(true, Ordering::SeqCst);
+                        eprintln!("[PTY:{}] Emitting pty-ready event for workspace {}", pty_id_clone, workspace_id_clone);
+                        let _ = app_handle.emit("pty-ready", serde_json::json!({
+                            "ptyId": pty_id_clone,
+                            "workspaceId": workspace_id_clone,
+                        }));
                     }
 
                     // Combine any leftover bytes with new data

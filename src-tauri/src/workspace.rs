@@ -1,7 +1,9 @@
 use crate::git;
 use crate::state::{Project, Workspace};
+use log::info;
 use rand::seq::SliceRandom;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -85,17 +87,25 @@ pub fn create_workspace(
     name: Option<String>,
     worktree_directory: Option<&str>,
 ) -> Result<Workspace, WorkspaceError> {
+    let total_start = Instant::now();
+    info!("[workspace::create_workspace] Starting...");
+
     let workspace_name = name.unwrap_or_else(generate_workspace_name);
+    info!("[workspace::create_workspace] workspace_name: {}", workspace_name);
 
     // Create workspace directory
     let project_path = Path::new(&project.path);
     let worktree_base = resolve_worktree_directory(worktree_directory, project_path);
     let workspace_path = worktree_base.join(&workspace_name);
 
+    let start = Instant::now();
     std::fs::create_dir_all(&worktree_base)?;
+    info!("[workspace::create_workspace] create_dir_all took {:?}", start.elapsed());
 
     // Create git worktree
+    let start = Instant::now();
     git::create_worktree(project_path, &workspace_path, &workspace_name)?;
+    info!("[workspace::create_workspace] git::create_worktree took {:?}", start.elapsed());
 
     let workspace = Workspace {
         id: Uuid::new_v4().to_string(),
@@ -107,6 +117,7 @@ pub fn create_workspace(
 
     project.workspaces.push(workspace.clone());
 
+    info!("[workspace::create_workspace] TOTAL took {:?}", total_start.elapsed());
     Ok(workspace)
 }
 
@@ -116,13 +127,23 @@ pub fn copy_gitignored_files(
     workspace_path: &Path,
     except: &[String],
 ) -> Result<(), WorkspaceError> {
+    let total_start = Instant::now();
+    info!("[copy_gitignored_files] Starting...");
+    info!("[copy_gitignored_files] except patterns: {:?}", except);
+
+    let start = Instant::now();
     let ignored_entries = git::get_ignored_files(project_path)?;
+    info!("[copy_gitignored_files] get_ignored_files took {:?}, found {} entries", start.elapsed(), ignored_entries.len());
 
     // Compile glob patterns for exceptions
     let patterns: Vec<glob::Pattern> = except
         .iter()
         .filter_map(|p| glob::Pattern::new(p).ok())
         .collect();
+
+    let mut copied_count = 0;
+    let mut skipped_count = 0;
+    let mut copy_time = std::time::Duration::ZERO;
 
     for entry in ignored_entries {
         // Remove trailing slash if present (directories come with trailing /)
@@ -138,6 +159,7 @@ pub fn copy_gitignored_files(
         });
 
         if should_skip {
+            skipped_count += 1;
             continue;
         }
 
@@ -155,13 +177,19 @@ pub fn copy_gitignored_files(
         }
 
         // Copy file or directory
+        let start = Instant::now();
         if src.is_dir() {
             copy_dir_recursive(&src, &dst)?;
         } else {
             std::fs::copy(&src, &dst)?;
         }
+        copy_time += start.elapsed();
+        copied_count += 1;
     }
 
+    info!("[copy_gitignored_files] Copied {} entries, skipped {} entries", copied_count, skipped_count);
+    info!("[copy_gitignored_files] Total copy time: {:?}", copy_time);
+    info!("[copy_gitignored_files] TOTAL took {:?}", total_start.elapsed());
     Ok(())
 }
 

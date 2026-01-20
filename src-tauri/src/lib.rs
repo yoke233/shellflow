@@ -5,10 +5,12 @@ mod state;
 mod watcher;
 mod workspace;
 
+use log::info;
 use state::{AppState, FileChange, Project, Workspace};
 use std::path::Path;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use std::time::Instant;
+use tauri::{AppHandle, Emitter, State};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -54,8 +56,16 @@ fn create_workspace(
     project_path: &str,
     name: Option<String>,
 ) -> Result<Workspace> {
+    let total_start = Instant::now();
+    info!("[create_workspace] Starting...");
+
+    let start = Instant::now();
     let cfg = config::load_config();
+    info!("[create_workspace] load_config took {:?}", start.elapsed());
+
+    let start = Instant::now();
     let mut persisted = state.persisted.write();
+    info!("[create_workspace] acquire write lock took {:?}", start.elapsed());
 
     let project = persisted
         .projects
@@ -64,30 +74,61 @@ fn create_workspace(
         .ok_or_else(|| format!("Project not found: {}", project_path))?;
 
     let project_path_buf = Path::new(&project.path).to_path_buf();
+
+    let start = Instant::now();
     let ws = workspace::create_workspace(
         project,
         name,
         cfg.worktree.directory.as_deref(),
     )
     .map_err(map_err)?;
+    info!("[create_workspace] workspace::create_workspace took {:?}", start.elapsed());
 
-    // Copy gitignored files if enabled in config
+    // Copy gitignored files if enabled in config (in background thread)
     if cfg.worktree.copy.gitignored {
-        let workspace_path = Path::new(&ws.path);
-        workspace::copy_gitignored_files(
-            &project_path_buf,
-            workspace_path,
-            &cfg.worktree.copy.except,
-        )
-        .map_err(map_err)?;
+        let workspace_path = ws.path.clone();
+        let workspace_id = ws.id.clone();
+        let except = cfg.worktree.copy.except.clone();
+        let app_handle = app.clone();
+
+        // Emit copy started event
+        let _ = app_handle.emit("workspace-copy-started", &workspace_id);
+
+        std::thread::spawn(move || {
+            let start = Instant::now();
+            let result = workspace::copy_gitignored_files(
+                &project_path_buf,
+                Path::new(&workspace_path),
+                &except,
+            );
+
+            match &result {
+                Ok(()) => info!("[create_workspace] background copy_gitignored_files took {:?}", start.elapsed()),
+                Err(e) => info!("[create_workspace] background copy_gitignored_files failed: {}", e),
+            }
+
+            // Emit copy completed event
+            let _ = app_handle.emit("workspace-copy-completed", serde_json::json!({
+                "workspaceId": workspace_id,
+                "success": result.is_ok(),
+                "durationMs": start.elapsed().as_millis() as u64,
+            }));
+        });
+        info!("[create_workspace] spawned background thread for copy_gitignored_files");
     }
 
     // Start file watcher for this workspace
+    let start = Instant::now();
     watcher::watch_workspace(app.clone(), ws.id.clone(), ws.path.clone());
+    info!("[create_workspace] watch_workspace took {:?}", start.elapsed());
 
     drop(persisted);
-    state.save().map_err(map_err)?;
 
+    let start = Instant::now();
+    state.save().map_err(map_err)?;
+    info!("[create_workspace] state.save took {:?}", start.elapsed());
+
+    info!("[create_workspace] TOTAL took {:?}", total_start.elapsed());
     Ok(ws)
 }
 
@@ -208,6 +249,8 @@ fn stop_watching(workspace_id: String) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let app_state = Arc::new(AppState::load_or_default());
 
     tauri::Builder::default()

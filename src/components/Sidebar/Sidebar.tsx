@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, GitBranch, MoreHorizontal, Trash2 } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, GitBranch, MoreHorizontal, Trash2, Loader2 } from 'lucide-react';
 import { Project, Workspace } from '../../types';
 import { useState } from 'react';
 import { DragRegion } from '../DragRegion';
@@ -7,6 +7,7 @@ import { ContextMenu } from '../ContextMenu';
 interface SidebarProps {
   projects: Project[];
   selectedWorkspaceId: string | null;
+  loadingWorkspaces: Set<string>;
   onSelectWorkspace: (workspace: Workspace) => void;
   onAddProject: () => void;
   onAddWorkspace: (projectId: string) => void;
@@ -17,6 +18,7 @@ interface SidebarProps {
 export function Sidebar({
   projects,
   selectedWorkspaceId,
+  loadingWorkspaces,
   onSelectWorkspace,
   onAddProject,
   onAddWorkspace,
@@ -139,30 +141,37 @@ export function Sidebar({
                       Add workspace
                     </button>
                   ) : (
-                    project.workspaces.map((workspace) => (
-                      <div
-                        key={workspace.id}
-                        onClick={() => onSelectWorkspace(workspace)}
-                        className={`group/workspace flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
-                          selectedWorkspaceId === workspace.id
-                            ? 'bg-zinc-700 text-zinc-100'
-                            : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                        }`}
-                      >
-                        <GitBranch size={12} />
-                        <span className="truncate flex-1">{workspace.name}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDeleteWorkspace(workspace);
-                          }}
-                          className="p-0.5 rounded hover:bg-zinc-600 text-zinc-500 hover:text-red-400 opacity-0 group-hover/workspace:opacity-100"
-                          title="Delete Workspace"
+                    project.workspaces.map((workspace) => {
+                      const isLoading = loadingWorkspaces.has(workspace.id);
+                      return (
+                        <div
+                          key={workspace.id}
+                          onClick={() => onSelectWorkspace(workspace)}
+                          className={`group/workspace flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer text-sm ${
+                            selectedWorkspaceId === workspace.id
+                              ? 'bg-zinc-700 text-zinc-100'
+                              : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                          }`}
                         >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    ))
+                          <GitBranch size={12} />
+                          <span className="truncate flex-1">{workspace.name}</span>
+                          {isLoading ? (
+                            <Loader2 size={12} className="animate-spin text-blue-400" title="Starting Claude..." />
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteWorkspace(workspace);
+                              }}
+                              className="p-0.5 rounded hover:bg-zinc-600 text-zinc-500 hover:text-red-400 opacity-0 group-hover/workspace:opacity-100"
+                              title="Delete Workspace"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}

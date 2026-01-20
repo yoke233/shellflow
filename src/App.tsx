@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { listen } from '@tauri-apps/api/event';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { MainPane } from './components/MainPane/MainPane';
 import { RightPanel } from './components/RightPanel/RightPanel';
@@ -17,6 +18,26 @@ function App() {
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingRemoveProject, setPendingRemoveProject] = useState<Project | null>(null);
+  const [loadingWorkspaces, setLoadingWorkspaces] = useState<Set<string>>(new Set());
+
+  // Listen for workspace ready events (when Claude has started)
+  useEffect(() => {
+    const unlistenReady = listen<{ ptyId: string; workspaceId: string }>(
+      'pty-ready',
+      (event) => {
+        setLoadingWorkspaces((prev) => {
+          const next = new Set(prev);
+          next.delete(event.payload.workspaceId);
+          return next;
+        });
+        console.log(`Workspace ready: ${event.payload.workspaceId}`);
+      }
+    );
+
+    return () => {
+      unlistenReady.then((fn) => fn());
+    };
+  }, []);
 
   const activeWorkspace = openWorkspaces.find((w) => w.id === activeWorkspaceId) || null;
   const { files: changedFiles } = useGitStatus(activeWorkspace);
@@ -39,6 +60,8 @@ function App() {
 
       try {
         const workspace = await createWorkspace(project.path);
+        // Mark as loading until Claude is ready
+        setLoadingWorkspaces((prev) => new Set([...prev, workspace.id]));
         setOpenWorkspaces((prev) => [...prev, workspace]);
         setActiveWorkspaceId(workspace.id);
       } catch (err) {
@@ -157,6 +180,7 @@ function App() {
             <Sidebar
               projects={projects}
               selectedWorkspaceId={activeWorkspaceId}
+              loadingWorkspaces={loadingWorkspaces}
               onSelectWorkspace={handleSelectWorkspace}
               onAddProject={handleAddProject}
               onAddWorkspace={handleAddWorkspace}
