@@ -116,7 +116,7 @@ pub fn copy_gitignored_files(
     workspace_path: &Path,
     except: &[String],
 ) -> Result<(), WorkspaceError> {
-    let ignored_files = git::get_ignored_files(project_path)?;
+    let ignored_entries = git::get_ignored_files(project_path)?;
 
     // Compile glob patterns for exceptions
     let patterns: Vec<glob::Pattern> = except
@@ -124,12 +124,15 @@ pub fn copy_gitignored_files(
         .filter_map(|p| glob::Pattern::new(p).ok())
         .collect();
 
-    for file_path in ignored_files {
+    for entry in ignored_entries {
+        // Remove trailing slash if present (directories come with trailing /)
+        let file_path = entry.trim_end_matches('/');
+
         // Check if this path matches any exception pattern
         let should_skip = patterns.iter().any(|pattern| {
             // Match against the file path and also check if it starts with the pattern
             // (to handle directories like ".claude" matching ".claude/foo")
-            pattern.matches(&file_path)
+            pattern.matches(file_path)
                 || file_path.starts_with(&format!("{}/", pattern.as_str()))
                 || file_path == pattern.as_str()
         });
@@ -138,8 +141,8 @@ pub fn copy_gitignored_files(
             continue;
         }
 
-        let src = project_path.join(&file_path);
-        let dst = workspace_path.join(&file_path);
+        let src = project_path.join(file_path);
+        let dst = workspace_path.join(file_path);
 
         // Skip if source doesn't exist (shouldn't happen, but be safe)
         if !src.exists() {

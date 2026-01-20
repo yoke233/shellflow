@@ -46,7 +46,7 @@ impl Default for CopyConfig {
     fn default() -> Self {
         Self {
             gitignored: false,
-            except: vec![".claude".to_string()],
+            except: vec![".claude".to_string(), ".worktrees".to_string()],
         }
     }
 }
@@ -111,8 +111,8 @@ pub fn load_config() -> Config {
     "copy": {
       // Copy gitignored files (e.g., .env, node_modules)
       "gitIgnored": false,
-      // Glob patterns to exclude from copying (default: [".claude"])
-      "except": [".claude"]
+      // Glob patterns to exclude from copying
+      "except": [".claude", ".worktrees"]
     }
   }
 }
