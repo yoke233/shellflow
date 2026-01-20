@@ -21,6 +21,12 @@
 
 <br />
 
+<p align="center">
+  <img src="screenshot.png" alt="One Man Band Screenshot" width="800" />
+</p>
+
+<br />
+
 Heavily inspired by [Conductor](https://docs.conductor.build) and [Worktrunk](https://worktrunk.dev), with more focus on simplicity.
 
 > [!WARNING]
