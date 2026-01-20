@@ -67,6 +67,8 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
 
 - **Project Management** — Add git repositories and manage multiple worktrees
 - **Worktree Orchestration** — Create isolated git worktrees with random names (e.g., "fuzzy-tiger")
+  - **Create worktree** — Generates a worktree with a random branch name
+  - **Merge worktree** — Merges/rebases, deletes branch + worktree + remote branch (optionally)
 - **Configurable Main Command** — Launch Claude, Aider, or any CLI tool in each worktree
 - **Change View** — Real-time display of changed files in each worktree
 - **Terminal Access** — Shell access in each worktree
