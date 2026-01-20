@@ -243,7 +243,7 @@ function App() {
     if (!activeWorktreeId) return;
 
     // Track last open size (only when not collapsed)
-    if (size.inPixels >= 200) {
+    if (size.inPixels >= 150) {
       lastRightPanelSize.current = size.inPixels;
     }
 
@@ -695,7 +695,7 @@ function App() {
         <Panel
           panelRef={rightPanelRef}
           defaultSize="0px"
-          minSize="200px"
+          minSize="150px"
           maxSize="450px"
           collapsible
           collapsedSize="0px"
