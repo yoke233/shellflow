@@ -77,14 +77,12 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
 
 ## Keyboard Shortcuts
 
-Currently cannot be customised (coming soon).
+| Shortcut  | Action                               |
+| --------- | ------------------------------------ |
+| `Ctrl+\`` | Toggle drawer (terminal panel)       |
+| `Cmd+B`   | Toggle right sidebar (changed files) |
 
-| Shortcut  | Action                                   |
-| --------- | ---------------------------------------- |
-| `Ctrl+\`` | Toggle drawer (terminal panel)           |
-| `Cmd+B`   | Toggle right sidebar (changed files)     |
-| `Cmd+T`   | New terminal tab (when drawer is open)   |
-| `Cmd+W`   | Close terminal tab (when drawer is open) |
+Shortcuts can be customized via `mappings` in the [config](#configuration).
 
 ## Installation
 
@@ -161,37 +159,14 @@ The built application will be available at:
 
 Settings are stored in `~/.config/onemanband/config.jsonc`. The file is created with defaults on first run.
 
-```jsonc
-{
-  // Main terminal pane (runs your AI coding tool)
-  "main": {
-    "command": "claude",
-    "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
-    "fontSize": 13,
-    "fontLigatures": false, // Enable for ligature fonts (disables WebGL)
-  },
+See [default_config.jsonc](src-tauri/src/default_config.jsonc) for all available options.
 
-  // Shell terminal (bottom-right pane)
-  "terminal": {
-    "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
-    "fontSize": 13,
-    "fontLigatures": false, // Enable for ligature fonts (disables WebGL)
-  },
+### Project-specific overrides
 
-  "worktree": {
-    // Directory for worktrees. Final path: {directory}/{worktree_name}
-    // Supports placeholder: {{ repo_directory }}
-    "directory": "{{ repo_directory }}/.worktrees",
+You can override settings per-project by creating config files in the project directory:
 
-    "copy": {
-      // Copy gitignored files (e.g., .env, node_modules)
-      "gitignored": false,
-      // Glob patterns to exclude from copying
-      "except": [".claude"],
-    },
-  },
-}
-```
+- `.onemanband/config.jsonc` — shared with the team (commit to git)
+- `.onemanband/config.local.jsonc` — local overrides (add to `.gitignore`)
 
 ### Attribution
 
