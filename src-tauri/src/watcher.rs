@@ -15,6 +15,11 @@ pub struct FilesChanged {
     pub files: Vec<FileChange>,
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct WorktreeRemoved {
+    pub worktree_path: String,
+}
+
 // Track active watchers so we can stop them
 lazy_static::lazy_static! {
     static ref WATCHERS: Mutex<HashMap<String, Sender<()>>> = Mutex::new(HashMap::new());
@@ -60,6 +65,10 @@ pub fn watch_worktree(app: AppHandle, worktree_id: String, worktree_path: String
         let mut pending_update = false;
         let mut last_event_time = std::time::Instant::now();
 
+        // Check for external folder deletion every 2 seconds (not every loop iteration)
+        let existence_check_interval = Duration::from_secs(2);
+        let mut last_existence_check = std::time::Instant::now();
+
         loop {
             // Check for stop signal
             if stop_rx.try_recv().is_ok() {
@@ -79,6 +88,24 @@ pub fn watch_worktree(app: AppHandle, worktree_id: String, worktree_path: String
                 }
                 Err(_) => {
                     // Timeout - check if we should process pending update
+                }
+            }
+
+            // Periodically check if worktree folder was deleted externally
+            if last_existence_check.elapsed() >= existence_check_interval {
+                last_existence_check = std::time::Instant::now();
+                if !path.exists() {
+                    eprintln!(
+                        "[Watcher] Worktree folder deleted externally: {}",
+                        worktree_path
+                    );
+                    let _ = app.emit(
+                        "worktree-removed",
+                        WorktreeRemoved {
+                            worktree_path: worktree_path.clone(),
+                        },
+                    );
+                    break;
                 }
             }
 

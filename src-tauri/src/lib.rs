@@ -46,6 +46,13 @@ fn list_projects(state: State<'_, Arc<AppState>>) -> Result<Vec<Project>> {
 fn remove_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
     {
         let mut persisted = state.persisted.write();
+        // Find and clean up watchers before removing project
+        if let Some(project) = persisted.projects.iter().find(|p| p.id == project_id) {
+            // Stop watching individual worktrees
+            for wt in &project.worktrees {
+                watcher::stop_watching(&wt.id);
+            }
+        }
         persisted.projects.retain(|p| p.id != project_id);
     }
     state.save().map_err(map_err)?;
@@ -94,6 +101,7 @@ fn create_worktree(
         let worktree_id = wt.id.clone();
         let except = cfg.worktree.copy.except.clone();
         let app_handle = app.clone();
+        let project_path_buf_clone = project_path_buf.clone();
 
         // Emit copy started event
         let _ = app_handle.emit("worktree-copy-started", &worktree_id);
@@ -101,7 +109,7 @@ fn create_worktree(
         std::thread::spawn(move || {
             let start = Instant::now();
             let result = worktree::copy_gitignored_files(
-                &project_path_buf,
+                &project_path_buf_clone,
                 Path::new(&worktree_path),
                 &except,
             );
@@ -164,6 +172,34 @@ fn delete_worktree(state: State<'_, Arc<AppState>>, worktree_id: &str) -> Result
     }
 
     Err(format!("Worktree not found: {}", worktree_id))
+}
+
+/// Remove a worktree from state by its path (used when worktree folder is deleted externally)
+#[tauri::command]
+fn remove_stale_worktree(state: State<'_, Arc<AppState>>, worktree_path: &str) -> Result<()> {
+    let mut persisted = state.persisted.write();
+
+    for project in &mut persisted.projects {
+        if let Some(idx) = project.worktrees.iter().position(|w| w.path == worktree_path) {
+            let worktree = &project.worktrees[idx];
+            info!(
+                "[remove_stale_worktree] Removing '{}' from project '{}'",
+                worktree.name, project.name
+            );
+
+            // Stop watching this worktree
+            watcher::stop_watching(&worktree.id);
+
+            // Remove from state (don't try to delete files - they're already gone)
+            project.worktrees.remove(idx);
+            drop(persisted);
+            state.save().map_err(map_err)?;
+            return Ok(());
+        }
+    }
+
+    // Not found is OK - might have already been cleaned up
+    Ok(())
 }
 
 // PTY commands
@@ -672,6 +708,20 @@ pub fn run() {
                 }
             });
 
+            // Start file watchers for all existing worktrees
+            // This enables detection of externally deleted worktree folders
+            let app_state = app.state::<Arc<AppState>>();
+            let persisted = app_state.persisted.read();
+            for project in &persisted.projects {
+                for wt in &project.worktrees {
+                    watcher::watch_worktree(
+                        app.handle().clone(),
+                        wt.id.clone(),
+                        wt.path.clone(),
+                    );
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -681,6 +731,7 @@ pub fn run() {
             create_worktree,
             list_worktrees,
             delete_worktree,
+            remove_stale_worktree,
             spawn_main,
             spawn_terminal,
             spawn_project_shell,

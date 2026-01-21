@@ -76,8 +76,34 @@ impl AppState {
             let state_file = config_dir.join(".onemanband").join("state.json");
             if state_file.exists() {
                 if let Ok(content) = std::fs::read_to_string(&state_file) {
-                    if let Ok(persisted) = serde_json::from_str::<PersistedState>(&content) {
+                    if let Ok(mut persisted) = serde_json::from_str::<PersistedState>(&content) {
+                        // Clean up stale worktrees whose directories no longer exist
+                        let mut cleaned = false;
+                        for project in &mut persisted.projects {
+                            let before_count = project.worktrees.len();
+                            project.worktrees.retain(|w| {
+                                let exists = std::path::Path::new(&w.path).exists();
+                                if !exists {
+                                    eprintln!(
+                                        "[State] Removing stale worktree '{}' - path no longer exists: {}",
+                                        w.name, w.path
+                                    );
+                                }
+                                exists
+                            });
+                            if project.worktrees.len() != before_count {
+                                cleaned = true;
+                            }
+                        }
+
                         *state.persisted.write() = persisted;
+
+                        // Save cleaned state if any worktrees were removed
+                        if cleaned {
+                            if let Err(e) = state.save() {
+                                eprintln!("[State] Failed to save cleaned state: {}", e);
+                            }
+                        }
                     }
                 }
             }

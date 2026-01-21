@@ -1,6 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Project, Worktree } from '../types';
+
+interface WorktreeRemoved {
+  worktree_path: string;
+}
 
 export function useWorktrees() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -23,6 +28,34 @@ export function useWorktrees() {
 
   useEffect(() => {
     loadProjects();
+  }, [loadProjects]);
+
+  // Listen for worktree-removed events (when worktree folder is deleted externally)
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+
+    listen<WorktreeRemoved>('worktree-removed', async (event) => {
+      console.log('[useWorktrees] Worktree folder removed:', event.payload.worktree_path);
+
+      // Remove the stale worktree from backend state
+      try {
+        await invoke('remove_stale_worktree', {
+          worktreePath: event.payload.worktree_path,
+        });
+        // Refresh projects to update UI
+        await loadProjects();
+      } catch (err) {
+        console.error('[useWorktrees] Failed to remove stale worktree:', err);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
   }, [loadProjects]);
 
   const addProject = useCallback(async (path: string) => {
