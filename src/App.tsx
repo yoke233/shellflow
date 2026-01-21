@@ -87,12 +87,28 @@ function App() {
     return new Map();
   });
 
-  // Per-worktree running task state
-  const [runningTasks, setRunningTasks] = useState<Map<string, { taskName: string; ptyId: string; status: 'running' | 'stopping' | 'stopped' }>>(new Map());
+  // Per-worktree running tasks state (supports multiple tasks per worktree)
+  const [runningTasks, setRunningTasks] = useState<Map<string, Array<{ taskName: string; ptyId: string; status: 'running' | 'stopping' | 'stopped' }>>>(new Map());
 
   // Get current project's selected task
   const activeSelectedTask = activeProjectPath ? selectedTasksByProject.get(activeProjectPath) ?? null : null;
-  const activeRunningTask = activeWorktreeId ? runningTasks.get(activeWorktreeId) ?? null : null;
+  // Find the running task that matches the selected task (for TaskSelector controls)
+  const activeRunningTask = useMemo(() => {
+    if (!activeWorktreeId || !activeSelectedTask) return null;
+    const tasks = runningTasks.get(activeWorktreeId) ?? [];
+    return tasks.find(t => t.taskName === activeSelectedTask) ?? null;
+  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
+
+  // Task statuses map for the active worktree (for Drawer tab icons)
+  const activeTaskStatuses = useMemo(() => {
+    const statuses = new Map<string, 'running' | 'stopping' | 'stopped'>();
+    if (!activeWorktreeId) return statuses;
+    const tasks = runningTasks.get(activeWorktreeId) ?? [];
+    for (const task of tasks) {
+      statuses.set(task.taskName, task.status);
+    }
+    return statuses;
+  }, [activeWorktreeId, runningTasks]);
 
   // Persist selected tasks to localStorage
   useEffect(() => {
@@ -186,6 +202,18 @@ function App() {
       .filter(w => openWorktreeIds.has(w.id))
       .map(w => w.id);
   }, [projects, openWorktreeIds]);
+
+  // Worktrees with running tasks and their counts (for sidebar indicator)
+  const runningTaskCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const [worktreeId, tasks] of runningTasks.entries()) {
+      const runningCount = tasks.filter(t => t.status === 'running').length;
+      if (runningCount > 0) {
+        counts.set(worktreeId, runningCount);
+      }
+    }
+    return counts;
+  }, [runningTasks]);
 
   // Expanded projects - persisted to localStorage
   const hasInitialized = useRef(localStorage.getItem(EXPANDED_PROJECTS_KEY) !== null);
@@ -596,8 +624,9 @@ function App() {
     if (!task) return;
 
     // Check if this task is already running
-    const currentRunningTask = runningTasks.get(activeWorktreeId);
-    if (currentRunningTask?.taskName === activeSelectedTask && currentRunningTask?.status === 'running') {
+    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
+    const existingTask = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
+    if (existingTask) {
       // Task is already running, just switch to its tab (if not silent)
       if (!task.silent) {
         const tabId = `${activeWorktreeId}-task-${activeSelectedTask}`;
@@ -622,11 +651,10 @@ function App() {
         // Track the silent task so we can stop it
         setRunningTasks((prev) => {
           const next = new Map(prev);
-          next.set(activeWorktreeId, {
-            taskName: activeSelectedTask,
-            ptyId,
-            status: 'running',
-          });
+          const existing = prev.get(activeWorktreeId) ?? [];
+          // Remove any stopped instance of this task, add new running one
+          const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
+          next.set(activeWorktreeId, [...filtered, { taskName: activeSelectedTask, ptyId, status: 'running' }]);
           return next;
         });
       } catch (err) {
@@ -668,11 +696,10 @@ function App() {
     // Mark task as running (ptyId will be set by TaskTerminal)
     setRunningTasks((prev) => {
       const next = new Map(prev);
-      next.set(activeWorktreeId, {
-        taskName: activeSelectedTask,
-        ptyId: '', // Will be set when TaskTerminal spawns
-        status: 'running',
-      });
+      const existing = prev.get(activeWorktreeId) ?? [];
+      // Remove any stopped instance of this task, add new running one
+      const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
+      next.set(activeWorktreeId, [...filtered, { taskName: activeSelectedTask, ptyId: '', status: 'running' }]);
       return next;
     });
 
@@ -685,17 +712,18 @@ function App() {
   }, [activeWorktreeId, activeSelectedTask, config.tasks, isDrawerOpen, runningTasks]);
 
   const handleStopTask = useCallback(() => {
-    if (!activeWorktreeId) return;
+    if (!activeWorktreeId || !activeSelectedTask) return;
 
-    const runningTask = runningTasks.get(activeWorktreeId);
-    if (!runningTask) return;
+    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
+    const taskToStop = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
+    if (!taskToStop) return;
 
-    console.log('[handleStopTask] runningTask:', runningTask);
+    console.log('[handleStopTask] taskToStop:', taskToStop);
 
     // Kill the PTY if we have an ID
-    if (runningTask.ptyId) {
-      console.log('[handleStopTask] Killing PTY:', runningTask.ptyId);
-      ptyKill(runningTask.ptyId);
+    if (taskToStop.ptyId) {
+      console.log('[handleStopTask] Killing PTY:', taskToStop.ptyId);
+      ptyKill(taskToStop.ptyId);
     } else {
       console.warn('[handleStopTask] No ptyId available!');
     }
@@ -703,40 +731,54 @@ function App() {
     // Mark task as stopping (not stopped yet - waiting for process to exit)
     setRunningTasks((prev) => {
       const next = new Map(prev);
-      next.set(activeWorktreeId, { ...runningTask, status: 'stopping' });
+      const existing = prev.get(activeWorktreeId) ?? [];
+      const updated = existing.map(t =>
+        t.taskName === activeSelectedTask && t.status === 'running'
+          ? { ...t, status: 'stopping' as const }
+          : t
+      );
+      next.set(activeWorktreeId, updated);
       return next;
     });
-  }, [activeWorktreeId, runningTasks]);
+  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
 
   const handleForceKillTask = useCallback(() => {
-    if (!activeWorktreeId) return;
+    if (!activeWorktreeId || !activeSelectedTask) return;
 
-    const runningTask = runningTasks.get(activeWorktreeId);
-    if (!runningTask || runningTask.status !== 'stopping') return;
+    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
+    const taskToKill = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'stopping');
+    if (!taskToKill) return;
 
     // Force kill the PTY with SIGKILL
-    if (runningTask.ptyId) {
-      ptyForceKill(runningTask.ptyId);
+    if (taskToKill.ptyId) {
+      ptyForceKill(taskToKill.ptyId);
     }
-  }, [activeWorktreeId, runningTasks]);
+  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
 
-  const handleTaskExit = useCallback((worktreeId: string, _exitCode: number) => {
+  const handleTaskExit = useCallback((worktreeId: string, taskName: string, _exitCode: number) => {
     setRunningTasks((prev) => {
-      const current = prev.get(worktreeId);
-      if (!current) return prev;
+      const existing = prev.get(worktreeId);
+      if (!existing) return prev;
       const next = new Map(prev);
-      next.set(worktreeId, { ...current, status: 'stopped' });
+      const updated = existing.map(t =>
+        t.taskName === taskName ? { ...t, status: 'stopped' as const } : t
+      );
+      next.set(worktreeId, updated);
       return next;
     });
   }, []);
 
-  const handleTaskPtyIdReady = useCallback((worktreeId: string, ptyId: string) => {
-    console.log('[handleTaskPtyIdReady] worktreeId:', worktreeId, 'ptyId:', ptyId);
+  const handleTaskPtyIdReady = useCallback((worktreeId: string, taskName: string, ptyId: string) => {
+    console.log('[handleTaskPtyIdReady] worktreeId:', worktreeId, 'taskName:', taskName, 'ptyId:', ptyId);
     setRunningTasks((prev) => {
-      const current = prev.get(worktreeId);
-      if (!current) return prev;
+      const existing = prev.get(worktreeId);
+      if (!existing) return prev;
       const next = new Map(prev);
-      next.set(worktreeId, { ...current, ptyId });
+      // Find the task with matching name that doesn't have a ptyId yet
+      const updated = existing.map(t =>
+        t.taskName === taskName && !t.ptyId ? { ...t, ptyId } : t
+      );
+      next.set(worktreeId, updated);
       return next;
     });
   }, []);
@@ -746,12 +788,15 @@ function App() {
     let unlisten: (() => void) | null = null;
 
     listen<{ ptyId: string; exitCode: number }>('pty-exit', (event) => {
-      // Find which worktree this ptyId belongs to and update status
+      // Find which worktree/task this ptyId belongs to and update status
       setRunningTasks((prev) => {
-        for (const [worktreeId, task] of prev.entries()) {
-          if (task.ptyId === event.payload.ptyId) {
+        for (const [worktreeId, tasks] of prev.entries()) {
+          const taskIndex = tasks.findIndex(t => t.ptyId === event.payload.ptyId);
+          if (taskIndex !== -1) {
             const next = new Map(prev);
-            next.set(worktreeId, { ...task, status: 'stopped' });
+            const updated = [...tasks];
+            updated[taskIndex] = { ...updated[taskIndex], status: 'stopped' };
+            next.set(worktreeId, updated);
             return next;
           }
         }
@@ -1293,6 +1338,7 @@ function App() {
               loadingWorktrees={loadingWorktrees}
               notifiedWorktreeIds={notifiedWorktreeIds}
               thinkingWorktreeIds={thinkingWorktreeIds}
+              runningTaskCounts={runningTaskCounts}
               expandedProjects={expandedProjects}
               showActiveOnly={showActiveOnly}
               sessionTouchedProjects={sessionTouchedProjects}
@@ -1393,7 +1439,7 @@ function App() {
                   worktreeId={activeWorktreeId}
                   tabs={activeDrawerTabs}
                   activeTabId={activeDrawerTabId}
-                  taskStatus={activeRunningTask?.status}
+                  taskStatuses={activeTaskStatuses}
                   onSelectTab={handleSelectDrawerTab}
                   onCloseTab={handleCloseDrawerTab}
                   onAddTab={handleAddDrawerTab}
@@ -1429,8 +1475,8 @@ function App() {
                             }
                             terminalConfig={config.terminal}
                             mappings={config.mappings}
-                            onPtyIdReady={(ptyId) => handleTaskPtyIdReady(worktreeId, ptyId)}
-                            onTaskExit={(exitCode) => handleTaskExit(worktreeId, exitCode)}
+                            onPtyIdReady={(ptyId) => handleTaskPtyIdReady(worktreeId, tab.taskName!, ptyId)}
+                            onTaskExit={(exitCode) => handleTaskExit(worktreeId, tab.taskName!, exitCode)}
                             onFocus={() => handleDrawerFocused(worktreeId)}
                           />
                         ) : (

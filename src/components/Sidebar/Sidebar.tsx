@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, GitBranch, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, GitBranch, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle } from 'lucide-react';
 import { Project, Worktree, RunningTask } from '../../types';
 import { TaskConfig } from '../../hooks/useConfig';
 import { useState, useMemo } from 'react';
@@ -17,6 +17,7 @@ interface SidebarProps {
   loadingWorktrees: Set<string>;
   notifiedWorktreeIds: Set<string>;
   thinkingWorktreeIds: Set<string>;
+  runningTaskCounts: Map<string, number>;
   expandedProjects: Set<string>;
   showActiveOnly: boolean;
   sessionTouchedProjects: Set<string>;
@@ -56,6 +57,7 @@ export function Sidebar({
   loadingWorktrees,
   notifiedWorktreeIds,
   thinkingWorktreeIds,
+  runningTaskCounts,
   expandedProjects,
   showActiveOnly,
   sessionTouchedProjects,
@@ -285,6 +287,17 @@ export function Sidebar({
                             <span className="flex-shrink-0 w-3 text-xs text-zinc-400 text-center font-medium">{shortcutNumber}</span>
                           ) : (
                             <GitBranch size={12} className={`flex-shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'}`} />
+                          )}
+                          {/* Task running indicator - always visible when tasks are running */}
+                          {runningTaskCounts.has(worktree.id) && (
+                            <span title={`${runningTaskCounts.get(worktree.id)} task${runningTaskCounts.get(worktree.id)! > 1 ? 's' : ''} running`} className="flex-shrink-0 relative">
+                              <Circle size={6} className="fill-emerald-400 text-emerald-400" />
+                              {runningTaskCounts.get(worktree.id)! > 1 && (
+                                <span className="absolute -top-1.5 left-1 text-[8px] font-medium text-zinc-400">
+                                  {runningTaskCounts.get(worktree.id)}
+                                </span>
+                              )}
+                            </span>
                           )}
                           <span className="truncate">{worktree.name}</span>
                           {isLoading ? (

@@ -15,7 +15,7 @@ interface DrawerProps {
   worktreeId: string | null;
   tabs: DrawerTab[];
   activeTabId: string | null;
-  taskStatus?: TaskStatus;
+  taskStatuses: Map<string, TaskStatus>;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
@@ -27,7 +27,7 @@ export function Drawer({
   worktreeId,
   tabs,
   activeTabId,
-  taskStatus,
+  taskStatuses,
   onSelectTab,
   onCloseTab,
   onAddTab,
@@ -51,7 +51,7 @@ export function Drawer({
                 }`}
               >
                 {tab.type === 'task' ? (
-                  taskStatus === 'stopped' ? (
+                  taskStatuses.get(tab.taskName ?? '') === 'stopped' || !taskStatuses.has(tab.taskName ?? '') ? (
                     <Square size={14} className="flex-shrink-0 text-zinc-500" />
                   ) : (
                     <Play size={14} className="flex-shrink-0 text-green-500" />

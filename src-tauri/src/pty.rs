@@ -171,6 +171,14 @@ pub fn spawn_pty(
         cmd.arg("-l");
         cmd.cwd(worktree_path);
         cmd
+    } else if shell_override.is_some() {
+        // When shell is explicitly specified, run the command through that shell
+        let mut cmd = CommandBuilder::new(&shell);
+        cmd.arg("-c");
+        cmd.arg(command);
+        cmd.cwd(worktree_path);
+        eprintln!("[PTY] Running command via {} -c: {:?}", shell, command);
+        cmd
     } else if is_shell_command {
         // Run shell commands via /usr/bin/env to avoid exec issues with portable_pty
         // See: https://github.com/rust-lang/rust/issues/125952
