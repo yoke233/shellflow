@@ -8,6 +8,8 @@ interface SidebarProps {
   projects: Project[];
   activeWorktreeId: string | null;
   openWorktreeIds: Set<string>;
+  openWorktreesInOrder: string[];
+  isModifierKeyHeld: boolean;
   loadingWorktrees: Set<string>;
   notifiedWorktreeIds: Set<string>;
   thinkingWorktreeIds: Set<string>;
@@ -34,6 +36,8 @@ export function Sidebar({
   projects,
   activeWorktreeId,
   openWorktreeIds,
+  openWorktreesInOrder,
+  isModifierKeyHeld,
   loadingWorktrees,
   notifiedWorktreeIds,
   thinkingWorktreeIds,
@@ -210,6 +214,9 @@ export function Sidebar({
                       const isThinking = thinkingWorktreeIds.has(worktree.id);
                       const isOpen = openWorktreeIds.has(worktree.id);
                       const isSelected = activeWorktreeId === worktree.id;
+                      // Get shortcut number (1-9) for open worktrees
+                      const shortcutIndex = isOpen ? openWorktreesInOrder.indexOf(worktree.id) : -1;
+                      const shortcutNumber = shortcutIndex >= 0 && shortcutIndex < 9 ? shortcutIndex + 1 : null;
                       return (
                         <div
                           key={worktree.id}
@@ -222,7 +229,12 @@ export function Sidebar({
                                 : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
                           }`}
                         >
-                          <GitBranch size={12} className={`flex-shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'}`} />
+                          {/* Shortcut number indicator - shown when modifier key is held */}
+                          {isModifierKeyHeld && shortcutNumber !== null ? (
+                            <span className="flex-shrink-0 w-3 text-xs text-zinc-400 text-center font-medium">{shortcutNumber}</span>
+                          ) : (
+                            <GitBranch size={12} className={`flex-shrink-0 ${isOpen ? 'text-zinc-400' : 'text-zinc-600'}`} />
+                          )}
                           <span className="truncate">{worktree.name}</span>
                           {isLoading ? (
                             <span className="absolute right-1" title="Starting...">

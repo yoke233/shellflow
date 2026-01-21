@@ -81,8 +81,9 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
 | ------------------------------------------ | ------------------------------------ |
 | `Ctrl+\``                                  | Toggle drawer (terminal panel)       |
 | `Cmd+B`                                    | Toggle right sidebar (changed files) |
-| `Cmd+J` (macOS) / `Ctrl+Shift+J` (other)   | Next workspace                       |
-| `Cmd+K` (macOS) / `Ctrl+Shift+K` (other)   | Previous workspace                   |
+| `Cmd+1-9` (macOS) / `Ctrl+1-9` (other)     | Switch to worktree 1-9               |
+| `Cmd+J` (macOS) / `Ctrl+Shift+J` (other)   | Next worktree                        |
+| `Cmd+K` (macOS) / `Ctrl+Shift+K` (other)   | Previous worktree                    |
 | `Cmd+C` (macOS) / `Ctrl+Shift+C` (other)   | Copy selected text in terminal       |
 | `Cmd+V` (macOS) / `Ctrl+Shift+V` (other)   | Paste text in terminal               |
 

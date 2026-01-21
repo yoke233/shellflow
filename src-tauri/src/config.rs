@@ -183,10 +183,28 @@ pub struct MappingsConfig {
     pub terminal_copy: Shortcut,
     #[serde(rename = "terminalPaste")]
     pub terminal_paste: Shortcut,
-    #[serde(rename = "workspacePrev")]
-    pub workspace_prev: Shortcut,
-    #[serde(rename = "workspaceNext")]
-    pub workspace_next: Shortcut,
+    #[serde(rename = "worktreePrev")]
+    pub worktree_prev: Shortcut,
+    #[serde(rename = "worktreeNext")]
+    pub worktree_next: Shortcut,
+    #[serde(rename = "worktree1")]
+    pub worktree_1: Shortcut,
+    #[serde(rename = "worktree2")]
+    pub worktree_2: Shortcut,
+    #[serde(rename = "worktree3")]
+    pub worktree_3: Shortcut,
+    #[serde(rename = "worktree4")]
+    pub worktree_4: Shortcut,
+    #[serde(rename = "worktree5")]
+    pub worktree_5: Shortcut,
+    #[serde(rename = "worktree6")]
+    pub worktree_6: Shortcut,
+    #[serde(rename = "worktree7")]
+    pub worktree_7: Shortcut,
+    #[serde(rename = "worktree8")]
+    pub worktree_8: Shortcut,
+    #[serde(rename = "worktree9")]
+    pub worktree_9: Shortcut,
 }
 
 impl Default for MappingsConfig {
@@ -202,13 +220,49 @@ impl Default for MappingsConfig {
                 mac: Some("cmd+v".to_string()),
                 other: Some("ctrl+shift+v".to_string()),
             }),
-            workspace_prev: Shortcut::Platform(PlatformShortcut {
+            worktree_prev: Shortcut::Platform(PlatformShortcut {
                 mac: Some("cmd+k".to_string()),
                 other: Some("ctrl+shift+k".to_string()),
             }),
-            workspace_next: Shortcut::Platform(PlatformShortcut {
+            worktree_next: Shortcut::Platform(PlatformShortcut {
                 mac: Some("cmd+j".to_string()),
                 other: Some("ctrl+shift+j".to_string()),
+            }),
+            worktree_1: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+1".to_string()),
+                other: Some("ctrl+1".to_string()),
+            }),
+            worktree_2: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+2".to_string()),
+                other: Some("ctrl+2".to_string()),
+            }),
+            worktree_3: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+3".to_string()),
+                other: Some("ctrl+3".to_string()),
+            }),
+            worktree_4: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+4".to_string()),
+                other: Some("ctrl+4".to_string()),
+            }),
+            worktree_5: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+5".to_string()),
+                other: Some("ctrl+5".to_string()),
+            }),
+            worktree_6: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+6".to_string()),
+                other: Some("ctrl+6".to_string()),
+            }),
+            worktree_7: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+7".to_string()),
+                other: Some("ctrl+7".to_string()),
+            }),
+            worktree_8: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+8".to_string()),
+                other: Some("ctrl+8".to_string()),
+            }),
+            worktree_9: Shortcut::Platform(PlatformShortcut {
+                mac: Some("cmd+9".to_string()),
+                other: Some("ctrl+9".to_string()),
             }),
         }
     }

@@ -102,6 +102,7 @@ function App() {
   const [notifiedWorktreeIds, setNotifiedWorktreeIds] = useState<Set<string>>(new Set());
   const [thinkingWorktreeIds, setThinkingWorktreeIds] = useState<Set<string>>(new Set());
   const [isShuttingDown, setIsShuttingDown] = useState(false);
+  const [isModifierKeyHeld, setIsModifierKeyHeld] = useState(false);
 
   // Panel refs
   const rightPanelRef = useRef<PanelImperativeHandle>(null);
@@ -118,6 +119,14 @@ function App() {
     }
     return null;
   }, [activeWorktreeId, projects]);
+
+  // Open worktrees in sidebar order (for keyboard navigation)
+  const openWorktreesInOrder = useMemo(() => {
+    return projects
+      .flatMap(p => p.worktrees)
+      .filter(w => openWorktreeIds.has(w.id))
+      .map(w => w.id);
+  }, [projects, openWorktreeIds]);
 
   // Expanded projects - persisted to localStorage
   const hasInitialized = useRef(localStorage.getItem(EXPANDED_PROJECTS_KEY) !== null);
@@ -511,8 +520,34 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const { mappings } = config;
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Track modifier key state (cmd on mac, ctrl on other)
+      if ((isMac && e.metaKey) || (!isMac && e.ctrlKey)) {
+        setIsModifierKeyHeld(true);
+      }
+
+      // Worktree selection by index (1-9)
+      const worktreeShortcuts = [
+        mappings.worktree1,
+        mappings.worktree2,
+        mappings.worktree3,
+        mappings.worktree4,
+        mappings.worktree5,
+        mappings.worktree6,
+        mappings.worktree7,
+        mappings.worktree8,
+        mappings.worktree9,
+      ];
+      for (let i = 0; i < worktreeShortcuts.length; i++) {
+        if (matchesShortcut(e, worktreeShortcuts[i]) && i < openWorktreesInOrder.length) {
+          e.preventDefault();
+          setActiveWorktreeId(openWorktreesInOrder[i]);
+          break;
+        }
+      }
+
       if (!activeWorktreeId) return;
 
       if (matchesShortcut(e, mappings.toggleDrawer)) {
@@ -539,31 +574,45 @@ function App() {
         handleToggleRightPanel();
       }
 
-      // Workspace navigation - cycle through active workspaces in sidebar order
-      const openInSidebarOrder = projects
-        .flatMap(p => p.worktrees)
-        .filter(w => openWorktreeIds.has(w.id))
-        .map(w => w.id);
-      if (openInSidebarOrder.length > 1 && activeWorktreeId) {
-        const currentIndex = openInSidebarOrder.indexOf(activeWorktreeId);
+      // Worktree navigation - cycle through active worktrees in sidebar order
+      if (openWorktreesInOrder.length > 1 && activeWorktreeId) {
+        const currentIndex = openWorktreesInOrder.indexOf(activeWorktreeId);
         if (currentIndex !== -1) {
-          if (matchesShortcut(e, mappings.workspacePrev)) {
+          if (matchesShortcut(e, mappings.worktreePrev)) {
             e.preventDefault();
-            const prevIndex = currentIndex === 0 ? openInSidebarOrder.length - 1 : currentIndex - 1;
-            setActiveWorktreeId(openInSidebarOrder[prevIndex]);
+            const prevIndex = currentIndex === 0 ? openWorktreesInOrder.length - 1 : currentIndex - 1;
+            setActiveWorktreeId(openWorktreesInOrder[prevIndex]);
           }
-          if (matchesShortcut(e, mappings.workspaceNext)) {
+          if (matchesShortcut(e, mappings.worktreeNext)) {
             e.preventDefault();
-            const nextIndex = currentIndex === openInSidebarOrder.length - 1 ? 0 : currentIndex + 1;
-            setActiveWorktreeId(openInSidebarOrder[nextIndex]);
+            const nextIndex = currentIndex === openWorktreesInOrder.length - 1 ? 0 : currentIndex + 1;
+            setActiveWorktreeId(openWorktreesInOrder[nextIndex]);
           }
         }
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Clear modifier key state when released
+      if ((isMac && e.key === 'Meta') || (!isMac && e.key === 'Control')) {
+        setIsModifierKeyHeld(false);
+      }
+    };
+
+    // Clear modifier state when window loses focus
+    const handleBlur = () => {
+      setIsModifierKeyHeld(false);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeWorktreeId, isDrawerOpen, activeDrawerTabId, config, openWorktreeIds, projects, handleToggleDrawer, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel]);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [activeWorktreeId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel]);
 
   // Worktree handlers
   const handleAddProject = useCallback(async () => {
@@ -845,6 +894,8 @@ function App() {
               projects={projects}
               activeWorktreeId={activeWorktreeId}
               openWorktreeIds={openWorktreeIds}
+              openWorktreesInOrder={openWorktreesInOrder}
+              isModifierKeyHeld={isModifierKeyHeld}
               loadingWorktrees={loadingWorktrees}
               notifiedWorktreeIds={notifiedWorktreeIds}
               thinkingWorktreeIds={thinkingWorktreeIds}

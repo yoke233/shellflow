@@ -41,8 +41,17 @@ export interface MappingsConfig {
   toggleRightPanel: Shortcut;
   terminalCopy: Shortcut;
   terminalPaste: Shortcut;
-  workspacePrev: Shortcut;
-  workspaceNext: Shortcut;
+  worktreePrev: Shortcut;
+  worktreeNext: Shortcut;
+  worktree1: Shortcut;
+  worktree2: Shortcut;
+  worktree3: Shortcut;
+  worktree4: Shortcut;
+  worktree5: Shortcut;
+  worktree6: Shortcut;
+  worktree7: Shortcut;
+  worktree8: Shortcut;
+  worktree9: Shortcut;
 }
 
 export interface Config {
@@ -75,8 +84,17 @@ const defaultConfig: Config = {
     toggleRightPanel: 'cmd+b',
     terminalCopy: { mac: 'cmd+c', other: 'ctrl+shift+c' },
     terminalPaste: { mac: 'cmd+v', other: 'ctrl+shift+v' },
-    workspacePrev: { mac: 'cmd+k', other: 'ctrl+shift+k' },
-    workspaceNext: { mac: 'cmd+j', other: 'ctrl+shift+j' },
+    worktreePrev: { mac: 'cmd+k', other: 'ctrl+shift+k' },
+    worktreeNext: { mac: 'cmd+j', other: 'ctrl+shift+j' },
+    worktree1: { mac: 'cmd+1', other: 'ctrl+1' },
+    worktree2: { mac: 'cmd+2', other: 'ctrl+2' },
+    worktree3: { mac: 'cmd+3', other: 'ctrl+3' },
+    worktree4: { mac: 'cmd+4', other: 'ctrl+4' },
+    worktree5: { mac: 'cmd+5', other: 'ctrl+5' },
+    worktree6: { mac: 'cmd+6', other: 'ctrl+6' },
+    worktree7: { mac: 'cmd+7', other: 'ctrl+7' },
+    worktree8: { mac: 'cmd+8', other: 'ctrl+8' },
+    worktree9: { mac: 'cmd+9', other: 'ctrl+9' },
   },
 };
 
