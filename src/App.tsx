@@ -249,6 +249,16 @@ function App() {
     }
 
     setIsDrawerOpen(willOpen);
+
+    // Focus the drawer when opening, main when closing
+    setFocusStates((prev) => {
+      const target = willOpen ? 'drawer' : 'main';
+      if (prev.get(activeWorktreeId) === target) return prev;
+      const next = new Map(prev);
+      next.set(activeWorktreeId, target);
+      return next;
+    });
+
     dispatchPanelResizeComplete();
   }, [activeWorktreeId, isDrawerOpen, drawerTabs, drawerTabCounters, dispatchPanelResizeComplete]);
 
