@@ -75,6 +75,17 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
 
 ...and plenty more to flesh it out properly on the way.
 
+## Keyboard Shortcuts
+
+Currently cannot be customised (coming soon).
+
+| Shortcut  | Action                                   |
+| --------- | ---------------------------------------- |
+| `Ctrl+\`` | Toggle drawer (terminal panel)           |
+| `Cmd+B`   | Toggle right sidebar (changed files)     |
+| `Cmd+T`   | New terminal tab (when drawer is open)   |
+| `Cmd+W`   | Close terminal tab (when drawer is open) |
+
 ## Installation
 
 At the moment, you're best off just running it from source. I'm still working on getting releases with notarization working, but you can check out the [Releases](https://github.com/shkm/One-Man-Band/releases) page.

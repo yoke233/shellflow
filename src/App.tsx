@@ -448,8 +448,8 @@ function App() {
         }
       }
 
-      // Cmd+R to toggle right panel
-      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+      // Cmd+B to toggle right panel
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
         e.preventDefault();
         handleToggleRightPanel();
       }
