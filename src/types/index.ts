@@ -5,6 +5,12 @@ export interface Project {
   worktrees: Worktree[];
 }
 
+// Represents what's currently selected in the main content area
+export type ActiveSelection =
+  | { type: 'project'; projectId: string }
+  | { type: 'worktree'; worktreeId: string }
+  | null;
+
 export interface Worktree {
   id: string;
   name: string;

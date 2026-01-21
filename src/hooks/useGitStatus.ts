@@ -3,7 +3,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { FileChange, FilesChanged, Worktree } from '../types';
 
-export function useGitStatus(worktree: Worktree | null) {
+// Can be a worktree or a project (both have id and path)
+type GitStatusTarget = { id: string; path: string } | null;
+
+export function useGitStatus(target: GitStatusTarget) {
+  // For backwards compatibility, also accept Worktree type
+  const worktree = target as (Worktree | { id: string; path: string } | null);
   const [files, setFiles] = useState<FileChange[]>([]);
   const [loading, setLoading] = useState(false);
   const watchingRef = useRef<string | null>(null);

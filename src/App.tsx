@@ -3,6 +3,7 @@ import { Group as PanelGroup, Panel, Separator as PanelResizeHandle, PanelImpera
 import { listen } from '@tauri-apps/api/event';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { MainPane } from './components/MainPane/MainPane';
+import { ProjectPane } from './components/MainPane/ProjectPane';
 import { RightPanel } from './components/RightPanel/RightPanel';
 import { Drawer, DrawerTab } from './components/Drawer/Drawer';
 import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
@@ -30,16 +31,28 @@ function App() {
   // Get project path first for config loading (derived below after activeWorktreeId is defined)
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
 
-  // Derive the project path from the active worktree (for config loading)
+  // Active project (when viewing main repo terminal instead of a worktree)
+  // If activeWorktreeId is set, activeProjectId indicates which project's worktree is active
+  // If activeWorktreeId is null and activeProjectId is set, we're viewing the project's main terminal
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
+  // Open project terminals (main repo shells are kept alive for these)
+  const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(new Set());
+
+  // Derive the project path from the active worktree or project (for config loading)
   const activeProjectPath = useMemo(() => {
-    if (!activeWorktreeId) return undefined;
-    for (const project of projects) {
-      if (project.worktrees.some(w => w.id === activeWorktreeId)) {
-        return project.path;
+    if (activeWorktreeId) {
+      for (const project of projects) {
+        if (project.worktrees.some(w => w.id === activeWorktreeId)) {
+          return project.path;
+        }
       }
+    } else if (activeProjectId) {
+      const project = projects.find(p => p.id === activeProjectId);
+      if (project) return project.path;
     }
     return undefined;
-  }, [activeWorktreeId, projects]);
+  }, [activeWorktreeId, activeProjectId, projects]);
 
   const { config } = useConfig(activeProjectPath);
 
@@ -119,6 +132,19 @@ function App() {
     }
     return null;
   }, [activeWorktreeId, projects]);
+
+  // Get the active project object
+  const activeProject = useMemo(() => {
+    if (!activeProjectId) return null;
+    return projects.find(p => p.id === activeProjectId) ?? null;
+  }, [activeProjectId, projects]);
+
+  // Git status target - either the active worktree or project
+  const gitStatusTarget = useMemo(() => {
+    if (activeWorktree) return activeWorktree;
+    if (activeProject) return { id: activeProject.id, path: activeProject.path };
+    return null;
+  }, [activeWorktree, activeProject]);
 
   // Open worktrees in sidebar order (for keyboard navigation)
   const openWorktreesInOrder = useMemo(() => {
@@ -243,7 +269,7 @@ function App() {
     };
   }, [isShuttingDown]);
 
-  const { files: changedFiles } = useGitStatus(activeWorktree);
+  const { files: changedFiles } = useGitStatus(gitStatusTarget);
 
   // Dispatch event to trigger immediate terminal resize after panel toggle
   const dispatchPanelResizeComplete = useCallback(() => {
@@ -653,6 +679,7 @@ function App() {
     const project = projects.find((p) => p.worktrees.some((w) => w.id === worktree.id));
     if (project) {
       setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+      setActiveProjectId(project.id);
     }
     setOpenWorktreeIds((prev) => {
       if (prev.has(worktree.id)) return prev;
@@ -660,6 +687,47 @@ function App() {
     });
     setActiveWorktreeId(worktree.id);
   }, [projects]);
+
+  const handleSelectProject = useCallback((project: Project) => {
+    // Mark the project as active (touched this session)
+    setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+    // Add to open projects if not already
+    setOpenProjectIds((prev) => {
+      if (prev.has(project.id)) return prev;
+      return new Set([...prev, project.id]);
+    });
+    // Clear worktree selection, set project as active
+    setActiveWorktreeId(null);
+    setActiveProjectId(project.id);
+  }, []);
+
+  const handleCloseProject = useCallback((projectId: string) => {
+    setOpenProjectIds((prev) => {
+      const next = new Set(prev);
+      next.delete(projectId);
+      return next;
+    });
+    // If this was the active project with no worktree selected, switch to another
+    if (activeProjectId === projectId && !activeWorktreeId) {
+      const remainingProjects = Array.from(openProjectIds).filter(id => id !== projectId);
+      if (remainingProjects.length > 0) {
+        setActiveProjectId(remainingProjects[remainingProjects.length - 1]);
+      } else if (openWorktreeIds.size > 0) {
+        // Switch to an open worktree
+        const firstWorktreeId = Array.from(openWorktreeIds)[0];
+        setActiveWorktreeId(firstWorktreeId);
+        // Find and set the project for this worktree
+        for (const project of projects) {
+          if (project.worktrees.some(w => w.id === firstWorktreeId)) {
+            setActiveProjectId(project.id);
+            break;
+          }
+        }
+      } else {
+        setActiveProjectId(null);
+      }
+    }
+  }, [activeProjectId, activeWorktreeId, openProjectIds, openWorktreeIds, projects]);
 
   const handleCloseWorktree = useCallback(
     (worktreeId: string) => {
@@ -916,7 +984,9 @@ function App() {
           <div className="h-full w-full">
             <Sidebar
               projects={projects}
+              activeProjectId={activeProjectId}
               activeWorktreeId={activeWorktreeId}
+              openProjectIds={openProjectIds}
               openWorktreeIds={openWorktreeIds}
               openWorktreesInOrder={openWorktreesInOrder}
               isModifierKeyHeld={isModifierKeyHeld}
@@ -929,11 +999,13 @@ function App() {
               isDrawerOpen={isDrawerOpen}
               isRightPanelOpen={isRightPanelOpen}
               onToggleProject={toggleProject}
+              onSelectProject={handleSelectProject}
               onSelectWorktree={handleSelectWorktree}
               onAddProject={handleAddProject}
               onAddWorktree={handleAddWorktree}
               onDeleteWorktree={handleDeleteWorktree}
               onCloseWorktree={handleCloseWorktree}
+              onCloseProject={handleCloseProject}
               onMergeWorktree={handleMergeWorktree}
               onToggleDrawer={handleToggleDrawer}
               onToggleRightPanel={handleToggleRightPanel}
@@ -948,26 +1020,52 @@ function App() {
 
         {/* Main Pane with Drawer - vertical layout (flex to fill remaining space) */}
         <Panel minSize="300px">
-          <PanelGroup
-            orientation="vertical"
-            className="h-full"
-          >
-            <Panel minSize="200px">
-              <MainPane
-                openWorktreeIds={openWorktreeIds}
-                activeWorktreeId={activeWorktreeId}
-                terminalConfig={config.main}
-                mappings={config.mappings}
-                shouldAutoFocus={activeFocusState === 'main'}
-                onFocus={handleMainPaneFocused}
-                onWorktreeNotification={handleWorktreeNotification}
-                onWorktreeThinkingChange={handleWorktreeThinkingChange}
-              />
-            </Panel>
+          {/* Both panes are always mounted to preserve terminal state, visibility toggled */}
+          <div className="h-full relative">
+            {/* ProjectPane - visible when project selected without worktree */}
+            {openProjectIds.size > 0 && (
+              <div className={`absolute inset-0 ${
+                activeProjectId && !activeWorktreeId
+                  ? 'visible z-10'
+                  : 'invisible z-0 pointer-events-none'
+              }`}>
+                <ProjectPane
+                  openProjectIds={openProjectIds}
+                  activeProjectId={activeProjectId}
+                  isVisible={!activeWorktreeId}
+                  terminalConfig={config.main}
+                  mappings={config.mappings}
+                  onFocus={() => {/* no-op for now */}}
+                />
+              </div>
+            )}
 
-            {/* Drawer Panel - collapsible */}
-            <PanelResizeHandle
-              className={`transition-colors focus:outline-none !cursor-row-resize ${
+            {/* MainPane with Drawer - visible when worktree selected */}
+            <div className={`absolute inset-0 ${
+              activeWorktreeId
+                ? 'visible z-10'
+                : 'invisible z-0 pointer-events-none'
+            }`}>
+              <PanelGroup
+                orientation="vertical"
+                className="h-full"
+              >
+                <Panel minSize="200px">
+                  <MainPane
+                    openWorktreeIds={openWorktreeIds}
+                    activeWorktreeId={activeWorktreeId}
+                    terminalConfig={config.main}
+                    mappings={config.mappings}
+                    shouldAutoFocus={activeFocusState === 'main'}
+                    onFocus={handleMainPaneFocused}
+                    onWorktreeNotification={handleWorktreeNotification}
+                    onWorktreeThinkingChange={handleWorktreeThinkingChange}
+                  />
+                </Panel>
+
+                {/* Drawer Panel - collapsible */}
+                <PanelResizeHandle
+                  className={`transition-colors focus:outline-none !cursor-row-resize ${
                 isDrawerOpen
                   ? 'h-px bg-zinc-700 hover:bg-zinc-500'
                   : 'h-0 pointer-events-none'
@@ -1031,12 +1129,14 @@ function App() {
               </div>
             </Panel>
           </PanelGroup>
+            </div>
+          </div>
         </Panel>
 
         {/* Right Panel - collapsible */}
         <PanelResizeHandle
           className={`w-px transition-colors focus:outline-none !cursor-col-resize ${
-            activeWorktreeId && isRightPanelOpen
+            (activeWorktreeId || activeProjectId) && isRightPanelOpen
               ? 'bg-zinc-700 hover:bg-zinc-500'
               : 'bg-transparent pointer-events-none'
           }`}

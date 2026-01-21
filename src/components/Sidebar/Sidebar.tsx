@@ -6,7 +6,9 @@ import { ContextMenu } from '../ContextMenu';
 
 interface SidebarProps {
   projects: Project[];
+  activeProjectId: string | null;
   activeWorktreeId: string | null;
+  openProjectIds: Set<string>;
   openWorktreeIds: Set<string>;
   openWorktreesInOrder: string[];
   isModifierKeyHeld: boolean;
@@ -19,11 +21,13 @@ interface SidebarProps {
   isDrawerOpen: boolean;
   isRightPanelOpen: boolean;
   onToggleProject: (projectId: string) => void;
+  onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
   onAddProject: () => void;
   onAddWorktree: (projectId: string) => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onCloseWorktree: (worktreeId: string) => void;
+  onCloseProject: (projectId: string) => void;
   onMergeWorktree: (worktreeId: string) => void;
   onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
@@ -34,7 +38,9 @@ interface SidebarProps {
 
 export function Sidebar({
   projects,
+  activeProjectId,
   activeWorktreeId,
+  openProjectIds,
   openWorktreeIds,
   openWorktreesInOrder,
   isModifierKeyHeld,
@@ -47,11 +53,13 @@ export function Sidebar({
   isDrawerOpen,
   isRightPanelOpen,
   onToggleProject,
+  onSelectProject,
   onSelectWorktree,
   onAddProject,
   onAddWorktree,
   onDeleteWorktree,
   onCloseWorktree,
+  onCloseProject,
   onMergeWorktree,
   onToggleDrawer,
   onToggleRightPanel,
@@ -161,23 +169,50 @@ export function Sidebar({
           <>
           {filteredProjects.map((project) => {
             const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
+            const isProjectOpen = openProjectIds.has(project.id);
+            const isProjectSelected = activeProjectId === project.id && !activeWorktreeId;
             return (
             <div key={project.id} className="mb-2">
               <div
-                className={`group relative flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800 ${
-                  hasOpenWorktrees ? 'text-zinc-200' : 'text-zinc-400'
+                className={`group relative flex items-center gap-1.5 px-2 py-1 rounded ${
+                  isProjectSelected
+                    ? 'bg-zinc-700 text-zinc-100'
+                    : hasOpenWorktrees || isProjectOpen
+                      ? 'text-zinc-200 hover:bg-zinc-800'
+                      : 'text-zinc-400 hover:bg-zinc-800'
                 }`}
-                onClick={() => onToggleProject(project.id)}
+                onClick={() => onSelectProject(project)}
                 onContextMenu={(e) => handleProjectContextMenu(e, project)}
               >
-                {expandedProjects.has(project.id) ? (
-                  <ChevronDown size={14} className={hasOpenWorktrees ? 'text-zinc-400' : 'text-zinc-500'} />
-                ) : (
-                  <ChevronRight size={14} className={hasOpenWorktrees ? 'text-zinc-400' : 'text-zinc-500'} />
-                )}
-                <FolderGit2 size={14} className="flex-shrink-0" style={{ color: hasOpenWorktrees ? '#a1a1aa' : '#71717a' }} />
+                {/* Chevron for expand/collapse - separate click handler */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleProject(project.id);
+                  }}
+                  className="p-0.5 -m-0.5 rounded hover:bg-zinc-600"
+                >
+                  {expandedProjects.has(project.id) ? (
+                    <ChevronDown size={14} className={hasOpenWorktrees || isProjectOpen ? 'text-zinc-400' : 'text-zinc-500'} />
+                  ) : (
+                    <ChevronRight size={14} className={hasOpenWorktrees || isProjectOpen ? 'text-zinc-400' : 'text-zinc-500'} />
+                  )}
+                </button>
+                <FolderGit2 size={14} className="flex-shrink-0" style={{ color: hasOpenWorktrees || isProjectOpen ? '#a1a1aa' : '#71717a' }} />
                 <span className="text-sm font-medium truncate">{project.name}</span>
-                <div className="absolute right-1 hidden group-hover:flex items-center gap-0.5 bg-zinc-800 rounded">
+                <div className={`absolute right-1 hidden group-hover:flex items-center gap-0.5 rounded ${isProjectSelected ? 'bg-zinc-700' : 'bg-zinc-800'}`}>
+                  {isProjectOpen && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onCloseProject(project.id);
+                      }}
+                      className="p-0.5 rounded hover:bg-zinc-600 text-zinc-500 hover:text-zinc-300"
+                      title="Close project terminal"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -340,42 +375,61 @@ export function Sidebar({
         />
       )}
 
-      {/* Status bar with worktree actions */}
-      {activeWorktreeId && (
+      {/* Status bar - shows different actions for project vs worktree */}
+      {(activeWorktreeId || activeProjectId) && (
         <div className="flex items-center h-8 px-1 border-t border-zinc-800 flex-shrink-0">
-          <button
-            onClick={onToggleDrawer}
-            className={`p-1.5 rounded hover:bg-zinc-800 flex-shrink-0 ${
-              isDrawerOpen ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Toggle terminal (Ctrl+`)"
-          >
-            <Terminal size={16} />
-          </button>
-          <button
-            onClick={onToggleRightPanel}
-            className={`p-1.5 rounded hover:bg-zinc-800 flex-shrink-0 ${
-              isRightPanelOpen ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
-            }`}
-            title="Toggle right panel (Cmd+R)"
-          >
-            <PanelRight size={16} />
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={() => onMergeWorktree(activeWorktreeId)}
-            className="p-1.5 rounded text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 flex-shrink-0"
-            title="Merge branch"
-          >
-            <GitMerge size={16} />
-          </button>
-          <button
-            onClick={() => onDeleteWorktree(activeWorktreeId)}
-            className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800 flex-shrink-0"
-            title="Delete worktree"
-          >
-            <Trash2 size={16} />
-          </button>
+          {activeWorktreeId ? (
+            <>
+              {/* Worktree-specific actions */}
+              <button
+                onClick={onToggleDrawer}
+                className={`p-1.5 rounded hover:bg-zinc-800 flex-shrink-0 ${
+                  isDrawerOpen ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Toggle terminal (Ctrl+`)"
+              >
+                <Terminal size={16} />
+              </button>
+              <button
+                onClick={onToggleRightPanel}
+                className={`p-1.5 rounded hover:bg-zinc-800 flex-shrink-0 ${
+                  isRightPanelOpen ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Toggle right panel (Cmd+R)"
+              >
+                <PanelRight size={16} />
+              </button>
+              <div className="flex-1" />
+              <button
+                onClick={() => onMergeWorktree(activeWorktreeId)}
+                className="p-1.5 rounded text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 flex-shrink-0"
+                title="Merge branch"
+              >
+                <GitMerge size={16} />
+              </button>
+              <button
+                onClick={() => onDeleteWorktree(activeWorktreeId)}
+                className="p-1.5 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800 flex-shrink-0"
+                title="Delete worktree"
+              >
+                <Trash2 size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Project-specific actions - just right panel toggle */}
+              <button
+                onClick={onToggleRightPanel}
+                className={`p-1.5 rounded hover:bg-zinc-800 flex-shrink-0 ${
+                  isRightPanelOpen ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title="Toggle right panel (Cmd+R)"
+              >
+                <PanelRight size={16} />
+              </button>
+              <div className="flex-1" />
+            </>
+          )}
         </div>
       )}
     </div>

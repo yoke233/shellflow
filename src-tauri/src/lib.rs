@@ -221,6 +221,29 @@ fn spawn_terminal(
 }
 
 #[tauri::command]
+fn spawn_project_shell(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    project_id: &str,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String> {
+    // Find project path
+    let project_path = {
+        let persisted = state.persisted.read();
+        persisted
+            .projects
+            .iter()
+            .find(|p| p.id == project_id)
+            .map(|p| p.path.clone())
+            .ok_or_else(|| format!("Project not found: {}", project_id))?
+    };
+
+    // Use project_id as the "worktree_id" for PTY tracking purposes
+    pty::spawn_pty(&app, &state, project_id, &project_path, "shell", cols, rows).map_err(map_err)
+}
+
+#[tauri::command]
 fn pty_write(state: State<'_, Arc<AppState>>, pty_id: &str, data: &str) -> Result<()> {
     pty::write_to_pty(&state, pty_id, data).map_err(map_err)
 }
@@ -601,6 +624,7 @@ pub fn run() {
             delete_worktree,
             spawn_main,
             spawn_terminal,
+            spawn_project_shell,
             pty_write,
             pty_resize,
             pty_kill,
