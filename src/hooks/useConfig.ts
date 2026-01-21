@@ -45,18 +45,19 @@ const defaultConfig: Config = {
   },
 };
 
-export function useConfig() {
+export function useConfig(projectPath?: string) {
   const [config, setConfig] = useState<Config>(defaultConfig);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    invoke<Config>('get_config')
+    setLoading(true);
+    invoke<Config>('get_config', { projectPath: projectPath ?? null })
       .then(setConfig)
       .catch((err) => {
         console.error('Failed to load config:', err);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [projectPath]);
 
   return { config, loading };
 }

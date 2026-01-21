@@ -23,11 +23,25 @@ type FocusedPane = 'main' | 'drawer';
 
 function App() {
   const { projects, addProject, removeProject, createWorktree, deleteWorktree, refresh: refreshProjects } = useWorktrees();
-  const { config } = useConfig();
+
+  // Get project path first for config loading (derived below after activeWorktreeId is defined)
+  const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
+
+  // Derive the project path from the active worktree (for config loading)
+  const activeProjectPath = useMemo(() => {
+    if (!activeWorktreeId) return undefined;
+    for (const project of projects) {
+      if (project.worktrees.some(w => w.id === activeWorktreeId)) {
+        return project.path;
+      }
+    }
+    return undefined;
+  }, [activeWorktreeId, projects]);
+
+  const { config } = useConfig(activeProjectPath);
 
   // Open worktrees (main terminals are kept alive for these)
   const [openWorktreeIds, setOpenWorktreeIds] = useState<Set<string>>(new Set());
-  const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
 
   // Global panel open/closed state (shared across all worktrees)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);

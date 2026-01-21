@@ -140,12 +140,54 @@ pub fn get_config_path() -> PathBuf {
         .join("config.jsonc")
 }
 
+/// Load global config only (for backwards compatibility)
+#[allow(dead_code)]
 pub fn load_config() -> Config {
-    let config_path = get_config_path();
+    load_config_for_project(None)
+}
 
-    if !config_path.exists() {
-        // Create default config file
-        if let Some(parent) = config_path.parent() {
+fn parse_jsonc_value(content: &str) -> Option<serde_json::Value> {
+    let mut json = content.to_string();
+    json_strip_comments::strip(&mut json).ok()?;
+    serde_json::from_str(&json).ok()
+}
+
+/// Recursively merge overlay into base. Overlay values take precedence.
+fn deep_merge(base: &mut serde_json::Value, overlay: &serde_json::Value) {
+    use serde_json::Value;
+    if let (Value::Object(base_obj), Value::Object(overlay_obj)) = (base, overlay) {
+        for (key, overlay_val) in overlay_obj {
+            match base_obj.get_mut(key) {
+                Some(base_val) if base_val.is_object() && overlay_val.is_object() => {
+                    deep_merge(base_val, overlay_val);
+                }
+                _ => {
+                    base_obj.insert(key.clone(), overlay_val.clone());
+                }
+            }
+        }
+    }
+}
+
+/// Load config with optional project-specific overrides.
+/// Config files are merged in order: global <- repo <- local
+/// - Global: ~/.config/onemanband/config.jsonc
+/// - Repo: {project_path}/.onemanband/config.jsonc (tracked in git)
+/// - Local: {project_path}/.onemanband/config.local.jsonc (gitignored)
+pub fn load_config_for_project(project_path: Option<&str>) -> Config {
+    use serde_json::Value;
+    use std::path::Path;
+
+    // Start with global config (or empty object if missing)
+    let global_path = get_config_path();
+    let mut merged: Value = if global_path.exists() {
+        std::fs::read_to_string(&global_path)
+            .ok()
+            .and_then(|content| parse_jsonc_value(&content))
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+    } else {
+        // Create default config file if it doesn't exist
+        if let Some(parent) = global_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
         let default_config = r#"{
@@ -194,18 +236,37 @@ pub fn load_config() -> Config {
   }
 }
 "#;
-        let _ = std::fs::write(&config_path, default_config);
-        return Config::default();
+        let _ = std::fs::write(&global_path, default_config);
+        Value::Object(serde_json::Map::new())
+    };
+
+    // Merge repo and local configs if project path is provided
+    if let Some(project_path) = project_path {
+        let project_dir = Path::new(project_path);
+
+        // Repo config: {project_path}/.onemanband/config.jsonc
+        let repo_config_path = project_dir.join(".onemanband").join("config.jsonc");
+        if repo_config_path.exists() {
+            if let Some(repo_value) = std::fs::read_to_string(&repo_config_path)
+                .ok()
+                .and_then(|content| parse_jsonc_value(&content))
+            {
+                deep_merge(&mut merged, &repo_value);
+            }
+        }
+
+        // Local config: {project_path}/.onemanband/config.local.jsonc
+        let local_config_path = project_dir.join(".onemanband").join("config.local.jsonc");
+        if local_config_path.exists() {
+            if let Some(local_value) = std::fs::read_to_string(&local_config_path)
+                .ok()
+                .and_then(|content| parse_jsonc_value(&content))
+            {
+                deep_merge(&mut merged, &local_value);
+            }
+        }
     }
 
-    match std::fs::read_to_string(&config_path) {
-        Ok(content) => parse_jsonc(&content).unwrap_or_default(),
-        Err(_) => Config::default(),
-    }
-}
-
-fn parse_jsonc(content: &str) -> Option<Config> {
-    let mut json = content.to_string();
-    json_strip_comments::strip(&mut json).ok()?;
-    serde_json::from_str(&json).ok()
+    // Deserialize merged config, falling back to defaults
+    serde_json::from_value(merged).unwrap_or_default()
 }

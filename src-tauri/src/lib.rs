@@ -64,7 +64,7 @@ fn create_worktree(
     info!("[create_worktree] Starting...");
 
     let start = Instant::now();
-    let cfg = config::load_config();
+    let cfg = config::load_config_for_project(Some(project_path));
     info!("[create_worktree] load_config took {:?}", start.elapsed());
 
     let start = Instant::now();
@@ -175,21 +175,24 @@ fn spawn_main(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String> {
-    // Load config to get the main command
-    let cfg = config::load_config();
-    let command = cfg.main.command;
-
-    // Find worktree path
-    let worktree_path = {
+    // Find worktree path and parent project path
+    let (worktree_path, project_path) = {
         let persisted = state.persisted.read();
-        persisted
-            .projects
-            .iter()
-            .flat_map(|p| &p.worktrees)
-            .find(|w| w.id == worktree_id)
-            .map(|w| w.path.clone())
-            .ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
+        let mut found = None;
+
+        for project in &persisted.projects {
+            if let Some(worktree) = project.worktrees.iter().find(|w| w.id == worktree_id) {
+                found = Some((worktree.path.clone(), project.path.clone()));
+                break;
+            }
+        }
+
+        found.ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
     };
+
+    // Load config with project-specific overrides
+    let cfg = config::load_config_for_project(Some(&project_path));
+    let command = cfg.main.command;
 
     pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows).map_err(map_err)
 }
@@ -234,8 +237,8 @@ fn pty_kill(state: State<'_, Arc<AppState>>, pty_id: &str) -> Result<()> {
 
 // Config commands
 #[tauri::command]
-fn get_config() -> config::Config {
-    config::load_config()
+fn get_config(project_path: Option<String>) -> config::Config {
+    config::load_config_for_project(project_path.as_deref())
 }
 
 // Git commands

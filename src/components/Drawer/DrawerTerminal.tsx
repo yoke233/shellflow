@@ -6,6 +6,7 @@ import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
+import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import '@xterm/xterm/css/xterm.css';
 
 // Fix for xterm.js not handling 5-part colon-separated RGB sequences.
@@ -39,6 +40,8 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
+
+  useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {

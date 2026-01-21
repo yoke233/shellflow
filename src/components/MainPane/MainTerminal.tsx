@@ -8,6 +8,7 @@ import { listen } from '@tauri-apps/api/event';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
+import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import '@xterm/xterm/css/xterm.css';
 
 // Fix for xterm.js not handling 5-part colon-separated RGB sequences.
@@ -43,6 +44,8 @@ export function MainTerminal({ worktreeId, isActive, shouldAutoFocus, terminalCo
   const initializedRef = useRef(false);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
+
+  useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
   const [hasExited, setHasExited] = useState(false);
   const [exitInfo, setExitInfo] = useState<{ command: string; exitCode: number | null } | null>(null);
 
