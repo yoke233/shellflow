@@ -194,7 +194,7 @@ fn spawn_main(
     let cfg = config::load_config_for_project(Some(&project_path));
     let command = cfg.main.command;
 
-    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows).map_err(map_err)
+    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows, None).map_err(map_err)
 }
 
 #[tauri::command]
@@ -217,7 +217,43 @@ fn spawn_terminal(
             .ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
     };
 
-    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, "shell", cols, rows).map_err(map_err)
+    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, "shell", cols, rows, None).map_err(map_err)
+}
+
+#[tauri::command]
+fn spawn_task(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    worktree_id: &str,
+    task_name: &str,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String> {
+    // Find worktree path and parent project path
+    let (worktree_path, project_path) = {
+        let persisted = state.persisted.read();
+        let mut found = None;
+
+        for project in &persisted.projects {
+            if let Some(worktree) = project.worktrees.iter().find(|w| w.id == worktree_id) {
+                found = Some((worktree.path.clone(), project.path.clone()));
+                break;
+            }
+        }
+
+        found.ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
+    };
+
+    // Load config and find the task
+    let cfg = config::load_config_for_project(Some(&project_path));
+    let task = cfg
+        .tasks
+        .iter()
+        .find(|t| t.name == task_name)
+        .ok_or_else(|| format!("Task not found: {}", task_name))?;
+
+    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &task.command, cols, rows, task.shell.as_deref())
+        .map_err(map_err)
 }
 
 #[tauri::command]
@@ -256,6 +292,11 @@ fn pty_resize(state: State<'_, Arc<AppState>>, pty_id: &str, cols: u16, rows: u1
 #[tauri::command]
 fn pty_kill(state: State<'_, Arc<AppState>>, pty_id: &str) -> Result<()> {
     pty::kill_pty(&state, pty_id).map_err(map_err)
+}
+
+#[tauri::command]
+fn pty_force_kill(state: State<'_, Arc<AppState>>, pty_id: &str) -> Result<()> {
+    pty::force_kill_pty(&state, pty_id).map_err(map_err)
 }
 
 // Config commands
@@ -625,9 +666,11 @@ pub fn run() {
             spawn_main,
             spawn_terminal,
             spawn_project_shell,
+            spawn_task,
             pty_write,
             pty_resize,
             pty_kill,
+            pty_force_kill,
             get_changed_files,
             start_watching,
             stop_watching,

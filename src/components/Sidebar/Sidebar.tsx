@@ -1,8 +1,10 @@
 import { FolderGit2, Plus, ChevronRight, ChevronDown, GitBranch, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings } from 'lucide-react';
-import { Project, Worktree } from '../../types';
+import { Project, Worktree, RunningTask } from '../../types';
+import { TaskConfig } from '../../hooks/useConfig';
 import { useState, useMemo } from 'react';
 import { DragRegion } from '../DragRegion';
 import { ContextMenu } from '../ContextMenu';
+import { TaskSelector } from './TaskSelector';
 
 interface SidebarProps {
   projects: Project[];
@@ -20,6 +22,9 @@ interface SidebarProps {
   sessionTouchedProjects: Set<string>;
   isDrawerOpen: boolean;
   isRightPanelOpen: boolean;
+  tasks: TaskConfig[];
+  selectedTask: string | null;
+  runningTask: RunningTask | null;
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
@@ -34,6 +39,10 @@ interface SidebarProps {
   onRemoveProject: (project: Project) => void;
   onMarkProjectInactive: (projectId: string) => void;
   onToggleShowActiveOnly: () => void;
+  onSelectTask: (taskName: string) => void;
+  onStartTask: () => void;
+  onStopTask: () => void;
+  onForceKillTask: () => void;
 }
 
 export function Sidebar({
@@ -52,6 +61,9 @@ export function Sidebar({
   sessionTouchedProjects,
   isDrawerOpen,
   isRightPanelOpen,
+  tasks,
+  selectedTask,
+  runningTask,
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
@@ -66,6 +78,10 @@ export function Sidebar({
   onRemoveProject,
   onMarkProjectInactive,
   onToggleShowActiveOnly,
+  onSelectTask,
+  onStartTask,
+  onStopTask,
+  onForceKillTask,
 }: SidebarProps) {
   const [contextMenu, setContextMenu] = useState<{
     project: Project;
@@ -372,6 +388,19 @@ export function Sidebar({
             },
           ]}
           onClose={() => setOptionsMenu(null)}
+        />
+      )}
+
+      {/* Task selector - above status bar */}
+      {activeWorktreeId && tasks.length > 0 && (
+        <TaskSelector
+          tasks={tasks}
+          selectedTask={selectedTask}
+          runningTask={runningTask}
+          onSelectTask={onSelectTask}
+          onStartTask={onStartTask}
+          onStopTask={onStopTask}
+          onForceKillTask={onForceKillTask}
         />
       )}
 

@@ -44,6 +44,15 @@ export async function spawnTerminal(worktreeId: string): Promise<string> {
   return invoke<string>('spawn_terminal', { worktreeId });
 }
 
+export async function spawnTask(
+  worktreeId: string,
+  taskName: string,
+  cols?: number,
+  rows?: number
+): Promise<string> {
+  return invoke<string>('spawn_task', { worktreeId, taskName, cols, rows });
+}
+
 export async function ptyWrite(ptyId: string, data: string): Promise<void> {
   return invoke('pty_write', { ptyId, data });
 }
@@ -58,6 +67,10 @@ export async function ptyResize(
 
 export async function ptyKill(ptyId: string): Promise<void> {
   return invoke('pty_kill', { ptyId });
+}
+
+export async function ptyForceKill(ptyId: string): Promise<void> {
+  return invoke('pty_force_kill', { ptyId });
 }
 
 // Git commands

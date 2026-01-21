@@ -7,13 +7,14 @@ import { ProjectPane } from './components/MainPane/ProjectPane';
 import { RightPanel } from './components/RightPanel/RightPanel';
 import { Drawer, DrawerTab } from './components/Drawer/Drawer';
 import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
+import { TaskTerminal } from './components/Drawer/TaskTerminal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { MergeModal } from './components/MergeModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill } from './lib/tauri';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
 import { Project, Worktree } from './types';
@@ -21,6 +22,7 @@ import { Project, Worktree } from './types';
 const EXPANDED_PROJECTS_KEY = 'onemanband:expandedProjects';
 const SHOW_ACTIVE_ONLY_KEY = 'onemanband:showActiveOnly';
 const ACTIVE_PROJECTS_KEY = 'onemanband:activeProjects';
+const SELECTED_TASKS_KEY = 'onemanband:selectedTasks';
 
 // Which pane has focus per worktree
 type FocusedPane = 'main' | 'drawer';
@@ -71,6 +73,32 @@ function App() {
   // Per-worktree focus state (which pane has focus)
   const [focusStates, setFocusStates] = useState<Map<string, FocusedPane>>(new Map());
 
+  // Per-project selected task (persisted to localStorage)
+  const [selectedTasksByProject, setSelectedTasksByProject] = useState<Map<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(SELECTED_TASKS_KEY);
+      if (saved) {
+        return new Map(Object.entries(JSON.parse(saved)));
+      }
+    } catch (e) {
+      console.error('Failed to load selected tasks:', e);
+    }
+    return new Map();
+  });
+
+  // Per-worktree running task state
+  const [runningTasks, setRunningTasks] = useState<Map<string, { taskName: string; ptyId: string; status: 'running' | 'stopping' | 'stopped' }>>(new Map());
+
+  // Get current project's selected task
+  const activeSelectedTask = activeProjectPath ? selectedTasksByProject.get(activeProjectPath) ?? null : null;
+  const activeRunningTask = activeWorktreeId ? runningTasks.get(activeWorktreeId) ?? null : null;
+
+  // Persist selected tasks to localStorage
+  useEffect(() => {
+    const obj = Object.fromEntries(selectedTasksByProject.entries());
+    localStorage.setItem(SELECTED_TASKS_KEY, JSON.stringify(obj));
+  }, [selectedTasksByProject]);
+
   // Get current worktree's drawer tabs
   const activeDrawerTabs = activeWorktreeId ? drawerTabs.get(activeWorktreeId) ?? [] : [];
   const activeDrawerTabId = activeWorktreeId ? drawerActiveTabIds.get(activeWorktreeId) ?? null : null;
@@ -88,6 +116,7 @@ function App() {
     const newTab: DrawerTab = {
       id: `${activeWorktreeId}-drawer-${newCounter}`,
       label: `Terminal ${newCounter}`,
+      type: 'terminal',
     };
 
     setDrawerTabs((prev) => {
@@ -303,6 +332,7 @@ function App() {
         const newTab: DrawerTab = {
           id: `${activeWorktreeId}-drawer-${newCounter}`,
           label: `Terminal ${newCounter}`,
+          type: 'terminal',
         };
         setDrawerTabs((prev) => {
           const next = new Map(prev);
@@ -435,6 +465,7 @@ function App() {
     const newTab: DrawerTab = {
       id: `${activeWorktreeId}-drawer-${newCounter}`,
       label: `Terminal ${newCounter}`,
+      type: 'terminal',
     };
 
     setDrawerTabs((prev) => {
@@ -541,6 +572,194 @@ function App() {
       next.set(worktreeId, 'drawer');
       return next;
     });
+  }, []);
+
+  // Task handlers
+  const handleSelectTask = useCallback((taskName: string) => {
+    if (!activeProjectPath) return;
+    setSelectedTasksByProject((prev) => {
+      const next = new Map(prev);
+      next.set(activeProjectPath, taskName);
+      return next;
+    });
+  }, [activeProjectPath]);
+
+  const handleStartTask = useCallback(async () => {
+    if (!activeWorktreeId || !activeSelectedTask) return;
+
+    // Find the task config to get the kind
+    const task = config.tasks.find((t) => t.name === activeSelectedTask);
+    if (!task) return;
+
+    // Check if this task is already running
+    const currentRunningTask = runningTasks.get(activeWorktreeId);
+    if (currentRunningTask?.taskName === activeSelectedTask && currentRunningTask?.status === 'running') {
+      // Task is already running, just switch to its tab (if not silent)
+      if (!task.silent) {
+        const tabId = `${activeWorktreeId}-task-${activeSelectedTask}`;
+        setDrawerActiveTabIds((prev) => {
+          const next = new Map(prev);
+          next.set(activeWorktreeId, tabId);
+          return next;
+        });
+        if (!isDrawerOpen) {
+          drawerPanelRef.current?.resize(lastDrawerSize.current);
+          setIsDrawerOpen(true);
+        }
+      }
+      return;
+    }
+
+    // For silent tasks, spawn directly without UI but still track it
+    if (task.silent) {
+      const { spawnTask } = await import('./lib/tauri');
+      try {
+        const ptyId = await spawnTask(activeWorktreeId, activeSelectedTask);
+        // Track the silent task so we can stop it
+        setRunningTasks((prev) => {
+          const next = new Map(prev);
+          next.set(activeWorktreeId, {
+            taskName: activeSelectedTask,
+            ptyId,
+            status: 'running',
+          });
+          return next;
+        });
+      } catch (err) {
+        console.error('Failed to start silent task:', err);
+      }
+      return;
+    }
+
+    // Create a new task tab with unique ID (allows restart)
+    const tabId = `${activeWorktreeId}-task-${activeSelectedTask}-${Date.now()}`;
+    const newTab: DrawerTab = {
+      id: tabId,
+      label: activeSelectedTask,
+      type: 'task',
+      taskName: activeSelectedTask,
+    };
+
+    // Remove any existing tab for this task, then add new one
+    setDrawerTabs((prev) => {
+      const currentTabs = prev.get(activeWorktreeId) ?? [];
+      // Remove old task tab if exists (any tab with same taskName)
+      const filteredTabs = currentTabs.filter((t) => t.taskName !== activeSelectedTask);
+      const next = new Map(prev);
+      next.set(activeWorktreeId, [...filteredTabs, newTab]);
+      return next;
+    });
+    setDrawerActiveTabIds((prev) => {
+      const next = new Map(prev);
+      next.set(activeWorktreeId, tabId);
+      return next;
+    });
+
+    // Open drawer if not already open
+    if (!isDrawerOpen) {
+      drawerPanelRef.current?.resize(lastDrawerSize.current);
+      setIsDrawerOpen(true);
+    }
+
+    // Mark task as running (ptyId will be set by TaskTerminal)
+    setRunningTasks((prev) => {
+      const next = new Map(prev);
+      next.set(activeWorktreeId, {
+        taskName: activeSelectedTask,
+        ptyId: '', // Will be set when TaskTerminal spawns
+        status: 'running',
+      });
+      return next;
+    });
+
+    // Focus the drawer
+    setFocusStates((prev) => {
+      const next = new Map(prev);
+      next.set(activeWorktreeId, 'drawer');
+      return next;
+    });
+  }, [activeWorktreeId, activeSelectedTask, config.tasks, isDrawerOpen, runningTasks]);
+
+  const handleStopTask = useCallback(() => {
+    if (!activeWorktreeId) return;
+
+    const runningTask = runningTasks.get(activeWorktreeId);
+    if (!runningTask) return;
+
+    console.log('[handleStopTask] runningTask:', runningTask);
+
+    // Kill the PTY if we have an ID
+    if (runningTask.ptyId) {
+      console.log('[handleStopTask] Killing PTY:', runningTask.ptyId);
+      ptyKill(runningTask.ptyId);
+    } else {
+      console.warn('[handleStopTask] No ptyId available!');
+    }
+
+    // Mark task as stopping (not stopped yet - waiting for process to exit)
+    setRunningTasks((prev) => {
+      const next = new Map(prev);
+      next.set(activeWorktreeId, { ...runningTask, status: 'stopping' });
+      return next;
+    });
+  }, [activeWorktreeId, runningTasks]);
+
+  const handleForceKillTask = useCallback(() => {
+    if (!activeWorktreeId) return;
+
+    const runningTask = runningTasks.get(activeWorktreeId);
+    if (!runningTask || runningTask.status !== 'stopping') return;
+
+    // Force kill the PTY with SIGKILL
+    if (runningTask.ptyId) {
+      ptyForceKill(runningTask.ptyId);
+    }
+  }, [activeWorktreeId, runningTasks]);
+
+  const handleTaskExit = useCallback((worktreeId: string, _exitCode: number) => {
+    setRunningTasks((prev) => {
+      const current = prev.get(worktreeId);
+      if (!current) return prev;
+      const next = new Map(prev);
+      next.set(worktreeId, { ...current, status: 'stopped' });
+      return next;
+    });
+  }, []);
+
+  const handleTaskPtyIdReady = useCallback((worktreeId: string, ptyId: string) => {
+    console.log('[handleTaskPtyIdReady] worktreeId:', worktreeId, 'ptyId:', ptyId);
+    setRunningTasks((prev) => {
+      const current = prev.get(worktreeId);
+      if (!current) return prev;
+      const next = new Map(prev);
+      next.set(worktreeId, { ...current, ptyId });
+      return next;
+    });
+  }, []);
+
+  // Global listener for pty-exit events (handles silent tasks and force kills)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+
+    listen<{ ptyId: string; exitCode: number }>('pty-exit', (event) => {
+      // Find which worktree this ptyId belongs to and update status
+      setRunningTasks((prev) => {
+        for (const [worktreeId, task] of prev.entries()) {
+          if (task.ptyId === event.payload.ptyId) {
+            const next = new Map(prev);
+            next.set(worktreeId, { ...task, status: 'stopped' });
+            return next;
+          }
+        }
+        return prev;
+      });
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   // Keyboard shortcuts
@@ -998,6 +1217,9 @@ function App() {
               sessionTouchedProjects={sessionTouchedProjects}
               isDrawerOpen={isDrawerOpen}
               isRightPanelOpen={isRightPanelOpen}
+              tasks={config.tasks}
+              selectedTask={activeSelectedTask}
+              runningTask={activeRunningTask ? { ...activeRunningTask, worktreeId: activeWorktreeId!, kind: config.tasks.find(t => t.name === activeRunningTask.taskName)?.kind ?? 'command' } : null}
               onToggleProject={toggleProject}
               onSelectProject={handleSelectProject}
               onSelectWorktree={handleSelectWorktree}
@@ -1012,6 +1234,10 @@ function App() {
               onRemoveProject={handleRemoveProject}
               onMarkProjectInactive={handleMarkProjectInactive}
               onToggleShowActiveOnly={() => setShowActiveOnly(prev => !prev)}
+              onSelectTask={handleSelectTask}
+              onStartTask={handleStartTask}
+              onStopTask={handleStopTask}
+              onForceKillTask={handleForceKillTask}
             />
           </div>
         </Panel>
@@ -1086,6 +1312,7 @@ function App() {
                   worktreeId={activeWorktreeId}
                   tabs={activeDrawerTabs}
                   activeTabId={activeDrawerTabId}
+                  taskStatus={activeRunningTask?.status}
                   onSelectTab={handleSelectDrawerTab}
                   onCloseTab={handleCloseDrawerTab}
                   onAddTab={handleAddDrawerTab}
@@ -1103,25 +1330,49 @@ function App() {
                             : 'invisible z-0 pointer-events-none'
                         }`}
                       >
-                        <DrawerTerminal
-                          id={tab.id}
-                          worktreeId={worktreeId}
-                          isActive={
-                            worktreeId === activeWorktreeId &&
-                            isDrawerOpen &&
-                            tab.id === activeDrawerTabId
-                          }
-                          shouldAutoFocus={
-                            worktreeId === activeWorktreeId &&
-                            isDrawerOpen &&
-                            tab.id === activeDrawerTabId &&
-                            activeFocusState === 'drawer'
-                          }
-                          terminalConfig={config.terminal}
-                          mappings={config.mappings}
-                          onClose={() => handleCloseDrawerTab(tab.id, worktreeId)}
-                          onFocus={() => handleDrawerFocused(worktreeId)}
-                        />
+                        {tab.type === 'task' && tab.taskName ? (
+                          <TaskTerminal
+                            id={tab.id}
+                            worktreeId={worktreeId}
+                            taskName={tab.taskName}
+                            isActive={
+                              worktreeId === activeWorktreeId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId
+                            }
+                            shouldAutoFocus={
+                              worktreeId === activeWorktreeId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId &&
+                              activeFocusState === 'drawer'
+                            }
+                            terminalConfig={config.terminal}
+                            mappings={config.mappings}
+                            onPtyIdReady={(ptyId) => handleTaskPtyIdReady(worktreeId, ptyId)}
+                            onTaskExit={(exitCode) => handleTaskExit(worktreeId, exitCode)}
+                            onFocus={() => handleDrawerFocused(worktreeId)}
+                          />
+                        ) : (
+                          <DrawerTerminal
+                            id={tab.id}
+                            worktreeId={worktreeId}
+                            isActive={
+                              worktreeId === activeWorktreeId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId
+                            }
+                            shouldAutoFocus={
+                              worktreeId === activeWorktreeId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId &&
+                              activeFocusState === 'drawer'
+                            }
+                            terminalConfig={config.terminal}
+                            mappings={config.mappings}
+                            onClose={() => handleCloseDrawerTab(tab.id, worktreeId)}
+                            onFocus={() => handleDrawerFocused(worktreeId)}
+                          />
+                        )}
                       </div>
                     ))
                   )}

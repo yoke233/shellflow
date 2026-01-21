@@ -1,16 +1,21 @@
-import { X, Plus, Terminal } from 'lucide-react';
+import { X, Plus, Terminal, Play, Square } from 'lucide-react';
 import { ReactNode } from 'react';
 
 export interface DrawerTab {
   id: string;
   label: string;
+  type: 'terminal' | 'task';
+  taskName?: string;
 }
+
+type TaskStatus = 'running' | 'stopping' | 'stopped';
 
 interface DrawerProps {
   isOpen: boolean;
   worktreeId: string | null;
   tabs: DrawerTab[];
   activeTabId: string | null;
+  taskStatus?: TaskStatus;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
@@ -22,6 +27,7 @@ export function Drawer({
   worktreeId,
   tabs,
   activeTabId,
+  taskStatus,
   onSelectTab,
   onCloseTab,
   onAddTab,
@@ -44,19 +50,25 @@ export function Drawer({
                     : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
                 }`}
               >
-                <Terminal size={14} className="flex-shrink-0" />
-                <span className="text-sm truncate max-w-[120px]">{tab.label}</span>
-                {tabs.length > 1 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCloseTab(tab.id);
-                    }}
-                    className="p-0.5 rounded hover:bg-zinc-700 flex-shrink-0"
-                  >
-                    <X size={12} />
-                  </button>
+                {tab.type === 'task' ? (
+                  taskStatus === 'stopped' ? (
+                    <Square size={14} className="flex-shrink-0 text-zinc-500" />
+                  ) : (
+                    <Play size={14} className="flex-shrink-0 text-green-500" />
+                  )
+                ) : (
+                  <Terminal size={14} className="flex-shrink-0" />
                 )}
+                <span className="text-sm truncate max-w-[120px]">{tab.label}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCloseTab(tab.id);
+                  }}
+                  className="p-0.5 rounded hover:bg-zinc-700 flex-shrink-0"
+                >
+                  <X size={12} />
+                </button>
               </div>
             ))}
           </div>

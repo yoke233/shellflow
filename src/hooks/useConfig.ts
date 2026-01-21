@@ -19,6 +19,16 @@ export interface MergeConfig {
   deleteRemoteBranch: boolean;
 }
 
+export type TaskKind = 'command' | 'daemon';
+
+export interface TaskConfig {
+  name: string;
+  command: string;
+  kind?: TaskKind;
+  silent?: boolean;
+  shell?: string;
+}
+
 /** Platform-specific shortcut mapping */
 export interface PlatformShortcut {
   mac?: string;
@@ -59,6 +69,7 @@ export interface Config {
   terminal: TerminalConfig;
   merge: MergeConfig;
   mappings: MappingsConfig;
+  tasks: TaskConfig[];
 }
 
 const defaultConfig: Config = {
@@ -96,6 +107,7 @@ const defaultConfig: Config = {
     worktree8: { mac: 'cmd+8', other: 'ctrl+8' },
     worktree9: { mac: 'cmd+9', other: 'ctrl+9' },
   },
+  tasks: [],
 };
 
 export function useConfig(projectPath?: string) {

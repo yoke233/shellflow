@@ -148,6 +148,14 @@
         }
       },
       "additionalProperties": false
+    },
+    "tasks": {
+      "type": "array",
+      "description": "Configurable tasks that can be run per-worktree",
+      "items": {
+        "$ref": "#/$defs/task"
+      },
+      "default": []
     }
   },
   "additionalProperties": false,
@@ -191,6 +199,37 @@
         }
       ],
       "description": "A shortcut configuration: string, platform object, or array of both"
+    },
+    "task": {
+      "type": "object",
+      "description": "A configurable task that can be run in a worktree",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Display name for the task (must be unique)"
+        },
+        "command": {
+          "type": "string",
+          "description": "Shell command to run"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["command", "daemon"],
+          "description": "Task kind: 'command' runs to completion, 'daemon' stays running until stopped",
+          "default": "command"
+        },
+        "silent": {
+          "type": "boolean",
+          "description": "If true, task runs without showing output in drawer",
+          "default": false
+        },
+        "shell": {
+          "type": "string",
+          "description": "Override shell to run command with (e.g., '/bin/bash', 'fish')"
+        }
+      },
+      "required": ["name", "command"],
+      "additionalProperties": false
     }
   }
 }

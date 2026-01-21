@@ -91,6 +91,8 @@ lazy_static::lazy_static! {
     static ref PTY_MASTERS: Mutex<HashMap<String, Arc<Mutex<Box<dyn portable_pty::MasterPty + Send>>>>> = Mutex::new(HashMap::new());
     // Cache the user's PATH to avoid spawning shell on every PTY creation
     static ref CACHED_USER_PATH: Mutex<Option<String>> = Mutex::new(None);
+    // Cache the user's shell
+    static ref CACHED_USER_SHELL: Mutex<Option<String>> = Mutex::new(None);
     // Track if shutdown is already in progress
     static ref SHUTDOWN_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 }
@@ -106,6 +108,17 @@ fn get_cached_user_path() -> String {
     path
 }
 
+/// Get the user's shell, using cached value if available
+fn get_cached_user_shell() -> String {
+    let mut cache = CACHED_USER_SHELL.lock();
+    if let Some(shell) = cache.as_ref() {
+        return shell.clone();
+    }
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    *cache = Some(shell.clone());
+    shell
+}
+
 pub fn spawn_pty(
     app: &AppHandle,
     state: &AppState,
@@ -114,6 +127,7 @@ pub fn spawn_pty(
     command: &str,
     cols: Option<u16>,
     rows: Option<u16>,
+    shell_override: Option<&str>,
 ) -> Result<String, PtyError> {
     let pty_system = native_pty_system();
 
@@ -130,17 +144,24 @@ pub fn spawn_pty(
     eprintln!("[PTY] Spawning command: {} in {}", command, worktree_path);
 
     // "shell" is a special command that spawns the user's login shell
-    // Any other command is run directly (e.g., "claude", "aider")
+    // Any other command is run through the shell with -c to support shell features
     let is_main_command = command != "shell";
 
+    // Use shell override if provided, otherwise use cached user shell
+    let shell = shell_override
+        .map(|s| s.to_string())
+        .unwrap_or_else(get_cached_user_shell);
+
     let mut cmd = if command == "shell" {
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
         let mut cmd = CommandBuilder::new(&shell);
         cmd.arg("-l");
         cmd.cwd(worktree_path);
         cmd
     } else {
-        let mut cmd = CommandBuilder::new(command);
+        // Run command through shell to support pipes, aliases, arguments, etc.
+        let mut cmd = CommandBuilder::new(&shell);
+        cmd.arg("-c");
+        cmd.arg(command);
         cmd.cwd(worktree_path);
         cmd
     };
@@ -322,11 +343,73 @@ pub fn resize_pty(_state: &AppState, pty_id: &str, cols: u16, rows: u16) -> Resu
     Ok(())
 }
 
+/// Kill a PTY session with SIGTERM (can be caught/ignored by the process)
+#[cfg(unix)]
 pub fn kill_pty(state: &AppState, pty_id: &str) -> Result<(), PtyError> {
+    use libc::SIGTERM;
+
+    // Get the child PID before removing session
+    let child_pid = state
+        .pty_sessions
+        .read()
+        .get(pty_id)
+        .map(|s| s.child_pid);
+
+    if let Some(pid) = child_pid {
+        // Kill all children first, then the main process
+        let children = get_child_pids(pid);
+        for child_pid in children {
+            send_signal(child_pid, SIGTERM);
+        }
+        send_signal(pid, SIGTERM);
+    }
+
+    // Note: Don't clean up state here - wait for pty-exit event
+    // The process might still be running if it ignores SIGTERM
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn kill_pty(state: &AppState, pty_id: &str) -> Result<(), PtyError> {
+    // On non-Unix, just remove the session (will close the PTY)
     state.pty_sessions.write().remove(pty_id);
     PTY_WRITERS.lock().remove(pty_id);
     PTY_MASTERS.lock().remove(pty_id);
     Ok(())
+}
+
+/// Force kill a PTY session with SIGKILL (cannot be ignored)
+#[cfg(unix)]
+pub fn force_kill_pty(state: &AppState, pty_id: &str) -> Result<(), PtyError> {
+    use libc::SIGKILL;
+
+    // Get the child PID before removing session
+    let child_pid = state
+        .pty_sessions
+        .read()
+        .get(pty_id)
+        .map(|s| s.child_pid);
+
+    if let Some(pid) = child_pid {
+        // Kill all children first, then the main process
+        let children = get_child_pids(pid);
+        for child_pid in children {
+            send_signal(child_pid, SIGKILL);
+        }
+        send_signal(pid, SIGKILL);
+    }
+
+    // Clean up state
+    state.pty_sessions.write().remove(pty_id);
+    PTY_WRITERS.lock().remove(pty_id);
+    PTY_MASTERS.lock().remove(pty_id);
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn force_kill_pty(state: &AppState, pty_id: &str) -> Result<(), PtyError> {
+    // On non-Unix, just do regular kill
+    kill_pty(state, pty_id)
 }
 
 /// Shutdown progress event payload

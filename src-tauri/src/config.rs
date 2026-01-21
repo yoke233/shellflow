@@ -12,6 +12,7 @@ pub struct Config {
     pub worktree: WorktreeConfig,
     pub merge: MergeConfig,
     pub mappings: MappingsConfig,
+    pub tasks: Vec<TaskConfig>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
@@ -20,6 +21,27 @@ pub enum MergeStrategy {
     #[default]
     Merge,
     Rebase,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskKind {
+    #[default]
+    Command,
+    Daemon,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskConfig {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub kind: TaskKind,
+    /// If true, task runs without showing output in drawer
+    #[serde(default)]
+    pub silent: bool,
+    /// Override shell to run command with (e.g., "/bin/bash", "fish")
+    pub shell: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -289,6 +311,7 @@ fn parse_jsonc_value(content: &str) -> Option<serde_json::Value> {
 }
 
 /// Recursively merge overlay into base. Overlay values take precedence.
+/// Arrays are merged by "name" field if items are objects with that field.
 fn deep_merge(base: &mut serde_json::Value, overlay: &serde_json::Value) {
     use serde_json::Value;
     if let (Value::Object(base_obj), Value::Object(overlay_obj)) = (base, overlay) {
@@ -297,9 +320,52 @@ fn deep_merge(base: &mut serde_json::Value, overlay: &serde_json::Value) {
                 Some(base_val) if base_val.is_object() && overlay_val.is_object() => {
                     deep_merge(base_val, overlay_val);
                 }
+                Some(base_val) if base_val.is_array() && overlay_val.is_array() => {
+                    merge_arrays(base_val, overlay_val);
+                }
                 _ => {
                     base_obj.insert(key.clone(), overlay_val.clone());
                 }
+            }
+        }
+    }
+}
+
+/// Merge two arrays. If items are objects with a "name" field, merge by name.
+/// Items with matching names are overridden; unique items accumulate.
+fn merge_arrays(base: &mut serde_json::Value, overlay: &serde_json::Value) {
+    let (Some(base_arr), Some(overlay_arr)) = (base.as_array_mut(), overlay.as_array()) else {
+        return;
+    };
+
+    // Check if arrays contain objects with "name" fields
+    let base_has_names = base_arr
+        .iter()
+        .all(|v| v.get("name").and_then(|n| n.as_str()).is_some());
+    let overlay_has_names = overlay_arr
+        .iter()
+        .all(|v| v.get("name").and_then(|n| n.as_str()).is_some());
+
+    if base_has_names && overlay_has_names {
+        // Merge by name: overlay items override base items with same name
+        for overlay_item in overlay_arr {
+            if let Some(overlay_name) = overlay_item.get("name").and_then(|n| n.as_str()) {
+                // Find and replace existing item with same name, or append
+                if let Some(base_item) = base_arr
+                    .iter_mut()
+                    .find(|v| v.get("name").and_then(|n| n.as_str()) == Some(overlay_name))
+                {
+                    *base_item = overlay_item.clone();
+                } else {
+                    base_arr.push(overlay_item.clone());
+                }
+            }
+        }
+    } else {
+        // No name fields - append unique items (by value equality)
+        for overlay_item in overlay_arr {
+            if !base_arr.contains(overlay_item) {
+                base_arr.push(overlay_item.clone());
             }
         }
     }

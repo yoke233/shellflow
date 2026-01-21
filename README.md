@@ -70,6 +70,7 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
   - **Create worktree** — Generates a worktree with a random branch name
   - **Merge worktree** — Merges/rebases, deletes branch + worktree + remote branch (optionally)
 - **Configurable Main Command** — Launch Claude, Aider, or any CLI tool in each worktree
+- **Tasks** — Run configurable commands per worktree (dev servers, builds, tests, etc.)
 - **Change View** — Real-time display of changed files in each worktree
 - **Terminal Access** — Shell access in each worktree
 
@@ -179,6 +180,41 @@ The built application will be available at:
 Settings are stored in `~/.config/onemanband/config.jsonc`. The file is created with defaults on first run.
 
 See [default_config.jsonc](src-tauri/src/default_config.jsonc) for all available options, or use the [JSON schema](src-tauri/src/config.schema.json) for editor autocompletion.
+
+### Tasks
+
+Tasks are configurable commands that can be run per worktree. They appear in a dropdown in the sidebar and can be started/stopped individually. Useful for dev servers, build watchers, test runners, or any command you run frequently.
+
+```jsonc
+{
+  "tasks": [
+    {
+      "name": "Dev Server",
+      "command": "npm run dev",
+      "kind": "daemon"    // Stays running until stopped
+    },
+    {
+      "name": "Build",
+      "command": "npm run build",
+      "kind": "command"   // Runs to completion (default)
+    },
+    {
+      "name": "Test Watch",
+      "command": "npm test -- --watch",
+      "kind": "daemon",
+      "silent": true      // Run without showing output in drawer
+    }
+  ]
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `name` | string | Display name for the task (must be unique) |
+| `command` | string | Shell command to run |
+| `kind` | `"command"` \| `"daemon"` | `"command"` runs to completion, `"daemon"` stays running until stopped (default: `"command"`) |
+| `silent` | boolean | If true, task runs without showing output in drawer (default: `false`) |
+| `shell` | string | Override shell to run command with (e.g., `/bin/bash`, `fish`) |
 
 ### Project-specific overrides
 
