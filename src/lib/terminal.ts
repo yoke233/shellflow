@@ -1,6 +1,7 @@
 import type { Terminal } from '@xterm/xterm';
 import type { Shortcut } from '../hooks/useConfig';
 import { matchesShortcut } from './keyboard';
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
 
 export interface TerminalShortcuts {
   copy: Shortcut;
@@ -32,20 +33,22 @@ export function attachKeyboardHandlers(
     if (shortcuts?.copy && matchesShortcut(event, shortcuts.copy)) {
       if (terminal.hasSelection()) {
         const selection = terminal.getSelection();
-        navigator.clipboard.writeText(selection).catch(console.error);
+        writeText(selection).catch(console.error);
         return false; // Prevent default handling
       }
       // No selection: let the key pass through (e.g., Ctrl+C sends interrupt)
       return true;
     }
 
-    // Paste shortcut: paste from clipboard
+    // Paste shortcut: paste from clipboard (uses native Tauri API to avoid macOS prompt)
     if (shortcuts?.paste && matchesShortcut(event, shortcuts.paste)) {
-      navigator.clipboard.readText().then((text) => {
-        if (text) {
-          write(text);
-        }
-      }).catch(console.error);
+      readText()
+        .then((text) => {
+          if (text) {
+            write(text);
+          }
+        })
+        .catch(console.error);
       return false; // Prevent default handling
     }
 
