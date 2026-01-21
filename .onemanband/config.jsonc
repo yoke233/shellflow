@@ -7,7 +7,7 @@
       "kind": "daemon",
     },
     {
-      "name": "Dev",
+      "name": "Build",
       "command": "npm run tauri build",
       "kind": "command",
     },
