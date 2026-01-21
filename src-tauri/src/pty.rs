@@ -141,7 +141,9 @@ pub fn spawn_pty(
     // Get user's PATH (cached after first call)
     let user_path = get_cached_user_path();
 
-    eprintln!("[PTY] Spawning command: {} in {}", command, worktree_path);
+    eprintln!("[PTY] Spawning command: '{}' in '{}' (raw: '{}')", command.split_whitespace().next().unwrap_or(command), worktree_path, command);
+    eprintln!("[PTY] PATH length: {} chars", user_path.len());
+    eprintln!("[PTY] Worktree path exists: {}", std::path::Path::new(worktree_path).exists());
 
     // "shell" is a special command that spawns the user's login shell
     // Any other command is run through the shell with -c to support shell features
@@ -152,16 +154,40 @@ pub fn spawn_pty(
         .map(|s| s.to_string())
         .unwrap_or_else(get_cached_user_shell);
 
+    // Parse command into executable and arguments
+    let parts: Vec<&str> = command.split_whitespace().collect();
+    let (executable, args) = if parts.is_empty() {
+        (command, vec![])
+    } else {
+        (parts[0], parts[1..].to_vec())
+    };
+
+    // Known shell commands that should be run as login shells
+    let shell_commands = ["fish", "bash", "zsh", "sh"];
+    let is_shell_command = shell_commands.iter().any(|s| executable == *s || executable.ends_with(&format!("/{}", s)));
+
     let mut cmd = if command == "shell" {
         let mut cmd = CommandBuilder::new(&shell);
         cmd.arg("-l");
         cmd.cwd(worktree_path);
         cmd
+    } else if is_shell_command {
+        // Run shell commands via /usr/bin/env to avoid exec issues with portable_pty
+        // See: https://github.com/rust-lang/rust/issues/125952
+        let mut cmd = CommandBuilder::new("/usr/bin/env");
+        cmd.arg(executable);
+        for arg in &args {
+            cmd.arg(*arg);
+        }
+        cmd.cwd(worktree_path);
+        eprintln!("[PTY] Running {} via /usr/bin/env with args {:?} (shell mode)", executable, args);
+        cmd
     } else {
-        // Run command through shell to support pipes, aliases, arguments, etc.
-        let mut cmd = CommandBuilder::new(&shell);
-        cmd.arg("-c");
-        cmd.arg(command);
+        // Run non-shell commands directly
+        let mut cmd = CommandBuilder::new(executable);
+        for arg in &args {
+            cmd.arg(*arg);
+        }
         cmd.cwd(worktree_path);
         cmd
     };
@@ -170,6 +196,39 @@ pub fn spawn_pty(
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 
+    // Ensure essential environment variables are set
+    if let Ok(home) = std::env::var("HOME") {
+        cmd.env("HOME", home);
+    }
+    if let Ok(user) = std::env::var("USER") {
+        cmd.env("USER", user);
+    }
+    if let Ok(shell) = std::env::var("SHELL") {
+        cmd.env("SHELL", shell);
+    }
+    if let Ok(lang) = std::env::var("LANG") {
+        cmd.env("LANG", lang);
+    }
+    if let Ok(lc_all) = std::env::var("LC_ALL") {
+        cmd.env("LC_ALL", lc_all);
+    }
+    // Set LC_ALL to a sensible default if not set
+    if std::env::var("LC_ALL").is_err() && std::env::var("LANG").is_ok() {
+        cmd.env("LC_ALL", std::env::var("LANG").unwrap());
+    }
+    if let Ok(xdg_config) = std::env::var("XDG_CONFIG_HOME") {
+        cmd.env("XDG_CONFIG_HOME", xdg_config);
+    }
+    if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
+        cmd.env("XDG_DATA_HOME", xdg_data);
+    }
+    // PWD is important for some shells
+    cmd.env("PWD", worktree_path);
+
+    // Log the environment we're setting
+    eprintln!("[PTY] HOME={:?}", std::env::var("HOME"));
+    eprintln!("[PTY] USER={:?}", std::env::var("USER"));
+    eprintln!("[PTY] SHELL={:?}", std::env::var("SHELL"));
     eprintln!("[PTY] Command built, spawning child...");
 
     let child = pair.slave.spawn_command(cmd)?;
@@ -238,6 +297,11 @@ pub fn spawn_pty(
                     total_bytes += n;
                     if read_count <= 5 || read_count % 100 == 0 {
                         eprintln!("[PTY:{}] Read {} bytes (total: {})", pty_id_clone, n, total_bytes);
+                        // Debug: show first read content
+                        if read_count == 1 {
+                            let preview = String::from_utf8_lossy(&buf[..n.min(200)]);
+                            eprintln!("[PTY:{}] First read content: {:?}", pty_id_clone, preview);
+                        }
                     }
 
                     // Emit pty-ready event on first substantial output for main command

@@ -15,6 +15,8 @@ pub enum GitError {
     MergeConflict(String),
     #[error("Branch not found: {0}")]
     BranchNotFound(String),
+    #[error("Repository has uncommitted changes")]
+    UncommittedChanges,
 }
 
 /// Result of checking merge feasibility
@@ -77,7 +79,18 @@ pub fn create_worktree(
     worktree_path: &Path,
     branch_name: &str,
 ) -> Result<(), GitError> {
+    log::info!("[git::create_worktree] Opening repo at {:?}", repo_path);
     let repo = Repository::open(repo_path)?;
+
+    // Check for modified/staged changes before proceeding
+    // We only check for modified/staged files, not untracked files,
+    // because untracked files don't affect worktree creation
+    let has_changes = has_modified_or_staged_changes(&repo)?;
+    log::info!("[git::create_worktree] has_modified_or_staged_changes: {}", has_changes);
+    if has_changes {
+        log::info!("[git::create_worktree] Returning UncommittedChanges error");
+        return Err(GitError::UncommittedChanges);
+    }
 
     // Get the default branch to branch from
     let default_branch = get_default_branch(&repo)?;
@@ -317,6 +330,11 @@ pub fn check_merge_feasibility(worktree_path: &Path) -> Result<MergeFeasibility,
 }
 
 /// Check if repository has uncommitted changes
+pub fn has_uncommitted_changes_at_path(repo_path: &Path) -> Result<bool, GitError> {
+    let repo = Repository::open(repo_path)?;
+    has_uncommitted_changes(&repo)
+}
+
 fn has_uncommitted_changes(repo: &Repository) -> Result<bool, GitError> {
     let mut opts = StatusOptions::new();
     opts.include_untracked(true)
@@ -325,6 +343,62 @@ fn has_uncommitted_changes(repo: &Repository) -> Result<bool, GitError> {
 
     let statuses = repo.statuses(Some(&mut opts))?;
     Ok(!statuses.is_empty())
+}
+
+/// Check if repository has modified or staged changes (excludes untracked files)
+/// This is used for worktree creation where untracked files don't matter
+fn has_modified_or_staged_changes(repo: &Repository) -> Result<bool, GitError> {
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(false)
+        .include_ignored(false);
+
+    let statuses = repo.statuses(Some(&mut opts))?;
+
+    // Debug: log what files are being detected
+    for entry in statuses.iter() {
+        if let Some(path) = entry.path() {
+            log::info!("[has_modified_or_staged_changes] Found: {} with status {:?}", path, entry.status());
+        }
+    }
+
+    log::info!("[has_modified_or_staged_changes] Total files found: {}", statuses.len());
+    Ok(!statuses.is_empty())
+}
+
+/// Stash uncommitted changes in a repository
+pub fn stash_changes(repo_path: &Path) -> Result<(), GitError> {
+    {
+        let mut repo = Repository::open(repo_path)?;
+
+        let signature = repo.signature()?;
+        let message = "Auto-stash before worktree creation";
+
+        repo.stash_save(
+            &signature,
+            message,
+            Some(git2::StashFlags::INCLUDE_UNTRACKED),
+        )?;
+
+        // repo is dropped here, releasing any locks
+    }
+
+    // Small delay to ensure index lock is fully released
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    Ok(())
+}
+
+/// Pop the most recent stash
+pub fn stash_pop(repo_path: &Path) -> Result<(), GitError> {
+    let mut repo = Repository::open(repo_path)?;
+
+    repo.stash_pop(0, None)?;
+
+    // Drop repo and wait briefly to ensure locks are released
+    drop(repo);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+
+    Ok(())
 }
 
 /// Merge the current branch into the target branch

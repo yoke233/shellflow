@@ -38,16 +38,18 @@ export function useWorktrees() {
 
   const createWorktree = useCallback(
     async (projectPath: string, name?: string) => {
+      console.log('[useWorktrees.createWorktree] Called with path:', projectPath);
       try {
         const worktree = await invoke<Worktree>('create_worktree', {
           projectPath,
           name,
         });
+        console.log('[useWorktrees.createWorktree] Success:', worktree.name);
         // Reload projects to get updated worktree list
         await loadProjects();
         return worktree;
       } catch (err) {
-        console.error('Failed to create worktree:', err);
+        console.error('[useWorktrees.createWorktree] Failed:', err);
         throw err;
       }
     },

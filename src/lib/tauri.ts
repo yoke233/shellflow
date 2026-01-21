@@ -78,6 +78,18 @@ export async function getChangedFiles(worktreePath: string): Promise<FileChange[
   return invoke<FileChange[]>('get_changed_files', { worktreePath });
 }
 
+export async function hasUncommittedChanges(projectPath: string): Promise<boolean> {
+  return invoke<boolean>('has_uncommitted_changes', { projectPath });
+}
+
+export async function stashChanges(projectPath: string): Promise<void> {
+  return invoke<void>('stash_changes', { projectPath });
+}
+
+export async function stashPop(projectPath: string): Promise<void> {
+  return invoke<void>('stash_pop', { projectPath });
+}
+
 // Dialog helpers
 export async function selectFolder(): Promise<string | null> {
   const selected = await open({

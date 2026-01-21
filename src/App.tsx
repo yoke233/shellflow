@@ -10,11 +10,12 @@ import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
 import { TaskTerminal } from './components/Drawer/TaskTerminal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { MergeModal } from './components/MergeModal';
+import { StashModal } from './components/StashModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop } from './lib/tauri';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
 import { Project, Worktree } from './types';
@@ -140,6 +141,9 @@ function App() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingRemoveProject, setPendingRemoveProject] = useState<Project | null>(null);
   const [pendingMergeId, setPendingMergeId] = useState<string | null>(null);
+  const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
+  const [isStashing, setIsStashing] = useState(false);
+  const [stashError, setStashError] = useState<string | null>(null);
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
   const [notifiedWorktreeIds, setNotifiedWorktreeIds] = useState<Set<string>>(new Set());
   const [thinkingWorktreeIds, setThinkingWorktreeIds] = useState<Set<string>>(new Set());
@@ -874,24 +878,84 @@ function App() {
 
   const handleAddWorktree = useCallback(
     async (projectId: string) => {
+      console.log('[handleAddWorktree] Called with projectId:', projectId);
       const project = projects.find((p) => p.id === projectId);
-      if (!project) return;
+      if (!project) {
+        console.log('[handleAddWorktree] Project not found');
+        return;
+      }
+      console.log('[handleAddWorktree] Found project:', project.name, 'path:', project.path);
 
       setExpandedProjects((prev) => new Set([...prev, projectId]));
       // Mark project as touched this session so it stays visible
       setSessionTouchedProjects((prev) => new Set([...prev, projectId]));
 
+      console.log('[handleAddWorktree] About to call createWorktree...');
       try {
         const worktree = await createWorktree(project.path);
+        console.log('[handleAddWorktree] createWorktree succeeded:', worktree.name);
         setLoadingWorktrees((prev) => new Set([...prev, worktree.id]));
         setOpenWorktreeIds((prev) => new Set([...prev, worktree.id]));
         setActiveWorktreeId(worktree.id);
       } catch (err) {
-        console.error('Failed to create worktree:', err);
+        const errorMessage = String(err);
+        console.log('[handleAddWorktree] Error caught:', errorMessage);
+        console.log('[handleAddWorktree] Error type:', typeof err);
+        console.log('[handleAddWorktree] Error object:', err);
+        // Check if this is an uncommitted changes error
+        if (errorMessage.includes('uncommitted changes')) {
+          console.log('[handleAddWorktree] Showing stash modal for project:', project.name);
+          setStashError(null); // Clear any previous error
+          setPendingStashProject(project);
+        } else {
+          console.error('Failed to create worktree:', err);
+        }
       }
     },
     [projects, createWorktree]
   );
+
+  const handleStashAndCreate = useCallback(async () => {
+    if (!pendingStashProject) return;
+
+    const project = pendingStashProject;
+    setIsStashing(true);
+    console.log('[handleStashAndCreate] Starting for project:', project.path);
+
+    try {
+      // Stash the changes
+      console.log('[handleStashAndCreate] Stashing changes...');
+      await stashChanges(project.path);
+      console.log('[handleStashAndCreate] Stash successful');
+
+      // Create the worktree
+      console.log('[handleStashAndCreate] Creating worktree...');
+      const worktree = await createWorktree(project.path);
+      console.log('[handleStashAndCreate] Worktree created:', worktree.name);
+
+      // Pop the stash to restore changes
+      console.log('[handleStashAndCreate] Popping stash...');
+      await stashPop(project.path);
+      console.log('[handleStashAndCreate] Stash popped');
+
+      // Update UI state
+      setLoadingWorktrees((prev) => new Set([...prev, worktree.id]));
+      setOpenWorktreeIds((prev) => new Set([...prev, worktree.id]));
+      setActiveWorktreeId(worktree.id);
+      setPendingStashProject(null);
+    } catch (err) {
+      console.error('[handleStashAndCreate] Failed:', err);
+      setStashError(String(err));
+      // Try to restore the stash if worktree creation failed
+      try {
+        await stashPop(project.path);
+      } catch {
+        // Stash pop might fail if we never stashed successfully
+      }
+    } finally {
+      setIsStashing(false);
+    }
+  }, [pendingStashProject, createWorktree]);
 
   const handleSelectWorktree = useCallback((worktree: Worktree) => {
     // Mark the project as active
@@ -1190,6 +1254,19 @@ function App() {
           defaultConfig={config.merge}
           onClose={() => setPendingMergeId(null)}
           onMergeComplete={handleMergeComplete}
+        />
+      )}
+
+      {pendingStashProject && (
+        <StashModal
+          projectName={pendingStashProject.name}
+          onStashAndCreate={handleStashAndCreate}
+          onCancel={() => {
+            setPendingStashProject(null);
+            setStashError(null);
+          }}
+          isLoading={isStashing}
+          error={stashError}
         />
       )}
 
