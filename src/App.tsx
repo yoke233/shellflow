@@ -800,20 +800,21 @@ function App() {
     });
   }, [activeProjectPath]);
 
-  const handleStartTask = useCallback(async () => {
-    if (!activeEntityId || !activeSelectedTask) return;
+  const handleStartTask = useCallback(async (taskNameOverride?: string) => {
+    const taskName = taskNameOverride ?? activeSelectedTask;
+    if (!activeEntityId || !taskName) return;
 
     // Find the task config to get the kind
-    const task = config.tasks.find((t) => t.name === activeSelectedTask);
+    const task = config.tasks.find((t) => t.name === taskName);
     if (!task) return;
 
     // Check if this task is already running
     const entityTasks = runningTasks.get(activeEntityId) ?? [];
-    const existingTask = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
+    const existingTask = entityTasks.find(t => t.taskName === taskName && t.status === 'running');
     if (existingTask) {
       // Task is already running, just switch to its tab (if not silent)
       if (!task.silent) {
-        const tabId = `${activeEntityId}-task-${activeSelectedTask}`;
+        const tabId = `${activeEntityId}-task-${taskName}`;
         setDrawerActiveTabIds((prev) => {
           const next = new Map(prev);
           next.set(activeEntityId, tabId);
@@ -831,14 +832,14 @@ function App() {
     if (task.silent) {
       const { spawnTask } = await import('./lib/tauri');
       try {
-        const ptyId = await spawnTask(activeEntityId, activeSelectedTask);
+        const ptyId = await spawnTask(activeEntityId, taskName);
         // Track the silent task so we can stop it
         setRunningTasks((prev) => {
           const next = new Map(prev);
           const existing = prev.get(activeEntityId) ?? [];
           // Remove any stopped instance of this task, add new running one
-          const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
-          next.set(activeEntityId, [...filtered, { taskName: activeSelectedTask, ptyId, status: 'running' }]);
+          const filtered = existing.filter(t => t.taskName !== taskName || t.status === 'running');
+          next.set(activeEntityId, [...filtered, { taskName, ptyId, status: 'running' }]);
           return next;
         });
       } catch (err) {
@@ -848,19 +849,19 @@ function App() {
     }
 
     // Create a new task tab with unique ID (allows restart)
-    const tabId = `${activeEntityId}-task-${activeSelectedTask}-${Date.now()}`;
+    const tabId = `${activeEntityId}-task-${taskName}-${Date.now()}`;
     const newTab: DrawerTab = {
       id: tabId,
-      label: activeSelectedTask,
+      label: taskName,
       type: 'task',
-      taskName: activeSelectedTask,
+      taskName,
     };
 
     // Remove any existing tab for this task, then add new one
     setDrawerTabs((prev) => {
       const currentTabs = prev.get(activeEntityId) ?? [];
       // Remove old task tab if exists (any tab with same taskName)
-      const filteredTabs = currentTabs.filter((t) => t.taskName !== activeSelectedTask);
+      const filteredTabs = currentTabs.filter((t) => t.taskName !== taskName);
       const next = new Map(prev);
       next.set(activeEntityId, [...filteredTabs, newTab]);
       return next;
@@ -882,8 +883,8 @@ function App() {
       const next = new Map(prev);
       const existing = prev.get(activeEntityId) ?? [];
       // Remove any stopped instance of this task, add new running one
-      const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
-      next.set(activeEntityId, [...filtered, { taskName: activeSelectedTask, ptyId: '', status: 'running' }]);
+      const filtered = existing.filter(t => t.taskName !== taskName || t.status === 'running');
+      next.set(activeEntityId, [...filtered, { taskName, ptyId: '', status: 'running' }]);
       return next;
     });
 
@@ -965,7 +966,7 @@ function App() {
 
   const handleTaskSwitcherRun = useCallback((taskName: string) => {
     handleSelectTask(taskName);
-    setTimeout(() => handleStartTask(), 0);
+    handleStartTask(taskName);
     setIsTaskSwitcherOpen(false);
   }, [handleSelectTask, handleStartTask]);
 
