@@ -253,7 +253,7 @@
         },
         "command": {
           "type": "string",
-          "description": "Shell command to run"
+          "description": "Shell command to run. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}"
         },
         "kind": {
           "type": "string",
@@ -269,6 +269,18 @@
         "shell": {
           "type": "string",
           "description": "Override shell to run command with (e.g., '/bin/bash', 'fish')"
+        },
+        "urls": {
+          "type": "object",
+          "description": "Named URL templates to display when task is running. Key is the link label, value is the URL template. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}",
+          "additionalProperties": {
+            "type": "string",
+            "description": "URL template"
+          },
+          "examples": [
+            { "Dev": "http://localhost:3000" },
+            { "Dev": "http://localhost:{{ branch | hash_port }}", "API": "http://localhost:{{ branch | hash_port }}/api" }
+          ]
         }
       },
       "required": ["name", "command"],
