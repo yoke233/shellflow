@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig, MappingsConfig } from '../../hooks/useConfig';
@@ -153,6 +154,13 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
       fontSize: terminalConfig.fontSize,
       fontFamily: terminalConfig.fontFamily,
       allowProposedApi: true,
+      linkHandler: {
+        activate: (event, uri) => {
+          if (event.metaKey) {
+            openUrl(uri).catch(console.error);
+          }
+        },
+      },
       theme: {
         background: '#09090b',
         foreground: '#fafafa',
@@ -179,7 +187,11 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     });
 
     const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    const webLinksAddon = new WebLinksAddon((event, uri) => {
+      if (event.metaKey) {
+        openUrl(uri).catch(console.error);
+      }
+    });
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);

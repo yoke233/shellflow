@@ -2,7 +2,9 @@ import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { listen } from '@tauri-apps/api/event';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalConfig, MappingsConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { attachKeyboardHandlers } from '../../lib/terminal';
@@ -93,6 +95,13 @@ export function TaskTerminal({
       cursorStyle: 'block',
       fontSize: terminalConfig.fontSize,
       fontFamily: terminalConfig.fontFamily,
+      linkHandler: {
+        activate: (event, uri) => {
+          if (event.metaKey) {
+            openUrl(uri).catch(console.error);
+          }
+        },
+      },
       theme: {
         background: '#18181b',
         foreground: '#fafafa',
@@ -119,7 +128,14 @@ export function TaskTerminal({
     });
 
     const fitAddon = new FitAddon();
+    const webLinksAddon = new WebLinksAddon((event, uri) => {
+      if (event.metaKey) {
+        openUrl(uri).catch(console.error);
+      }
+    });
+
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(webLinksAddon);
     terminal.open(containerRef.current);
 
     // Load WebGL addon for GPU-accelerated rendering
