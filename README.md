@@ -113,7 +113,16 @@ These shortcuts can be customized via `mappings` in the [config](#configuration)
 
 ## Installation
 
-At the moment, you're best off just running it from source. I'm still working on getting releases with notarization working, but you can check out the [Releases](https://github.com/shkm/One-Man-Band/releases) page.
+### Homebrew (macOS)
+
+```bash
+brew tap shkm/brew
+brew install --cask one-man-band
+```
+
+### Manual Download
+
+Download the latest release for your platform from the [Releases](https://github.com/shkm/one-man-band/releases) page.
 
 ## Technology Stack
 
