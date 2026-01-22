@@ -984,6 +984,11 @@ function App() {
       try {
         const project = await addProject(path);
         setExpandedProjects((prev) => new Set([...prev, project.id]));
+        // Activate the newly added project immediately
+        setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+        setOpenProjectIds((prev) => new Set([...prev, project.id]));
+        setActiveWorktreeId(null);
+        setActiveProjectId(project.id);
       } catch (err) {
         console.error('Failed to add project:', err);
       }
