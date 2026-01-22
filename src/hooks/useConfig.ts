@@ -46,6 +46,11 @@ export type ShortcutEntry = string | PlatformShortcut;
  */
 export type Shortcut = string | PlatformShortcut | ShortcutEntry[];
 
+export interface IndicatorsConfig {
+  activityTimeout: number;
+  showIdleCheck: boolean;
+}
+
 export interface MappingsConfig {
   toggleDrawer: Shortcut;
   toggleRightPanel: Shortcut;
@@ -75,6 +80,7 @@ export interface Config {
   terminal: TerminalConfig;
   merge: MergeConfig;
   mappings: MappingsConfig;
+  indicators: IndicatorsConfig;
   tasks: TaskConfig[];
 }
 
@@ -95,6 +101,10 @@ const defaultConfig: Config = {
     deleteWorktree: true,
     deleteLocalBranch: false,
     deleteRemoteBranch: false,
+  },
+  indicators: {
+    activityTimeout: 250,
+    showIdleCheck: true,
   },
   // Mappings are loaded from backend (default_config.jsonc is single source of truth)
   // These are placeholder values used only until backend config loads

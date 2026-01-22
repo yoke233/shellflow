@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check } from 'lucide-react';
 import { Project, Worktree, RunningTask } from '../../types';
 import { TaskConfig } from '../../hooks/useConfig';
 import { useState, useMemo } from 'react';
@@ -38,8 +38,10 @@ interface SidebarProps {
   loadingWorktrees: Set<string>;
   notifiedWorktreeIds: Set<string>;
   thinkingWorktreeIds: Set<string>;
+  idleWorktreeIds: Set<string>;
   notifiedProjectIds: Set<string>;
   thinkingProjectIds: Set<string>;
+  idleProjectIds: Set<string>;
   runningTaskCounts: Map<string, number>;
   expandedProjects: Set<string>;
   showActiveOnly: boolean;
@@ -51,6 +53,7 @@ interface SidebarProps {
   runningTask: RunningTask | null;
   allRunningTasks: Array<{ taskName: string; status: string }>;
   terminalFontFamily: string;
+  showIdleCheck: boolean;
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
@@ -86,8 +89,10 @@ export function Sidebar({
   loadingWorktrees,
   notifiedWorktreeIds,
   thinkingWorktreeIds,
+  idleWorktreeIds,
   notifiedProjectIds,
   thinkingProjectIds,
+  idleProjectIds,
   runningTaskCounts,
   expandedProjects,
   showActiveOnly,
@@ -99,6 +104,7 @@ export function Sidebar({
   runningTask,
   allRunningTasks,
   terminalFontFamily,
+  showIdleCheck,
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
@@ -400,15 +406,20 @@ export function Sidebar({
                             <MoreHorizontal size={14} />
                           </button>
                         </div>
-                        {/* Status indicators - hide on hover */}
-                        {thinkingProjectIds.has(project.id) && !isProjectSelected && (
+                        {/* Status indicators - hide on hover. Priority: notification > thinking > idle */}
+                        {notifiedProjectIds.has(project.id) && !isProjectSelected && (
+                          <span className="absolute right-1 group-hover:hidden" title="New notification">
+                            <BellDot size={12} className="text-blue-400" />
+                          </span>
+                        )}
+                        {thinkingProjectIds.has(project.id) && !isProjectSelected && !notifiedProjectIds.has(project.id) && (
                           <span className="absolute right-1 group-hover:hidden" title="Thinking...">
                             <Loader2 size={12} className="animate-spin text-violet-400" />
                           </span>
                         )}
-                        {notifiedProjectIds.has(project.id) && !isProjectSelected && !thinkingProjectIds.has(project.id) && (
-                          <span className="absolute right-1 group-hover:hidden" title="New notification">
-                            <BellDot size={12} className="text-blue-400" />
+                        {showIdleCheck && idleProjectIds.has(project.id) && !isProjectSelected && !notifiedProjectIds.has(project.id) && !thinkingProjectIds.has(project.id) && (
+                          <span className="absolute right-1 group-hover:hidden" title="Ready">
+                            <Check size={12} className="text-emerald-400" />
                           </span>
                         )}
                       </div>
@@ -431,6 +442,8 @@ export function Sidebar({
                               {project.worktrees.map((worktree) => {
                                 const isLoading = loadingWorktrees.has(worktree.id);
                                 const isThinking = thinkingWorktreeIds.has(worktree.id);
+                                const isIdle = idleWorktreeIds.has(worktree.id);
+                                const isNotified = notifiedWorktreeIds.has(worktree.id);
                                 const isOpen = openWorktreeIds.has(worktree.id);
                                 const isSelected = activeWorktreeId === worktree.id;
                                 // Get shortcut number (1-9) for open worktrees
@@ -451,7 +464,7 @@ export function Sidebar({
                                       {/* Left indicator column - fixed width to align text with folder icon */}
                                       <div className="w-7 flex-shrink-0 flex items-center justify-center">
                                         {isModifierKeyHeld && shortcutNumber !== null ? (
-                                          <span className="text-xs text-zinc-400 font-medium">{shortcutNumber}</span>
+                                          <span className={`text-xs font-medium ${runningTaskCounts.has(worktree.id) ? 'text-emerald-400' : 'text-zinc-400'}`}>{shortcutNumber}</span>
                                         ) : runningTaskCounts.has(worktree.id) ? (
                                           <span title={`${runningTaskCounts.get(worktree.id)} task${runningTaskCounts.get(worktree.id)! > 1 ? 's' : ''} running`} className="relative">
                                             <Circle size={6} className="fill-emerald-400 text-emerald-400" />
@@ -500,15 +513,20 @@ export function Sidebar({
                                               </button>
                                             )}
                                           </div>
-                                          {/* Status indicators - hide on hover */}
-                                          {isThinking && !isSelected && (
+                                          {/* Status indicators - hide on hover. Priority: notification > thinking > idle */}
+                                          {isNotified && !isSelected && (
+                                            <span className="absolute right-1 group-hover/worktree:hidden" title="New notification">
+                                              <BellDot size={12} className="text-blue-400" />
+                                            </span>
+                                          )}
+                                          {isThinking && !isSelected && !isNotified && (
                                             <span className="absolute right-1 group-hover/worktree:hidden" title="Thinking...">
                                               <Loader2 size={12} className="animate-spin text-violet-400" />
                                             </span>
                                           )}
-                                          {notifiedWorktreeIds.has(worktree.id) && !isSelected && !isThinking && (
-                                            <span className="absolute right-1 group-hover/worktree:hidden" title="New notification">
-                                              <BellDot size={12} className="text-blue-400" />
+                                          {showIdleCheck && isIdle && !isSelected && !isNotified && !isThinking && (
+                                            <span className="absolute right-1 group-hover/worktree:hidden" title="Ready">
+                                              <Check size={12} className="text-emerald-400" />
                                             </span>
                                           )}
                                         </>

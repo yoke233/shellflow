@@ -179,8 +179,10 @@ function App() {
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
   const [notifiedWorktreeIds, setNotifiedWorktreeIds] = useState<Set<string>>(new Set());
   const [thinkingWorktreeIds, setThinkingWorktreeIds] = useState<Set<string>>(new Set());
+  const [idleWorktreeIds, setIdleWorktreeIds] = useState<Set<string>>(new Set());
   const [notifiedProjectIds, setNotifiedProjectIds] = useState<Set<string>>(new Set());
   const [thinkingProjectIds, setThinkingProjectIds] = useState<Set<string>>(new Set());
+  const [idleProjectIds, setIdleProjectIds] = useState<Set<string>>(new Set());
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const [isModifierKeyHeld, setIsModifierKeyHeld] = useState(false);
 
@@ -500,24 +502,47 @@ function App() {
     }
   }, [activeWorktreeId, projects]);
 
-  // Clear notification when worktree becomes active
+  // Clear notification and idle state when worktree becomes active
   useEffect(() => {
-    if (activeWorktreeId && notifiedWorktreeIds.has(activeWorktreeId)) {
-      setNotifiedWorktreeIds((prev) => {
-        const next = new Set(prev);
-        next.delete(activeWorktreeId);
-        return next;
-      });
+    if (activeWorktreeId) {
+      if (notifiedWorktreeIds.has(activeWorktreeId)) {
+        setNotifiedWorktreeIds((prev) => {
+          const next = new Set(prev);
+          next.delete(activeWorktreeId);
+          return next;
+        });
+      }
+      if (idleWorktreeIds.has(activeWorktreeId)) {
+        setIdleWorktreeIds((prev) => {
+          const next = new Set(prev);
+          next.delete(activeWorktreeId);
+          return next;
+        });
+      }
     }
-  }, [activeWorktreeId, notifiedWorktreeIds]);
+  }, [activeWorktreeId, notifiedWorktreeIds, idleWorktreeIds]);
 
   // Worktree thinking state handler (for showing loading indicator when Claude is thinking)
   const handleWorktreeThinkingChange = useCallback((worktreeId: string, isThinking: boolean) => {
     setThinkingWorktreeIds((prev) => {
       if (isThinking) {
+        // Clear idle when thinking starts
+        setIdleWorktreeIds((idlePrev) => {
+          if (!idlePrev.has(worktreeId)) return idlePrev;
+          const next = new Set(idlePrev);
+          next.delete(worktreeId);
+          return next;
+        });
         if (prev.has(worktreeId)) return prev;
         return new Set([...prev, worktreeId]);
       } else {
+        // Set idle when thinking stops (only if was thinking)
+        if (prev.has(worktreeId)) {
+          setIdleWorktreeIds((idlePrev) => {
+            if (idlePrev.has(worktreeId)) return idlePrev;
+            return new Set([...idlePrev, worktreeId]);
+          });
+        }
         if (!prev.has(worktreeId)) return prev;
         const next = new Set(prev);
         next.delete(worktreeId);
@@ -539,24 +564,47 @@ function App() {
     }
   }, [activeWorktreeId, activeProjectId, projects]);
 
-  // Clear notification when project becomes active
+  // Clear notification and idle state when project becomes active
   useEffect(() => {
-    if (!activeWorktreeId && activeProjectId && notifiedProjectIds.has(activeProjectId)) {
-      setNotifiedProjectIds((prev) => {
-        const next = new Set(prev);
-        next.delete(activeProjectId);
-        return next;
-      });
+    if (!activeWorktreeId && activeProjectId) {
+      if (notifiedProjectIds.has(activeProjectId)) {
+        setNotifiedProjectIds((prev) => {
+          const next = new Set(prev);
+          next.delete(activeProjectId);
+          return next;
+        });
+      }
+      if (idleProjectIds.has(activeProjectId)) {
+        setIdleProjectIds((prev) => {
+          const next = new Set(prev);
+          next.delete(activeProjectId);
+          return next;
+        });
+      }
     }
-  }, [activeWorktreeId, activeProjectId, notifiedProjectIds]);
+  }, [activeWorktreeId, activeProjectId, notifiedProjectIds, idleProjectIds]);
 
   // Project thinking state handler
   const handleProjectThinkingChange = useCallback((projectId: string, isThinking: boolean) => {
     setThinkingProjectIds((prev) => {
       if (isThinking) {
+        // Clear idle when thinking starts
+        setIdleProjectIds((idlePrev) => {
+          if (!idlePrev.has(projectId)) return idlePrev;
+          const next = new Set(idlePrev);
+          next.delete(projectId);
+          return next;
+        });
         if (prev.has(projectId)) return prev;
         return new Set([...prev, projectId]);
       } else {
+        // Set idle when thinking stops (only if was thinking)
+        if (prev.has(projectId)) {
+          setIdleProjectIds((idlePrev) => {
+            if (idlePrev.has(projectId)) return idlePrev;
+            return new Set([...idlePrev, projectId]);
+          });
+        }
         if (!prev.has(projectId)) return prev;
         const next = new Set(prev);
         next.delete(projectId);
@@ -1780,8 +1828,10 @@ function App() {
               loadingWorktrees={loadingWorktrees}
               notifiedWorktreeIds={notifiedWorktreeIds}
               thinkingWorktreeIds={thinkingWorktreeIds}
+              idleWorktreeIds={idleWorktreeIds}
               notifiedProjectIds={notifiedProjectIds}
               thinkingProjectIds={thinkingProjectIds}
+              idleProjectIds={idleProjectIds}
               runningTaskCounts={runningTaskCounts}
               expandedProjects={expandedProjects}
               showActiveOnly={showActiveOnly}
@@ -1793,6 +1843,7 @@ function App() {
               runningTask={activeRunningTask && activeEntityId ? { ...activeRunningTask, worktreeId: activeEntityId, kind: config.tasks.find(t => t.name === activeRunningTask.taskName)?.kind ?? 'command' } : null}
               allRunningTasks={activeEntityId ? runningTasks.get(activeEntityId) ?? [] : []}
               terminalFontFamily={config.main.fontFamily}
+              showIdleCheck={config.indicators.showIdleCheck}
               onToggleProject={toggleProject}
               onSelectProject={handleSelectProject}
               onSelectWorktree={handleSelectWorktree}
@@ -1834,6 +1885,7 @@ function App() {
                 activeProjectId={activeProjectId}
                 terminalConfig={config.main}
                 mappings={config.mappings}
+                activityTimeout={config.indicators.activityTimeout}
                 shouldAutoFocus={activeFocusState === 'main'}
                 onFocus={handleMainPaneFocused}
                 onWorktreeNotification={handleWorktreeNotification}

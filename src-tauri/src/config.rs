@@ -12,6 +12,7 @@ pub struct Config {
     pub worktree: WorktreeConfig,
     pub merge: MergeConfig,
     pub mappings: MappingsConfig,
+    pub indicators: IndicatorsConfig,
     pub tasks: Vec<TaskConfig>,
 }
 
@@ -88,6 +89,26 @@ impl Default for MergeConfig {
             delete_worktree: true,
             delete_local_branch: false,
             delete_remote_branch: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IndicatorsConfig {
+    /// Time in ms after last activity before progress indicator turns off
+    #[serde(rename = "activityTimeout")]
+    pub activity_timeout: u32,
+    /// Show checkmark when activity stops (idle state)
+    #[serde(rename = "showIdleCheck")]
+    pub show_idle_check: bool,
+}
+
+impl Default for IndicatorsConfig {
+    fn default() -> Self {
+        Self {
+            activity_timeout: 250,
+            show_idle_check: true,
         }
     }
 }

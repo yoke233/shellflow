@@ -36,12 +36,13 @@ interface MainTerminalProps {
   shouldAutoFocus: boolean;
   terminalConfig: TerminalConfig;
   mappings: MappingsConfig;
+  activityTimeout?: number;
   onFocus?: () => void;
   onNotification?: (title: string, body: string) => void;
   onThinkingChange?: (isThinking: boolean) => void;
 }
 
-export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocus, terminalConfig, mappings, onFocus, onNotification, onThinkingChange }: MainTerminalProps) {
+export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocus, terminalConfig, mappings, activityTimeout = 250, onFocus, onNotification, onThinkingChange }: MainTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -53,22 +54,61 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
   const [hasExited, setHasExited] = useState(false);
   const [exitInfo, setExitInfo] = useState<{ command: string; exitCode: number | null } | null>(null);
 
+  // Progress indicator state refs (declared early so handleOutput can use them)
+  // Only track activity when terminal is NOT active (background tabs only)
+  // Two sources: activity-based (output/title with timeout) and OSC-based (explicit start/stop)
+  const activityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isActivityThinkingRef = useRef(false);
+  const isOscThinkingRef = useRef(false);
+  const isActiveRef = useRef(isActive);
+  const activityTimeoutMsRef = useRef(activityTimeout);
+  // Grace period after becoming inactive before tracking starts (prevents false triggers from tab switch events)
+  const becameInactiveAtRef = useRef<number | null>(null);
+  const INACTIVE_GRACE_PERIOD = 100; // ms
+
+  // Keep refs in sync with props
+  useEffect(() => {
+    activityTimeoutMsRef.current = activityTimeout;
+  }, [activityTimeout]);
+
+  // Keep isActiveRef in sync and clear thinking state when becoming active
+  useEffect(() => {
+    const wasActive = isActiveRef.current;
+    isActiveRef.current = isActive;
+
+    if (isActive) {
+      // When becoming active, clear any pending activity state
+      // (no need to show indicator for the tab you're looking at)
+      becameInactiveAtRef.current = null;
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
+        activityTimeoutRef.current = null;
+      }
+      isActivityThinkingRef.current = false;
+      isOscThinkingRef.current = false;
+      // Notify parent that thinking stopped
+      onThinkingChangeRef.current?.(false);
+    } else if (wasActive) {
+      // Just became inactive - record timestamp for grace period
+      becameInactiveAtRef.current = Date.now();
+    }
+  }, [isActive]);
+
+  // Unified function to update thinking state based on both sources
+  const updateThinkingStateRef = useRef<() => void>(() => {});
+
+  // Function to trigger activity-based thinking (resets timeout)
+  const triggerActivityRef = useRef<() => void>(() => {});
+
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
     if (terminalRef.current) {
       // Only fix color sequences for main terminals (Claude uses them)
       terminalRef.current.write(type === 'main' ? fixColorSequences(data) : data);
 
-      // Output activity detection only for main terminals
-      if (type === 'main' && data.length > 10) {
-        onThinkingChangeRef.current?.(true);
-        // Clear activity state after output stops
-        if (outputActivityTimeoutRef.current) {
-          clearTimeout(outputActivityTimeoutRef.current);
-        }
-        outputActivityTimeoutRef.current = setTimeout(() => {
-          onThinkingChangeRef.current?.(false);
-        }, 500);
+      // Output activity detection only for main terminals when NOT active
+      if (type === 'main' && data.length > 0 && !isActiveRef.current) {
+        triggerActivityRef.current();
       }
     }
   }, [type]);
@@ -138,8 +178,49 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     onThinkingChangeRef.current = onThinkingChange;
   }, [onThinkingChange]);
 
-  // Track output activity to detect when process is working
-  const outputActivityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Progress indicator logic:
+  // - Activity (output/title): start timer, reset on more activity, turn off when timer expires
+  // - OSC 9 progress: explicit start/stop (no timeout)
+  // - Final state = activity OR osc
+  const wasThinkingRef = useRef(false);
+
+  useEffect(() => {
+    // Update the combined thinking state
+    updateThinkingStateRef.current = () => {
+      const shouldBeThinking = isActivityThinkingRef.current || isOscThinkingRef.current;
+      if (shouldBeThinking !== wasThinkingRef.current) {
+        wasThinkingRef.current = shouldBeThinking;
+        onThinkingChangeRef.current?.(shouldBeThinking);
+      }
+    };
+
+    // Trigger activity-based thinking (resets timeout)
+    triggerActivityRef.current = () => {
+      // Skip if within grace period after becoming inactive (prevents false triggers from tab switch)
+      if (becameInactiveAtRef.current !== null) {
+        const elapsed = Date.now() - becameInactiveAtRef.current;
+        if (elapsed < INACTIVE_GRACE_PERIOD) {
+          return;
+        }
+      }
+
+      // Clear existing timeout
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
+      }
+
+      // Turn on activity thinking
+      isActivityThinkingRef.current = true;
+      updateThinkingStateRef.current();
+
+      // Schedule turn off
+      activityTimeoutRef.current = setTimeout(() => {
+        activityTimeoutRef.current = null;
+        isActivityThinkingRef.current = false;
+        updateThinkingStateRef.current();
+      }, activityTimeoutMsRef.current);
+    };
+  }, []);
 
   // Initialize terminal and spawn PTY
   useEffect(() => {
@@ -241,6 +322,7 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     // Disposables to clean up (only used for main type)
     let osc777Disposable: { dispose: () => void } | null = null;
     let osc9Disposable: { dispose: () => void } | null = null;
+    let osc99Disposable: { dispose: () => void } | null = null;
     let bellDisposable: { dispose: () => void } | null = null;
     let titleChangeDisposable: { dispose: () => void } | null = null;
 
@@ -263,15 +345,51 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
       osc9Disposable = terminal.parser.registerOscHandler(9, (data) => {
         // Check for progress reporting: "4;state" or "4;state;progress"
         if (data.startsWith('4;')) {
+          // Only track when not active (background tabs only)
+          if (isActiveRef.current) return true;
           const parts = data.split(';');
           const state = parseInt(parts[1], 10);
           // State 0 means hidden/done, anything else means busy/thinking
-          const isThinking = state !== 0 && !isNaN(state);
-          onThinkingChangeRef.current?.(isThinking);
+          // OSC progress uses explicit start/stop (no timeout)
+          isOscThinkingRef.current = state !== 0 && !isNaN(state);
+          updateThinkingStateRef.current();
           return true;
         }
         // Otherwise treat as notification
         onNotificationRef.current?.('', data);
+        return true;
+      });
+
+      // OSC 99: Kitty notification protocol
+      // Format: "i=<id>:d=<done>:p=<progress>:...;<payload>"
+      // or just ";<payload>" for simple notifications
+      osc99Disposable = terminal.parser.registerOscHandler(99, (data) => {
+        // Find the payload after the semicolon
+        const semicolonIndex = data.indexOf(';');
+        if (semicolonIndex === -1) {
+          // No semicolon, treat entire data as payload
+          onNotificationRef.current?.('', data);
+          return true;
+        }
+
+        const params = data.slice(0, semicolonIndex);
+        const payload = data.slice(semicolonIndex + 1);
+
+        // Parse parameters (key=value pairs separated by :)
+        const paramMap: Record<string, string> = {};
+        for (const param of params.split(':')) {
+          const eqIndex = param.indexOf('=');
+          if (eqIndex !== -1) {
+            paramMap[param.slice(0, eqIndex)] = param.slice(eqIndex + 1);
+          }
+        }
+
+        // 'p' parameter can indicate progress, 'a' can be action type
+        // For now, just send the payload as a notification
+        // Could extend to support progress via 'p' parameter in the future
+        if (payload) {
+          onNotificationRef.current?.('', payload);
+        }
         return true;
       });
 
@@ -280,15 +398,12 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
         onNotificationRef.current?.('', 'Bell');
       });
 
-      // Claude-specific: detect thinking state from terminal title
-      // Claude Code sets title with braille spinner chars (⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏) when thinking
-      // Only trigger if: spinner is at start of title, OR title contains "claude" (case-insensitive)
-      const SPINNER_CHARS = new Set(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']);
-      titleChangeDisposable = terminal.onTitleChange((title) => {
-        const startsWithSpinner = SPINNER_CHARS.has(title[0]);
-        const hasClaudeWithSpinner = title.toLowerCase().includes('claude') &&
-          [...title].some(char => SPINNER_CHARS.has(char));
-        onThinkingChangeRef.current?.(startsWithSpinner || hasClaudeWithSpinner);
+      // Any title change triggers activity-based thinking (with timeout)
+      // Only track when not active (background tabs only)
+      titleChangeDisposable = terminal.onTitleChange(() => {
+        if (!isActiveRef.current) {
+          triggerActivityRef.current();
+        }
       });
     }
 
@@ -324,14 +439,15 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
       containerRef.current?.removeEventListener('focusin', handleFocus);
       osc777Disposable?.dispose();
       osc9Disposable?.dispose();
+      osc99Disposable?.dispose();
       bellDisposable?.dispose();
       titleChangeDisposable?.dispose();
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
       initializedRef.current = false;
-      if (outputActivityTimeoutRef.current) {
-        clearTimeout(outputActivityTimeoutRef.current);
+      if (activityTimeoutRef.current) {
+        clearTimeout(activityTimeoutRef.current);
       }
       killRef.current();
     };
@@ -347,6 +463,12 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     setHasExited(false);
     setIsReady(false);
     setExitInfo(null);
+    isActivityThinkingRef.current = false;
+    isOscThinkingRef.current = false;
+    if (activityTimeoutRef.current) {
+      clearTimeout(activityTimeoutRef.current);
+      activityTimeoutRef.current = null;
+    }
 
     // Clear terminal and show restart message
     terminal.clear();

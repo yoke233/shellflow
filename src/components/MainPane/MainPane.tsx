@@ -12,6 +12,7 @@ interface MainPaneProps {
   // Common props
   terminalConfig: TerminalConfig;
   mappings: MappingsConfig;
+  activityTimeout: number;
   shouldAutoFocus: boolean;
   onFocus: (entityId: string) => void;
   onWorktreeNotification?: (worktreeId: string, title: string, body: string) => void;
@@ -27,6 +28,7 @@ export function MainPane({
   activeProjectId,
   terminalConfig,
   mappings,
+  activityTimeout,
   shouldAutoFocus,
   onFocus,
   onWorktreeNotification,
@@ -67,6 +69,7 @@ export function MainPane({
             shouldAutoFocus={worktreeId === activeEntityId && shouldAutoFocus}
             terminalConfig={terminalConfig}
             mappings={mappings}
+            activityTimeout={activityTimeout}
             onFocus={() => onFocus(worktreeId)}
             onNotification={(title, body) => onWorktreeNotification?.(worktreeId, title, body)}
             onThinkingChange={(isThinking) => onWorktreeThinkingChange?.(worktreeId, isThinking)}
@@ -90,6 +93,7 @@ export function MainPane({
             shouldAutoFocus={!activeWorktreeId && projectId === activeEntityId && shouldAutoFocus}
             terminalConfig={terminalConfig}
             mappings={mappings}
+            activityTimeout={activityTimeout}
             onFocus={() => onFocus(projectId)}
             onNotification={(title, body) => onProjectNotification?.(projectId, title, body)}
             onThinkingChange={(isThinking) => onProjectThinkingChange?.(projectId, isThinking)}
