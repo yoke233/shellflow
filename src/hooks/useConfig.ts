@@ -65,6 +65,7 @@ export interface MappingsConfig {
   runTask: Shortcut;
   newWorkspace: Shortcut;
   switchFocus: Shortcut;
+  taskSwitcher: Shortcut;
 }
 
 export interface Config {
@@ -114,6 +115,7 @@ const defaultConfig: Config = {
     runTask: '',
     newWorkspace: '',
     switchFocus: '',
+    taskSwitcher: '',
   },
   tasks: [],
 };

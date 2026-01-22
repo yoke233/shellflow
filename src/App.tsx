@@ -12,6 +12,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { MergeModal } from './components/MergeModal';
 import { StashModal } from './components/StashModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
+import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
@@ -19,6 +20,7 @@ import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop }
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
 import { Project, Worktree } from './types';
+import { FolderGit2 } from 'lucide-react';
 
 const EXPANDED_PROJECTS_KEY = 'onemanband:expandedProjects';
 const SHOW_ACTIVE_ONLY_KEY = 'onemanband:showActiveOnly';
@@ -158,6 +160,7 @@ function App() {
   const [pendingRemoveProject, setPendingRemoveProject] = useState<Project | null>(null);
   const [pendingMergeId, setPendingMergeId] = useState<string | null>(null);
   const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
+  const [isTaskSwitcherOpen, setIsTaskSwitcherOpen] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
   const [stashError, setStashError] = useState<string | null>(null);
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
@@ -820,6 +823,23 @@ function App() {
     }
   }, [activeWorktreeId, activeSelectedTask, runningTasks]);
 
+  // Task switcher handlers
+  const handleToggleTaskSwitcher = useCallback(() => {
+    if (!activeWorktreeId || config.tasks.length === 0) return;
+    setIsTaskSwitcherOpen(prev => !prev);
+  }, [activeWorktreeId, config.tasks.length]);
+
+  const handleTaskSwitcherSelect = useCallback((taskName: string) => {
+    handleSelectTask(taskName);
+    setIsTaskSwitcherOpen(false);
+  }, [handleSelectTask]);
+
+  const handleTaskSwitcherRun = useCallback((taskName: string) => {
+    handleSelectTask(taskName);
+    setTimeout(() => handleStartTask(), 0);
+    setIsTaskSwitcherOpen(false);
+  }, [handleSelectTask, handleStartTask]);
+
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, _exitCode: number) => {
     setRunningTasks((prev) => {
       const existing = prev.get(worktreeId);
@@ -1314,6 +1334,13 @@ function App() {
         handleToggleTask();
       }
 
+      // Task switcher
+      if (matchesShortcut(e, mappings.taskSwitcher)) {
+        e.preventDefault();
+        handleToggleTaskSwitcher();
+        return;
+      }
+
       // New workspace (requires an active project)
       if (matchesShortcut(e, mappings.newWorkspace) && activeProjectId) {
         e.preventDefault();
@@ -1342,7 +1369,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [activeWorktreeId, activeProjectId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleAddWorktree]);
+  }, [activeWorktreeId, activeProjectId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleAddWorktree, handleToggleTaskSwitcher]);
 
   const pendingWorktree = pendingDeleteId
     ? projects.flatMap((p) => p.worktrees).find((w) => w.id === pendingDeleteId)
@@ -1403,6 +1430,17 @@ function App() {
         />
       )}
 
+      {isTaskSwitcherOpen && activeWorktreeId && (
+        <TaskSwitcher
+          tasks={config.tasks}
+          selectedTask={activeSelectedTask}
+          runningTasks={runningTasks.get(activeWorktreeId) ?? []}
+          onSelect={handleTaskSwitcherSelect}
+          onRun={handleTaskSwitcherRun}
+          onClose={() => setIsTaskSwitcherOpen(false)}
+        />
+      )}
+
       {/* Main content - horizontal layout */}
       <PanelGroup
         orientation="horizontal"
@@ -1431,6 +1469,7 @@ function App() {
               tasks={config.tasks}
               selectedTask={activeSelectedTask}
               runningTask={activeRunningTask ? { ...activeRunningTask, worktreeId: activeWorktreeId!, kind: config.tasks.find(t => t.name === activeRunningTask.taskName)?.kind ?? 'command' } : null}
+              allRunningTasks={activeWorktreeId ? runningTasks.get(activeWorktreeId) ?? [] : []}
               onToggleProject={toggleProject}
               onSelectProject={handleSelectProject}
               onSelectWorktree={handleSelectWorktree}
@@ -1459,6 +1498,15 @@ function App() {
         <Panel minSize="300px">
           {/* Both panes are always mounted to preserve terminal state, visibility toggled */}
           <div className="h-full relative">
+            {/* Empty state - visible when nothing is selected */}
+            {!activeWorktreeId && !activeProjectId && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950 text-zinc-500 select-none z-10">
+                <FolderGit2 size={48} className="mb-4 opacity-50" />
+                <p className="text-lg">No worktrees open</p>
+                <p className="text-sm mt-1">Select a worktree from the sidebar to start</p>
+              </div>
+            )}
+
             {/* ProjectPane - visible when project selected without worktree */}
             {openProjectIds.size > 0 && (
               <div className={`absolute inset-0 ${

@@ -65,6 +65,7 @@
     "worktree9": { "mac": "cmd+9", "other": "ctrl+9" },
     "runTask": { "mac": "cmd+r", "other": "ctrl+shift+r" },
     "newWorkspace": { "mac": "cmd+n", "other": "ctrl+n" },
-    "switchFocus": "ctrl+\\"
+    "switchFocus": "ctrl+\\",
+    "taskSwitcher": { "mac": "cmd+;", "other": "ctrl+;" }
   }
 }

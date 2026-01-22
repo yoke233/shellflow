@@ -81,7 +81,11 @@ So that's why I built One Man Band (see what I did there?). Now I can run Claude
 | Shortcut                                 | Action                               |
 | ---------------------------------------- | ------------------------------------ |
 | `Ctrl+\``                                | Toggle drawer (terminal panel)       |
+| `Ctrl+\`                                 | Switch focus between main and drawer |
 | `Cmd+B`                                  | Toggle right sidebar (changed files) |
+| `Cmd+;` (macOS) / `Ctrl+;` (other)       | Open task switcher                   |
+| `Cmd+R` (macOS) / `Ctrl+Shift+R` (other) | Run/stop selected task               |
+| `Cmd+N` (macOS) / `Ctrl+N` (other)       | New worktree                         |
 | `Cmd+1-9` (macOS) / `Ctrl+1-9` (other)   | Switch to worktree 1-9               |
 | `Cmd+J` (macOS) / `Ctrl+Shift+J` (other) | Next worktree                        |
 | `Cmd+K` (macOS) / `Ctrl+Shift+K` (other) | Previous worktree                    |

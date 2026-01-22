@@ -7,6 +7,7 @@ interface TaskSelectorProps {
   tasks: TaskConfig[];
   selectedTask: string | null;
   runningTask: RunningTask | null;
+  allRunningTasks?: Array<{ taskName: string; status: string }>;
   onSelectTask: (taskName: string) => void;
   onStartTask: () => void;
   onStopTask: () => void;
@@ -17,6 +18,7 @@ export function TaskSelector({
   tasks,
   selectedTask,
   runningTask,
+  allRunningTasks = [],
   onSelectTask,
   onStartTask,
   onStopTask,
@@ -25,7 +27,7 @@ export function TaskSelector({
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -33,9 +35,19 @@ export function TaskSelector({
       }
     }
 
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    }
+
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
     }
   }, [isOpen]);
 
@@ -66,21 +78,33 @@ export function TaskSelector({
 
         {isOpen && (
           <div className="absolute bottom-full left-0 right-0 mb-1 py-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-50 max-h-48 overflow-y-auto">
-            {tasks.map((task) => (
-              <button
-                key={task.name}
-                onClick={() => {
-                  onSelectTask(task.name);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-2 py-1 text-sm text-left hover:bg-zinc-700 ${
-                  task.name === selectedTask ? 'text-blue-400' : 'text-zinc-300'
-                }`}
-              >
-                <div className="truncate">{task.name}</div>
-                <div className="text-xs text-zinc-500 truncate">{task.command}</div>
-              </button>
-            ))}
+            {tasks.map((task) => {
+              const isRunning = allRunningTasks.some(
+                (t) => t.taskName === task.name && t.status === 'running'
+              );
+              return (
+                <button
+                  key={task.name}
+                  onClick={() => {
+                    onSelectTask(task.name);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full px-2 py-1 text-sm text-left hover:bg-zinc-700 flex items-center gap-2 ${
+                    task.name === selectedTask ? 'text-blue-400' : 'text-zinc-300'
+                  }`}
+                >
+                  <div className="w-2 flex-shrink-0">
+                    {isRunning && (
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate">{task.name}</div>
+                    <div className="text-xs text-zinc-500 truncate">{task.command}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

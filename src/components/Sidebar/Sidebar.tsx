@@ -26,6 +26,7 @@ interface SidebarProps {
   tasks: TaskConfig[];
   selectedTask: string | null;
   runningTask: RunningTask | null;
+  allRunningTasks: Array<{ taskName: string; status: string }>;
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
@@ -66,6 +67,7 @@ export function Sidebar({
   tasks,
   selectedTask,
   runningTask,
+  allRunningTasks,
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
@@ -408,6 +410,7 @@ export function Sidebar({
           tasks={tasks}
           selectedTask={selectedTask}
           runningTask={runningTask}
+          allRunningTasks={allRunningTasks}
           onSelectTask={onSelectTask}
           onStartTask={onStartTask}
           onStopTask={onStopTask}
