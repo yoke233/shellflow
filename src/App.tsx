@@ -18,7 +18,7 @@ import { useConfig } from './hooks/useConfig';
 import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop } from './lib/tauri';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
-import { Project, Worktree } from './types';
+import { Project, Worktree, RunningTask } from './types';
 
 const EXPANDED_PROJECTS_KEY = 'onemanband:expandedProjects';
 const SHOW_ACTIVE_ONLY_KEY = 'onemanband:showActiveOnly';
@@ -92,7 +92,7 @@ function App() {
   });
 
   // Per-worktree running tasks state (supports multiple tasks per worktree)
-  const [runningTasks, setRunningTasks] = useState<Map<string, Array<{ taskName: string; ptyId: string; status: 'running' | 'stopping' | 'stopped' }>>>(new Map());
+  const [runningTasks, setRunningTasks] = useState<Map<string, RunningTask[]>>(new Map());
 
   // Get current project's selected task
   const activeSelectedTask = activeProjectPath ? selectedTasksByProject.get(activeProjectPath) ?? null : null;
@@ -110,11 +110,11 @@ function App() {
 
   // Task statuses map for the active entity (for Drawer tab icons)
   const activeTaskStatuses = useMemo(() => {
-    const statuses = new Map<string, 'running' | 'stopping' | 'stopped'>();
+    const statuses = new Map<string, { status: 'running' | 'stopping' | 'stopped'; exitCode?: number }>();
     if (!activeEntityId) return statuses;
     const tasks = runningTasks.get(activeEntityId) ?? [];
     for (const task of tasks) {
-      statuses.set(task.taskName, task.status);
+      statuses.set(task.taskName, { status: task.status, exitCode: task.exitCode });
     }
     return statuses;
   }, [activeEntityId, runningTasks]);
@@ -802,11 +802,19 @@ function App() {
 
   const handleStartTask = useCallback(async (taskNameOverride?: string) => {
     const taskName = taskNameOverride ?? activeSelectedTask;
-    if (!activeEntityId || !taskName) return;
+    console.log('[handleStartTask] Called with:', { taskNameOverride, activeSelectedTask, taskName, activeEntityId });
+    if (!activeEntityId || !taskName) {
+      console.log('[handleStartTask] Early return: missing activeEntityId or taskName');
+      return;
+    }
 
     // Find the task config to get the kind
     const task = config.tasks.find((t) => t.name === taskName);
-    if (!task) return;
+    console.log('[handleStartTask] Found task config:', task, 'from tasks:', config.tasks);
+    if (!task) {
+      console.log('[handleStartTask] Early return: task not found in config');
+      return;
+    }
 
     // Check if this task is already running
     const entityTasks = runningTasks.get(activeEntityId) ?? [];
@@ -839,7 +847,7 @@ function App() {
           const existing = prev.get(activeEntityId) ?? [];
           // Remove any stopped instance of this task, add new running one
           const filtered = existing.filter(t => t.taskName !== taskName || t.status === 'running');
-          next.set(activeEntityId, [...filtered, { taskName, ptyId, status: 'running' }]);
+          next.set(activeEntityId, [...filtered, { taskName, ptyId, kind: task.kind ?? 'command', status: 'running', worktreeId: activeEntityId }]);
           return next;
         });
       } catch (err) {
@@ -884,7 +892,7 @@ function App() {
       const existing = prev.get(activeEntityId) ?? [];
       // Remove any stopped instance of this task, add new running one
       const filtered = existing.filter(t => t.taskName !== taskName || t.status === 'running');
-      next.set(activeEntityId, [...filtered, { taskName, ptyId: '', status: 'running' }]);
+      next.set(activeEntityId, [...filtered, { taskName, ptyId: '', kind: task.kind ?? 'command', status: 'running', worktreeId: activeEntityId }]);
       return next;
     });
 
@@ -908,6 +916,10 @@ function App() {
     // Kill the PTY if we have an ID
     if (taskToStop.ptyId) {
       console.log('[handleStopTask] Killing PTY:', taskToStop.ptyId);
+      // Notify terminal about the signal
+      window.dispatchEvent(new CustomEvent('pty-signal', {
+        detail: { ptyId: taskToStop.ptyId, signal: 'SIGTERM' }
+      }));
       ptyKill(taskToStop.ptyId);
     } else {
       console.warn('[handleStopTask] No ptyId available!');
@@ -927,7 +939,47 @@ function App() {
     });
   }, [activeEntityId, activeSelectedTask, runningTasks]);
 
-  // Toggle task: run if not running, stop if running
+  const handleForceKillTask = useCallback(() => {
+    console.log('[handleForceKillTask] Called with:', { activeEntityId, activeSelectedTask });
+    if (!activeEntityId || !activeSelectedTask) {
+      console.log('[handleForceKillTask] Early return: missing activeEntityId or activeSelectedTask');
+      return;
+    }
+
+    const entityTasks = runningTasks.get(activeEntityId) ?? [];
+    const taskToKill = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'stopping');
+    console.log('[handleForceKillTask] entityTasks:', entityTasks, 'taskToKill:', taskToKill);
+    if (!taskToKill) {
+      console.log('[handleForceKillTask] Early return: no task with status "stopping" found');
+      return;
+    }
+
+    // Force kill the PTY with SIGKILL
+    if (taskToKill.ptyId) {
+      console.log('[handleForceKillTask] Calling ptyForceKill with ptyId:', taskToKill.ptyId);
+      // Notify terminal about the signal
+      window.dispatchEvent(new CustomEvent('pty-signal', {
+        detail: { ptyId: taskToKill.ptyId, signal: 'SIGKILL' }
+      }));
+      ptyForceKill(taskToKill.ptyId);
+    } else {
+      console.log('[handleForceKillTask] No ptyId on task!');
+    }
+
+    // Immediately update state since force kill is guaranteed to terminate
+    // Exit code 137 = 128 + 9 (SIGKILL)
+    setRunningTasks((prev) => {
+      const next = new Map(prev);
+      const existing = prev.get(activeEntityId) ?? [];
+      const updated = existing.map(t =>
+        t.taskName === activeSelectedTask ? { ...t, status: 'stopped' as const, exitCode: 137 } : t
+      );
+      next.set(activeEntityId, updated);
+      return next;
+    });
+  }, [activeEntityId, activeSelectedTask, runningTasks]);
+
+  // Toggle task: run if not running, stop if running, force kill if stopping
   const handleToggleTask = useCallback(() => {
     if (!activeEntityId || !activeSelectedTask) return;
 
@@ -935,23 +987,12 @@ function App() {
     const runningTask = entityTasks.find(t => t.taskName === activeSelectedTask);
     if (runningTask?.status === 'running') {
       handleStopTask();
+    } else if (runningTask?.status === 'stopping') {
+      handleForceKillTask();
     } else {
       handleStartTask();
     }
-  }, [activeEntityId, activeSelectedTask, runningTasks, handleStartTask, handleStopTask]);
-
-  const handleForceKillTask = useCallback(() => {
-    if (!activeEntityId || !activeSelectedTask) return;
-
-    const entityTasks = runningTasks.get(activeEntityId) ?? [];
-    const taskToKill = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'stopping');
-    if (!taskToKill) return;
-
-    // Force kill the PTY with SIGKILL
-    if (taskToKill.ptyId) {
-      ptyForceKill(taskToKill.ptyId);
-    }
-  }, [activeEntityId, activeSelectedTask, runningTasks]);
+  }, [activeEntityId, activeSelectedTask, runningTasks, handleStartTask, handleStopTask, handleForceKillTask]);
 
   // Task switcher handlers
   const handleToggleTaskSwitcher = useCallback(() => {
@@ -970,13 +1011,13 @@ function App() {
     setIsTaskSwitcherOpen(false);
   }, [handleSelectTask, handleStartTask]);
 
-  const handleTaskExit = useCallback((worktreeId: string, taskName: string, _exitCode: number) => {
+  const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
     setRunningTasks((prev) => {
       const existing = prev.get(worktreeId);
       if (!existing) return prev;
       const next = new Map(prev);
       const updated = existing.map(t =>
-        t.taskName === taskName ? { ...t, status: 'stopped' as const } : t
+        t.taskName === taskName ? { ...t, status: 'stopped' as const, exitCode } : t
       );
       next.set(worktreeId, updated);
       return next;
@@ -1010,7 +1051,7 @@ function App() {
           if (taskIndex !== -1) {
             const next = new Map(prev);
             const updated = [...tasks];
-            updated[taskIndex] = { ...updated[taskIndex], status: 'stopped' };
+            updated[taskIndex] = { ...updated[taskIndex], status: 'stopped', exitCode: event.payload.exitCode };
             next.set(worktreeId, updated);
             return next;
           }

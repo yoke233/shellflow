@@ -128,7 +128,10 @@ export function TaskSelector({
         </button>
       ) : (
         <button
-          onClick={onStartTask}
+          onClick={() => {
+            console.log('[TaskSelector] Play button clicked, selectedTask:', selectedTask);
+            onStartTask();
+          }}
           disabled={!selectedTask}
           className={`p-1.5 rounded flex-shrink-0 ${
             selectedTask

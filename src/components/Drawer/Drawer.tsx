@@ -1,4 +1,4 @@
-import { X, Plus, Terminal, Play, Square, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Plus, Terminal, Play, Check, Square, Maximize2, Minimize2 } from 'lucide-react';
 import { ReactNode } from 'react';
 
 export interface DrawerTab {
@@ -8,7 +8,10 @@ export interface DrawerTab {
   taskName?: string;
 }
 
-type TaskStatus = 'running' | 'stopping' | 'stopped';
+interface TaskStatusInfo {
+  status: 'running' | 'stopping' | 'stopped';
+  exitCode?: number;
+}
 
 interface DrawerProps {
   isOpen: boolean;
@@ -16,7 +19,7 @@ interface DrawerProps {
   worktreeId: string | null;
   tabs: DrawerTab[];
   activeTabId: string | null;
-  taskStatuses: Map<string, TaskStatus>;
+  taskStatuses: Map<string, TaskStatusInfo>;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
@@ -55,11 +58,28 @@ export function Drawer({
                 }`}
               >
                 {tab.type === 'task' ? (
-                  taskStatuses.get(tab.taskName ?? '') === 'stopped' || !taskStatuses.has(tab.taskName ?? '') ? (
-                    <Square size={14} className="flex-shrink-0 text-zinc-500" />
-                  ) : (
-                    <Play size={14} className="flex-shrink-0 text-green-500" />
-                  )
+                  (() => {
+                    const statusInfo = taskStatuses.get(tab.taskName ?? '');
+                    if (!statusInfo) {
+                      // Task not started yet - show neutral square
+                      return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
+                    }
+                    if (statusInfo.status === 'stopped') {
+                      const code = statusInfo.exitCode;
+                      if (code === 0) {
+                        // Success
+                        return <Check size={14} className="flex-shrink-0 text-green-500/50" />;
+                      }
+                      if (code !== undefined && code >= 128) {
+                        // Killed by signal (128 + signal) - neutral
+                        return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
+                      }
+                      // Error (1-127) or unknown
+                      return <X size={14} className="flex-shrink-0 text-red-400/50" />;
+                    }
+                    // Running or stopping: show play icon
+                    return <Play size={14} className="flex-shrink-0 text-green-500" />;
+                  })()
                 ) : (
                   <Terminal size={14} className="flex-shrink-0" />
                 )}

@@ -207,6 +207,11 @@ export function TaskTerminal({
         'pty-exit',
         (event) => {
           if (event.payload.ptyId === ptyIdRef.current) {
+            // Show exit code in terminal
+            const code = event.payload.exitCode;
+            // green for 0, grey for signal (128+), red for error (1-127)
+            const color = code === 0 ? '32' : code >= 128 ? '90' : '31';
+            terminal.writeln(`\r\n\x1b[${color}m[Process exited with code ${code}]\x1b[0m`);
             onTaskExitRef.current?.(event.payload.exitCode);
           }
         }
@@ -255,6 +260,19 @@ export function TaskTerminal({
       }
     };
   }, [id, entityId, taskName]);
+
+  // Listen for signal notifications
+  useEffect(() => {
+    const handleSignal = (e: Event) => {
+      const { ptyId, signal } = (e as CustomEvent).detail;
+      if (ptyId === ptyIdRef.current && terminalRef.current) {
+        terminalRef.current.writeln(`\r\n\x1b[90m[Sending ${signal}...]\x1b[0m`);
+      }
+    };
+
+    window.addEventListener('pty-signal', handleSignal);
+    return () => window.removeEventListener('pty-signal', handleSignal);
+  }, []);
 
   // Immediate resize handler
   const immediateResize = useCallback(() => {
