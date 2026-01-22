@@ -3,6 +3,7 @@ export interface Project {
   name: string;
   path: string;
   worktrees: Worktree[];
+  order?: number;
 }
 
 // Represents what's currently selected in the main content area
@@ -17,6 +18,7 @@ export interface Worktree {
   path: string;
   branch: string;
   createdAt: string;
+  order?: number;
 }
 
 export interface FileChange {

@@ -983,6 +983,74 @@ fn rename_worktree(
     Ok(())
 }
 
+/// Reorder projects by providing the new order of project IDs
+#[tauri::command]
+fn reorder_projects(state: State<'_, Arc<AppState>>, project_ids: Vec<String>) -> Result<()> {
+    let mut persisted = state.persisted.write();
+
+    // Create order map from the provided order
+    let order_map: std::collections::HashMap<String, i32> = project_ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.clone(), i as i32))
+        .collect();
+
+    // Update project orders
+    for project in &mut persisted.projects {
+        if let Some(&order) = order_map.get(&project.id) {
+            project.order = order;
+        }
+    }
+
+    // Sort projects by order
+    persisted.projects.sort_by_key(|p| p.order);
+
+    drop(persisted);
+    state.save().map_err(map_err)?;
+
+    info!("[reorder_projects] Reordered {} projects", project_ids.len());
+    Ok(())
+}
+
+/// Reorder worktrees within a project by providing the new order of worktree IDs
+#[tauri::command]
+fn reorder_worktrees(
+    state: State<'_, Arc<AppState>>,
+    project_id: &str,
+    worktree_ids: Vec<String>,
+) -> Result<()> {
+    let mut persisted = state.persisted.write();
+
+    let project = persisted
+        .projects
+        .iter_mut()
+        .find(|p| p.id == project_id)
+        .ok_or_else(|| format!("Project not found: {}", project_id))?;
+
+    // Create order map from the provided order
+    let order_map: std::collections::HashMap<String, i32> = worktree_ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.clone(), i as i32))
+        .collect();
+
+    // Update worktree orders
+    for worktree in &mut project.worktrees {
+        if let Some(&order) = order_map.get(&worktree.id) {
+            worktree.order = order;
+        }
+    }
+
+    // Sort worktrees by order
+    project.worktrees.sort_by_key(|w| w.order);
+
+    drop(persisted);
+    state.save().map_err(map_err)?;
+
+    info!("[reorder_worktrees] Reordered {} worktrees in project {}", worktree_ids.len(), project_id);
+    Ok(())
+}
+
 // Shutdown command - gracefully terminates all PTY processes
 // Spawns a background thread and returns immediately so events can stream to frontend
 #[tauri::command]
@@ -1078,6 +1146,8 @@ pub fn run() {
             execute_delete_worktree_workflow,
             remove_stale_worktree,
             rename_worktree,
+            reorder_projects,
+            reorder_worktrees,
             open_folder,
             spawn_main,
             spawn_terminal,

@@ -42,6 +42,18 @@ export async function executeDeleteWorktreeWorkflow(
   await invoke<void>('execute_delete_worktree_workflow', { worktreeId });
 }
 
+// Reorder commands
+export async function reorderProjects(projectIds: string[]): Promise<void> {
+  return invoke('reorder_projects', { projectIds });
+}
+
+export async function reorderWorktrees(
+  projectId: string,
+  worktreeIds: string[]
+): Promise<void> {
+  return invoke('reorder_worktrees', { projectId, worktreeIds });
+}
+
 // PTY commands
 export async function spawnMain(worktreeId: string): Promise<string> {
   return invoke<string>('spawn_main', { worktreeId });

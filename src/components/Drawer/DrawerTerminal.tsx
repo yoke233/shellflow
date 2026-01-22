@@ -37,9 +37,10 @@ interface DrawerTerminalProps {
   mappings: MappingsConfig;
   onClose?: () => void;
   onFocus?: () => void;
+  onPtyIdReady?: (ptyId: string) => void;
 }
 
-export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, terminalConfig, mappings, onClose, onFocus }: DrawerTerminalProps) {
+export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, terminalConfig, mappings, onClose, onFocus, onPtyIdReady }: DrawerTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -75,6 +76,12 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
   useEffect(() => {
     onFocusRef.current = onFocus;
   }, [onFocus]);
+
+  // Store onPtyIdReady in ref
+  const onPtyIdReadyRef = useRef(onPtyIdReady);
+  useEffect(() => {
+    onPtyIdReadyRef.current = onPtyIdReady;
+  }, [onPtyIdReady]);
 
   // Initialize terminal
   useEffect(() => {
@@ -184,11 +191,9 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
       const cols = terminal.cols;
       const rows = terminal.rows;
       // Drawer terminals always spawn a shell (not the main command)
-      await spawnRef.current(worktreeId, 'shell', cols, rows);
-
-      // If component unmounted while spawning, kill the PTY immediately
-      if (!isMounted) {
-        killRef.current();
+      const newPtyId = await spawnRef.current(worktreeId, 'shell', cols, rows);
+      if (newPtyId && isMounted) {
+        onPtyIdReadyRef.current?.(newPtyId);
       }
     };
 
@@ -202,7 +207,10 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
       terminalRef.current = null;
       fitAddonRef.current = null;
       initializedRef.current = false;
-      killRef.current();
+      // NOTE: We do NOT kill the PTY here. React may unmount/remount components
+      // during reordering or StrictMode. PTY cleanup is handled by:
+      // 1. The pty-exit event handler (when shell exits naturally)
+      // 2. App.tsx cleanup when tab is explicitly closed
     };
   }, [id, worktreeId]);
 

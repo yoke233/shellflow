@@ -16,7 +16,8 @@ import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees } from './lib/tauri';
+import { arrayMove } from '@dnd-kit/sortable';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
 import { Project, Worktree, RunningTask } from './types';
@@ -30,7 +31,7 @@ const SELECTED_TASKS_KEY = 'onemanband:selectedTasks';
 type FocusedPane = 'main' | 'drawer';
 
 function App() {
-  const { projects, addProject, removeProject, createWorktree, deleteWorktree, renameWorktree, refresh: refreshProjects } = useWorktrees();
+  const { projects, addProject, removeProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
 
 
   // Get project path first for config loading (derived below after activeWorktreeId is defined)
@@ -95,6 +96,9 @@ function App() {
 
   // Per-worktree running tasks state (supports multiple tasks per worktree)
   const [runningTasks, setRunningTasks] = useState<Map<string, RunningTask[]>>(new Map());
+
+  // Track PTY IDs for drawer terminals (tab ID -> PTY ID)
+  const [drawerPtyIds, setDrawerPtyIds] = useState<Map<string, string>>(new Map());
 
   // Get current project's selected task
   const activeSelectedTask = activeProjectPath ? selectedTasksByProject.get(activeProjectPath) ?? null : null;
@@ -649,6 +653,17 @@ function App() {
     const targetEntityId = entityId ?? activeEntityId;
     if (!targetEntityId) return;
 
+    // Kill the PTY for this tab if it exists (for terminal tabs)
+    const ptyId = drawerPtyIds.get(tabId);
+    if (ptyId) {
+      ptyKill(ptyId);
+      setDrawerPtyIds((prev) => {
+        const next = new Map(prev);
+        next.delete(tabId);
+        return next;
+      });
+    }
+
     const currentTabs = drawerTabs.get(targetEntityId) ?? [];
     const remaining = currentTabs.filter(t => t.id !== tabId);
 
@@ -691,7 +706,55 @@ function App() {
         return next;
       });
     }
-  }, [activeEntityId, isDrawerExpanded, drawerTabs, drawerActiveTabIds]);
+  }, [activeEntityId, isDrawerExpanded, drawerTabs, drawerActiveTabIds, drawerPtyIds]);
+
+  // Register drawer terminal PTY ID
+  const handleDrawerPtyIdReady = useCallback((tabId: string, ptyId: string) => {
+    setDrawerPtyIds((prev) => {
+      const next = new Map(prev);
+      next.set(tabId, ptyId);
+      return next;
+    });
+  }, []);
+
+  // Reorder drawer tabs handler
+  const handleReorderDrawerTabs = useCallback((oldIndex: number, newIndex: number) => {
+    if (!activeEntityId) return;
+
+    setDrawerTabs((prev) => {
+      const tabs = prev.get(activeEntityId);
+      if (!tabs) return prev;
+
+      const reordered = arrayMove(tabs, oldIndex, newIndex);
+      const next = new Map(prev);
+      next.set(activeEntityId, reordered);
+      return next;
+    });
+  }, [activeEntityId]);
+
+  // Reorder projects handler - optimistic update for smooth DnD
+  const handleReorderProjects = useCallback((projectIds: string[]) => {
+    // Optimistic: update local state immediately
+    reorderProjectsOptimistic(projectIds);
+    // Persist to backend (fire-and-forget, no need to await refresh since we already updated locally)
+    reorderProjects(projectIds).catch((err) => {
+      console.error('Failed to reorder projects:', err);
+      // On error, refresh to get actual server state
+      refreshProjects();
+    });
+  }, [reorderProjectsOptimistic, refreshProjects]);
+
+  // Reorder worktrees handler - optimistic update for smooth DnD
+  const handleReorderWorktrees = useCallback((projectId: string, worktreeIds: string[]) => {
+    // Optimistic: update local state immediately
+    reorderWorktreesOptimistic(projectId, worktreeIds);
+    // Persist to backend (fire-and-forget)
+    reorderWorktrees(projectId, worktreeIds).catch((err) => {
+      console.error('Failed to reorder worktrees:', err);
+      // On error, refresh to get actual server state
+      refreshProjects();
+    });
+  }, [reorderWorktreesOptimistic, refreshProjects]);
 
   // Focus state handlers - track which pane has focus per worktree
   const handleMainPaneFocused = useCallback((worktreeId: string) => {
@@ -1749,6 +1812,8 @@ function App() {
               onStopTask={handleStopTask}
               onForceKillTask={handleForceKillTask}
               onRenameWorktree={renameWorktree}
+              onReorderProjects={handleReorderProjects}
+              onReorderWorktrees={handleReorderWorktrees}
             />
           </div>
         </Panel>
@@ -1807,6 +1872,7 @@ function App() {
                   onCloseTab={handleCloseDrawerTab}
                   onAddTab={handleAddDrawerTab}
                   onToggleExpand={handleToggleDrawerExpand}
+                  onReorderTabs={handleReorderDrawerTabs}
                 >
                   {/* Render ALL terminals for ALL entities to keep them alive */}
                   {Array.from(drawerTabs.entries()).flatMap(([entityId, tabs]) =>
@@ -1862,6 +1928,7 @@ function App() {
                             mappings={config.mappings}
                             onClose={() => handleCloseDrawerTab(tab.id, entityId)}
                             onFocus={() => handleDrawerFocused(entityId)}
+                            onPtyIdReady={(ptyId) => handleDrawerPtyIdReady(tab.id, ptyId)}
                           />
                         )}
                       </div>

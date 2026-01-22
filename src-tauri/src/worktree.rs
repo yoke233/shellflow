@@ -80,6 +80,7 @@ pub fn create_project(path: &Path) -> Result<Project, WorktreeError> {
         name: git::get_repo_name(path),
         path: path.to_string_lossy().to_string(),
         worktrees: vec![],
+        order: 0,
     })
 }
 
@@ -118,6 +119,7 @@ pub fn create_worktree(
         path: worktree_path.to_string_lossy().to_string(),
         branch: worktree_name,
         created_at: chrono_lite_now(),
+        order: project.worktrees.len() as i32,
     };
 
     project.worktrees.push(worktree.clone());

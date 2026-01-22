@@ -1,5 +1,20 @@
-import { X, Plus, Terminal, Play, Check, Square, Maximize2, Minimize2 } from 'lucide-react';
-import { ReactNode } from 'react';
+import { Plus, Maximize2, Minimize2, Terminal, Play, Square, Check, X } from 'lucide-react';
+import { ReactNode, useState, useRef } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { SortableDrawerTab } from './SortableDrawerTab';
 
 export interface DrawerTab {
   id: string;
@@ -24,6 +39,7 @@ interface DrawerProps {
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
   onToggleExpand: () => void;
+  onReorderTabs: (oldIndex: number, newIndex: number) => void;
   children?: ReactNode;
 }
 
@@ -38,64 +54,128 @@ export function Drawer({
   onCloseTab,
   onAddTab,
   onToggleExpand,
+  onReorderTabs,
   children,
 }: DrawerProps) {
-  // Always render children to keep terminals alive, but hide UI when closed
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const [activeDragTab, setActiveDragTab] = useState<DrawerTab | null>(null);
+  const recentlyDraggedRef = useRef(false);
+  const isDraggingRef = useRef(false);
+
+  function handleDragStart(event: DragStartEvent) {
+    // Prevent phantom drag starts (StrictMode can cause double-mounts)
+    if (isDraggingRef.current) return;
+    isDraggingRef.current = true;
+
+    const tab = tabs.find((t) => t.id === event.active.id);
+    setActiveDragTab(tab ?? null);
+    recentlyDraggedRef.current = true;
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+
+    // Only process if we were tracking this drag (not a phantom drag)
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+
+    setActiveDragTab(null);
+
+    if (over && active.id !== over.id) {
+      const oldIndex = tabs.findIndex((t) => t.id === active.id);
+      const newIndex = tabs.findIndex((t) => t.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        onReorderTabs(oldIndex, newIndex);
+      }
+    }
+
+    setTimeout(() => {
+      recentlyDraggedRef.current = false;
+    }, 100);
+  }
+
+  function handleDragCancel() {
+    isDraggingRef.current = false;
+    setActiveDragTab(null);
+    setTimeout(() => {
+      recentlyDraggedRef.current = false;
+    }, 100);
+  }
+
+  function handleCloseTab(tabId: string) {
+    // Ignore close if we just finished dragging
+    if (recentlyDraggedRef.current) {
+      return;
+    }
+    onCloseTab(tabId);
+  }
+
+  function renderTaskIcon(statusInfo: TaskStatusInfo | undefined) {
+    if (!statusInfo) {
+      return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
+    }
+    if (statusInfo.status === 'stopped') {
+      const code = statusInfo.exitCode;
+      if (code === 0) {
+        return <Check size={14} className="flex-shrink-0 text-green-500/50" />;
+      }
+      if (code !== undefined && code >= 128) {
+        return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
+      }
+      return <X size={14} className="flex-shrink-0 text-red-400/50" />;
+    }
+    return <Play size={14} className="flex-shrink-0 text-green-500" />;
+  }
+
   return (
     <div className="flex flex-col h-full bg-zinc-900">
-      {/* Tab bar - only show when open */}
       {isOpen && worktreeId && (
         <div className="flex items-stretch h-8 bg-zinc-900 border-b border-zinc-800 select-none flex-shrink-0">
-          <div className="flex items-stretch overflow-x-auto flex-1">
-            {tabs.map((tab) => (
-              <div
-                key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                className={`flex items-center gap-2 px-3 border-r border-zinc-800 min-w-0 ${
-                  activeTabId === tab.id
-                    ? 'bg-zinc-800 text-zinc-100'
-                    : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                }`}
-              >
-                {tab.type === 'task' ? (
-                  (() => {
-                    const statusInfo = taskStatuses.get(tab.taskName ?? '');
-                    if (!statusInfo) {
-                      // Task not started yet - show neutral square
-                      return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
-                    }
-                    if (statusInfo.status === 'stopped') {
-                      const code = statusInfo.exitCode;
-                      if (code === 0) {
-                        // Success
-                        return <Check size={14} className="flex-shrink-0 text-green-500/50" />;
-                      }
-                      if (code !== undefined && code >= 128) {
-                        // Killed by signal (128 + signal) - neutral
-                        return <Square size={14} className="flex-shrink-0 text-zinc-500" />;
-                      }
-                      // Error (1-127) or unknown
-                      return <X size={14} className="flex-shrink-0 text-red-400/50" />;
-                    }
-                    // Running or stopping: show play icon
-                    return <Play size={14} className="flex-shrink-0 text-green-500" />;
-                  })()
-                ) : (
-                  <Terminal size={14} className="flex-shrink-0" />
-                )}
-                <span className="text-sm truncate max-w-[120px]">{tab.label}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseTab(tab.id);
-                  }}
-                  className="p-0.5 rounded hover:bg-zinc-700 flex-shrink-0"
-                >
-                  <X size={12} />
-                </button>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <SortableContext
+              items={tabs.map((t) => t.id)}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex items-stretch overflow-x-auto flex-1">
+                {tabs.map((tab) => (
+                  <SortableDrawerTab
+                    key={tab.id}
+                    tab={tab}
+                    isActive={activeTabId === tab.id}
+                    taskStatus={taskStatuses.get(tab.taskName ?? '')}
+                    isAnyDragging={activeDragTab !== null}
+                    onSelect={() => onSelectTab(tab.id)}
+                    onClose={() => handleCloseTab(tab.id)}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+            <DragOverlay dropAnimation={null}>
+              {activeDragTab && (
+                <div className="flex items-center gap-2 px-3 h-8 bg-zinc-700 text-zinc-100 border border-zinc-600 rounded shadow-lg">
+                  {activeDragTab.type === 'task' ? (
+                    renderTaskIcon(taskStatuses.get(activeDragTab.taskName ?? ''))
+                  ) : (
+                    <Terminal size={14} className="flex-shrink-0" />
+                  )}
+                  <span className="text-sm truncate max-w-[120px]">{activeDragTab.label}</span>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
           <div className="flex items-stretch border-l border-zinc-800 flex-shrink-0">
             <button
               onClick={onAddTab}
@@ -115,7 +195,6 @@ export function Drawer({
         </div>
       )}
 
-      {/* Terminal content - always rendered to keep terminals alive */}
       <div className="flex-1 relative">
         {children}
       </div>

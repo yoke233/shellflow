@@ -9,6 +9,8 @@ pub struct Project {
     pub name: String,
     pub path: String,
     pub worktrees: Vec<Worktree>,
+    #[serde(default)]
+    pub order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +21,8 @@ pub struct Worktree {
     pub branch: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
+    #[serde(default)]
+    pub order: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

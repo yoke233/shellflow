@@ -128,6 +128,36 @@ export function useWorktrees() {
     [loadProjects]
   );
 
+  // Optimistic reorder: update local state immediately for smooth DnD
+  // Takes an array of project IDs in the new order
+  const reorderProjectsOptimistic = useCallback((newOrder: string[]) => {
+    setProjects((prev) => {
+      // Build the new order from the ID array
+      const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
+      return [...prev].sort((a, b) => {
+        const aIdx = orderMap.get(a.id) ?? Infinity;
+        const bIdx = orderMap.get(b.id) ?? Infinity;
+        return aIdx - bIdx;
+      });
+    });
+  }, []);
+
+  // Optimistic reorder worktrees within a project
+  const reorderWorktreesOptimistic = useCallback((projectId: string, newOrder: string[]) => {
+    setProjects((prev) =>
+      prev.map((project) => {
+        if (project.id !== projectId) return project;
+        const orderMap = new Map(newOrder.map((id, idx) => [id, idx]));
+        const sortedWorktrees = [...project.worktrees].sort((a, b) => {
+          const aIdx = orderMap.get(a.id) ?? Infinity;
+          const bIdx = orderMap.get(b.id) ?? Infinity;
+          return aIdx - bIdx;
+        });
+        return { ...project, worktrees: sortedWorktrees };
+      })
+    );
+  }, []);
+
   return {
     projects,
     loading,
@@ -137,6 +167,8 @@ export function useWorktrees() {
     createWorktree,
     deleteWorktree,
     renameWorktree,
+    reorderProjectsOptimistic,
+    reorderWorktreesOptimistic,
     refresh: loadProjects,
   };
 }
