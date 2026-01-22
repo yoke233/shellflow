@@ -6,7 +6,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { Loader2, RotateCcw, Terminal as TerminalIcon } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig, MappingsConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
@@ -485,6 +485,33 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     }
   }, [spawn, entityId, type]);
 
+  // Launch shell handler for when the user wants a shell instead of the main command
+  const handleLaunchShell = useCallback(async () => {
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) return;
+
+    // Reset state
+    setHasExited(false);
+    setIsReady(true); // Shell is ready immediately
+    setExitInfo(null);
+    isActivityThinkingRef.current = false;
+    isOscThinkingRef.current = false;
+    if (activityTimeoutRef.current) {
+      clearTimeout(activityTimeoutRef.current);
+      activityTimeoutRef.current = null;
+    }
+
+    // Clear terminal
+    terminal.clear();
+
+    // Spawn shell with current terminal size
+    const cols = terminal.cols;
+    const rows = terminal.rows;
+    spawnedAtRef.current = Date.now();
+    await spawn(entityId, 'shell', cols, rows);
+  }, [spawn, entityId]);
+
   // Store resize function in ref to avoid dependency issues
   const resizeRef = useRef(resize);
   const ptyIdRef = useRef(ptyId);
@@ -574,13 +601,24 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
                 </span>
               )}
             </div>
-            <button
-              onClick={handleRestart}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
-            >
-              <RotateCcw size={16} />
-              <span>Restart</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRestart}
+                className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
+              >
+                <RotateCcw size={16} />
+                <span>Restart</span>
+              </button>
+              {type === 'main' && (
+                <button
+                  onClick={handleLaunchShell}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
+                >
+                  <TerminalIcon size={16} />
+                  <span>Shell</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
