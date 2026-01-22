@@ -282,12 +282,12 @@ export function Sidebar({
                 </div>
                 {/* Status indicators - hide on hover */}
                 {thinkingProjectIds.has(project.id) && !isProjectSelected && (
-                  <span className="absolute right-1 group-hover:hidden" title="Thinking...">
+                  <span className="absolute right-1 rounded bg-zinc-800 group-hover:hidden" title="Thinking...">
                     <Loader2 size={12} className="animate-spin text-violet-400" />
                   </span>
                 )}
                 {notifiedProjectIds.has(project.id) && !isProjectSelected && !thinkingProjectIds.has(project.id) && (
-                  <span className="absolute right-1 group-hover:hidden" title="New notification">
+                  <span className="absolute right-1 rounded bg-zinc-800 group-hover:hidden" title="New notification">
                     <BellDot size={12} className="text-blue-400" />
                   </span>
                 )}
@@ -344,7 +344,7 @@ export function Sidebar({
                             onRename={(newName) => onRenameWorktree(worktree.id, newName)}
                           />
                           {isLoading ? (
-                            <span className="absolute right-1" title="Starting...">
+                            <span className={`absolute right-1 rounded ${isSelected ? 'bg-zinc-700' : 'bg-zinc-800'}`} title="Starting...">
                               <Loader2 size={12} className="animate-spin text-blue-400" />
                             </span>
                           ) : (
@@ -376,12 +376,12 @@ export function Sidebar({
                               </div>
                               {/* Status indicators - hide on hover */}
                               {isThinking && !isSelected && (
-                                <span className="absolute right-1 group-hover/worktree:hidden" title="Thinking...">
+                                <span className="absolute right-1 rounded bg-zinc-800 group-hover/worktree:hidden" title="Thinking...">
                                   <Loader2 size={12} className="animate-spin text-violet-400" />
                                 </span>
                               )}
                               {notifiedWorktreeIds.has(worktree.id) && !isSelected && !isThinking && (
-                                <span className="absolute right-1 group-hover/worktree:hidden" title="New notification">
+                                <span className="absolute right-1 rounded bg-zinc-800 group-hover/worktree:hidden" title="New notification">
                                   <BellDot size={12} className="text-blue-400" />
                                 </span>
                               )}
