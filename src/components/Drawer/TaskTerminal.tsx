@@ -30,7 +30,7 @@ interface PtyOutput {
 
 interface TaskTerminalProps {
   id: string;
-  worktreeId: string;
+  entityId: string;
   taskName: string;
   isActive: boolean;
   shouldAutoFocus: boolean;
@@ -43,7 +43,7 @@ interface TaskTerminalProps {
 
 export function TaskTerminal({
   id,
-  worktreeId,
+  entityId,
   taskName,
   isActive,
   shouldAutoFocus,
@@ -198,7 +198,7 @@ export function TaskTerminal({
       unlistenExit = exitListener;
 
       // Spawn the task
-      const newPtyId = await spawnTask(worktreeId, taskName, cols, rows);
+      const newPtyId = await spawnTask(entityId, taskName, cols, rows);
       ptyIdRef.current = newPtyId;
       ptyIdKnown = true;
 
@@ -238,7 +238,7 @@ export function TaskTerminal({
         ptyIdRef.current = null;
       }
     };
-  }, [id, worktreeId, taskName]);
+  }, [id, entityId, taskName]);
 
   // Immediate resize handler
   const immediateResize = useCallback(() => {

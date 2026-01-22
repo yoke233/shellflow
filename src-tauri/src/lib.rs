@@ -260,24 +260,32 @@ fn spawn_terminal(
 fn spawn_task(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
-    worktree_id: &str,
+    entity_id: &str,
     task_name: &str,
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String> {
-    // Find worktree path and parent project path
-    let (worktree_path, project_path) = {
+    // Find entity path and project path (entity can be a worktree or a project)
+    let (entity_path, project_path) = {
         let persisted = state.persisted.read();
         let mut found = None;
 
+        // First, try to find a worktree with this ID
         for project in &persisted.projects {
-            if let Some(worktree) = project.worktrees.iter().find(|w| w.id == worktree_id) {
+            if let Some(worktree) = project.worktrees.iter().find(|w| w.id == entity_id) {
                 found = Some((worktree.path.clone(), project.path.clone()));
                 break;
             }
         }
 
-        found.ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
+        // If not found as worktree, try to find a project with this ID
+        if found.is_none() {
+            if let Some(project) = persisted.projects.iter().find(|p| p.id == entity_id) {
+                found = Some((project.path.clone(), project.path.clone()));
+            }
+        }
+
+        found.ok_or_else(|| format!("Entity not found: {}", entity_id))?
     };
 
     // Load config and find the task
@@ -288,7 +296,7 @@ fn spawn_task(
         .find(|t| t.name == task_name)
         .ok_or_else(|| format!("Task not found: {}", task_name))?;
 
-    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &task.command, cols, rows, task.shell.as_deref())
+    pty::spawn_pty(&app, &state, entity_id, &entity_path, &task.command, cols, rows, task.shell.as_deref())
         .map_err(map_err)
 }
 

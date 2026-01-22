@@ -96,33 +96,34 @@ function App() {
 
   // Get current project's selected task
   const activeSelectedTask = activeProjectPath ? selectedTasksByProject.get(activeProjectPath) ?? null : null;
+
+  // Active entity ID - worktree takes precedence, otherwise use project
+  // This allows drawer/focus/task state to work for both views
+  const activeEntityId = activeWorktreeId ?? activeProjectId;
+
   // Find the running task that matches the selected task (for TaskSelector controls)
   const activeRunningTask = useMemo(() => {
-    if (!activeWorktreeId || !activeSelectedTask) return null;
-    const tasks = runningTasks.get(activeWorktreeId) ?? [];
+    if (!activeEntityId || !activeSelectedTask) return null;
+    const tasks = runningTasks.get(activeEntityId) ?? [];
     return tasks.find(t => t.taskName === activeSelectedTask) ?? null;
-  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
+  }, [activeEntityId, activeSelectedTask, runningTasks]);
 
-  // Task statuses map for the active worktree (for Drawer tab icons)
+  // Task statuses map for the active entity (for Drawer tab icons)
   const activeTaskStatuses = useMemo(() => {
     const statuses = new Map<string, 'running' | 'stopping' | 'stopped'>();
-    if (!activeWorktreeId) return statuses;
-    const tasks = runningTasks.get(activeWorktreeId) ?? [];
+    if (!activeEntityId) return statuses;
+    const tasks = runningTasks.get(activeEntityId) ?? [];
     for (const task of tasks) {
       statuses.set(task.taskName, task.status);
     }
     return statuses;
-  }, [activeWorktreeId, runningTasks]);
+  }, [activeEntityId, runningTasks]);
 
   // Persist selected tasks to localStorage
   useEffect(() => {
     const obj = Object.fromEntries(selectedTasksByProject.entries());
     localStorage.setItem(SELECTED_TASKS_KEY, JSON.stringify(obj));
   }, [selectedTasksByProject]);
-
-  // Active entity ID - worktree takes precedence, otherwise use project
-  // This allows drawer/focus/task state to work for both views
-  const activeEntityId = activeWorktreeId ?? activeProjectId;
 
   // Get current entity's drawer tabs (works for both worktrees and projects)
   const activeDrawerTabs = activeEntityId ? drawerTabs.get(activeEntityId) ?? [] : [];
@@ -752,22 +753,22 @@ function App() {
   }, [activeProjectPath]);
 
   const handleStartTask = useCallback(async () => {
-    if (!activeWorktreeId || !activeSelectedTask) return;
+    if (!activeEntityId || !activeSelectedTask) return;
 
     // Find the task config to get the kind
     const task = config.tasks.find((t) => t.name === activeSelectedTask);
     if (!task) return;
 
     // Check if this task is already running
-    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
-    const existingTask = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
+    const entityTasks = runningTasks.get(activeEntityId) ?? [];
+    const existingTask = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
     if (existingTask) {
       // Task is already running, just switch to its tab (if not silent)
       if (!task.silent) {
-        const tabId = `${activeWorktreeId}-task-${activeSelectedTask}`;
+        const tabId = `${activeEntityId}-task-${activeSelectedTask}`;
         setDrawerActiveTabIds((prev) => {
           const next = new Map(prev);
-          next.set(activeWorktreeId, tabId);
+          next.set(activeEntityId, tabId);
           return next;
         });
         if (!isDrawerOpen) {
@@ -782,14 +783,14 @@ function App() {
     if (task.silent) {
       const { spawnTask } = await import('./lib/tauri');
       try {
-        const ptyId = await spawnTask(activeWorktreeId, activeSelectedTask);
+        const ptyId = await spawnTask(activeEntityId, activeSelectedTask);
         // Track the silent task so we can stop it
         setRunningTasks((prev) => {
           const next = new Map(prev);
-          const existing = prev.get(activeWorktreeId) ?? [];
+          const existing = prev.get(activeEntityId) ?? [];
           // Remove any stopped instance of this task, add new running one
           const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
-          next.set(activeWorktreeId, [...filtered, { taskName: activeSelectedTask, ptyId, status: 'running' }]);
+          next.set(activeEntityId, [...filtered, { taskName: activeSelectedTask, ptyId, status: 'running' }]);
           return next;
         });
       } catch (err) {
@@ -799,7 +800,7 @@ function App() {
     }
 
     // Create a new task tab with unique ID (allows restart)
-    const tabId = `${activeWorktreeId}-task-${activeSelectedTask}-${Date.now()}`;
+    const tabId = `${activeEntityId}-task-${activeSelectedTask}-${Date.now()}`;
     const newTab: DrawerTab = {
       id: tabId,
       label: activeSelectedTask,
@@ -809,16 +810,16 @@ function App() {
 
     // Remove any existing tab for this task, then add new one
     setDrawerTabs((prev) => {
-      const currentTabs = prev.get(activeWorktreeId) ?? [];
+      const currentTabs = prev.get(activeEntityId) ?? [];
       // Remove old task tab if exists (any tab with same taskName)
       const filteredTabs = currentTabs.filter((t) => t.taskName !== activeSelectedTask);
       const next = new Map(prev);
-      next.set(activeWorktreeId, [...filteredTabs, newTab]);
+      next.set(activeEntityId, [...filteredTabs, newTab]);
       return next;
     });
     setDrawerActiveTabIds((prev) => {
       const next = new Map(prev);
-      next.set(activeWorktreeId, tabId);
+      next.set(activeEntityId, tabId);
       return next;
     });
 
@@ -831,26 +832,26 @@ function App() {
     // Mark task as running (ptyId will be set by TaskTerminal)
     setRunningTasks((prev) => {
       const next = new Map(prev);
-      const existing = prev.get(activeWorktreeId) ?? [];
+      const existing = prev.get(activeEntityId) ?? [];
       // Remove any stopped instance of this task, add new running one
       const filtered = existing.filter(t => t.taskName !== activeSelectedTask || t.status === 'running');
-      next.set(activeWorktreeId, [...filtered, { taskName: activeSelectedTask, ptyId: '', status: 'running' }]);
+      next.set(activeEntityId, [...filtered, { taskName: activeSelectedTask, ptyId: '', status: 'running' }]);
       return next;
     });
 
     // Focus the drawer
     setFocusStates((prev) => {
       const next = new Map(prev);
-      next.set(activeWorktreeId, 'drawer');
+      next.set(activeEntityId, 'drawer');
       return next;
     });
-  }, [activeWorktreeId, activeSelectedTask, config.tasks, isDrawerOpen, runningTasks]);
+  }, [activeEntityId, activeSelectedTask, config.tasks, isDrawerOpen, runningTasks]);
 
   const handleStopTask = useCallback(() => {
-    if (!activeWorktreeId || !activeSelectedTask) return;
+    if (!activeEntityId || !activeSelectedTask) return;
 
-    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
-    const taskToStop = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
+    const entityTasks = runningTasks.get(activeEntityId) ?? [];
+    const taskToStop = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'running');
     if (!taskToStop) return;
 
     console.log('[handleStopTask] taskToStop:', taskToStop);
@@ -866,48 +867,48 @@ function App() {
     // Mark task as stopping (not stopped yet - waiting for process to exit)
     setRunningTasks((prev) => {
       const next = new Map(prev);
-      const existing = prev.get(activeWorktreeId) ?? [];
+      const existing = prev.get(activeEntityId) ?? [];
       const updated = existing.map(t =>
         t.taskName === activeSelectedTask && t.status === 'running'
           ? { ...t, status: 'stopping' as const }
           : t
       );
-      next.set(activeWorktreeId, updated);
+      next.set(activeEntityId, updated);
       return next;
     });
-  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
+  }, [activeEntityId, activeSelectedTask, runningTasks]);
 
   // Toggle task: run if not running, stop if running
   const handleToggleTask = useCallback(() => {
-    if (!activeWorktreeId || !activeSelectedTask) return;
+    if (!activeEntityId || !activeSelectedTask) return;
 
-    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
-    const runningTask = worktreeTasks.find(t => t.taskName === activeSelectedTask);
+    const entityTasks = runningTasks.get(activeEntityId) ?? [];
+    const runningTask = entityTasks.find(t => t.taskName === activeSelectedTask);
     if (runningTask?.status === 'running') {
       handleStopTask();
     } else {
       handleStartTask();
     }
-  }, [activeWorktreeId, activeSelectedTask, runningTasks, handleStartTask, handleStopTask]);
+  }, [activeEntityId, activeSelectedTask, runningTasks, handleStartTask, handleStopTask]);
 
   const handleForceKillTask = useCallback(() => {
-    if (!activeWorktreeId || !activeSelectedTask) return;
+    if (!activeEntityId || !activeSelectedTask) return;
 
-    const worktreeTasks = runningTasks.get(activeWorktreeId) ?? [];
-    const taskToKill = worktreeTasks.find(t => t.taskName === activeSelectedTask && t.status === 'stopping');
+    const entityTasks = runningTasks.get(activeEntityId) ?? [];
+    const taskToKill = entityTasks.find(t => t.taskName === activeSelectedTask && t.status === 'stopping');
     if (!taskToKill) return;
 
     // Force kill the PTY with SIGKILL
     if (taskToKill.ptyId) {
       ptyForceKill(taskToKill.ptyId);
     }
-  }, [activeWorktreeId, activeSelectedTask, runningTasks]);
+  }, [activeEntityId, activeSelectedTask, runningTasks]);
 
   // Task switcher handlers
   const handleToggleTaskSwitcher = useCallback(() => {
-    if (!activeWorktreeId || config.tasks.length === 0) return;
+    if (!activeEntityId || config.tasks.length === 0) return;
     setIsTaskSwitcherOpen(prev => !prev);
-  }, [activeWorktreeId, config.tasks.length]);
+  }, [activeEntityId, config.tasks.length]);
 
   const handleTaskSwitcherSelect = useCallback((taskName: string) => {
     handleSelectTask(taskName);
@@ -1721,7 +1722,7 @@ function App() {
                         {tab.type === 'task' && tab.taskName ? (
                           <TaskTerminal
                             id={tab.id}
-                            worktreeId={entityId}
+                            entityId={entityId}
                             taskName={tab.taskName}
                             isActive={
                               entityId === activeEntityId &&

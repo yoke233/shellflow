@@ -411,7 +411,7 @@ export function Sidebar({
       )}
 
       {/* Task selector - above status bar */}
-      {activeWorktreeId && tasks.length > 0 && (
+      {(activeWorktreeId || activeProjectId) && tasks.length > 0 && (
         <TaskSelector
           tasks={tasks}
           selectedTask={selectedTask}

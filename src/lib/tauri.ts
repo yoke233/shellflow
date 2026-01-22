@@ -45,12 +45,12 @@ export async function spawnTerminal(worktreeId: string): Promise<string> {
 }
 
 export async function spawnTask(
-  worktreeId: string,
+  entityId: string,
   taskName: string,
   cols?: number,
   rows?: number
 ): Promise<string> {
-  return invoke<string>('spawn_task', { worktreeId, taskName, cols, rows });
+  return invoke<string>('spawn_task', { entityId, taskName, cols, rows });
 }
 
 export async function ptyWrite(ptyId: string, data: string): Promise<void> {
