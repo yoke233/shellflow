@@ -52,17 +52,15 @@ export function ConfirmModal({
         <div className="flex justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded inline-flex items-center gap-2"
+            className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded"
           >
             Cancel
-            <kbd className="px-1.5 py-0.5 text-[10px] bg-zinc-800 rounded text-zinc-500">Esc</kbd>
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded inline-flex items-center gap-2"
+            className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded"
           >
             {confirmLabel}
-            <kbd className="px-1.5 py-0.5 text-[10px] bg-red-700/50 rounded text-red-200">{isMac ? '⌘' : 'Ctrl'}↵</kbd>
           </button>
         </div>
       </div>

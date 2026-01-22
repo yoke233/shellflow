@@ -71,10 +71,9 @@ export function StashModal({
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
-            <kbd className="px-1.5 py-0.5 text-[10px] bg-zinc-800 rounded text-zinc-500">Esc</kbd>
           </button>
           <button
             onClick={onStashAndCreate}
@@ -105,9 +104,6 @@ export function StashModal({
               'Retry'
             ) : (
               'Stash & Create'
-            )}
-            {!isLoading && (
-              <kbd className="px-1.5 py-0.5 text-[10px] bg-blue-700/50 rounded text-blue-200">{isMac ? '⌘' : 'Ctrl'}↵</kbd>
             )}
           </button>
         </div>
