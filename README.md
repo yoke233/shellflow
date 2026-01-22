@@ -22,7 +22,7 @@
 <br />
 
 <p align="center">
-  <img src="screenshot.png" alt="One Man Band Screenshot" width="800" />
+  <img src="./assets/screenshot.png" alt="One Man Band Screenshot" width="800" />
 </p>
 
 <br />
