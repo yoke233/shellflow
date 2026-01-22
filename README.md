@@ -28,7 +28,10 @@
 <br />
 
 > [!WARNING]
-> This project is in early development. It's written with heavy AI assistance.
+>
+> - This project is in early development.
+> - It's written with heavy AI assistance.
+> - It should work on all platforms but only MacOS is supported at the moment.
 
 ## What is this?
 
@@ -195,30 +198,30 @@ Tasks are configurable commands that can be run per worktree. They appear in a d
     {
       "name": "Dev Server",
       "command": "npm run dev",
-      "kind": "daemon"    // Stays running until stopped
+      "kind": "daemon", // Stays running until stopped
     },
     {
       "name": "Build",
       "command": "npm run build",
-      "kind": "command"   // Runs to completion (default)
+      "kind": "command", // Runs to completion (default)
     },
     {
       "name": "Test Watch",
       "command": "npm test -- --watch",
       "kind": "daemon",
-      "silent": true      // Run without showing output in drawer
-    }
-  ]
+      "silent": true, // Run without showing output in drawer
+    },
+  ],
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `name` | string | Display name for the task (must be unique) |
-| `command` | string | Shell command to run |
-| `kind` | `"command"` \| `"daemon"` | `"command"` runs to completion, `"daemon"` stays running until stopped (default: `"command"`) |
-| `silent` | boolean | If true, task runs without showing output in drawer (default: `false`) |
-| `shell` | string | Override shell to run command with (e.g., `/bin/bash`, `fish`) |
+| Option    | Type                      | Description                                                                                   |
+| --------- | ------------------------- | --------------------------------------------------------------------------------------------- |
+| `name`    | string                    | Display name for the task (must be unique)                                                    |
+| `command` | string                    | Shell command to run                                                                          |
+| `kind`    | `"command"` \| `"daemon"` | `"command"` runs to completion, `"daemon"` stays running until stopped (default: `"command"`) |
+| `silent`  | boolean                   | If true, task runs without showing output in drawer (default: `false`)                        |
+| `shell`   | string                    | Override shell to run command with (e.g., `/bin/bash`, `fish`)                                |
 
 ### Project-specific overrides
 
