@@ -138,7 +138,7 @@ Download the latest release for your platform from the [Releases](https://github
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - Rust 1.70+
 
 ### Setup
