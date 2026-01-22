@@ -31,6 +31,7 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
 interface DrawerTerminalProps {
   id: string;
   worktreeId: string;
+  entityType: 'project' | 'worktree';
   isActive: boolean;
   shouldAutoFocus: boolean;
   terminalConfig: TerminalConfig;
@@ -39,7 +40,7 @@ interface DrawerTerminalProps {
   onFocus?: () => void;
 }
 
-export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, terminalConfig, mappings, onClose, onFocus }: DrawerTerminalProps) {
+export function DrawerTerminal({ id, worktreeId, entityType, isActive, shouldAutoFocus, terminalConfig, mappings, onClose, onFocus }: DrawerTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -182,7 +183,8 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
       fitAddon.fit();
       const cols = terminal.cols;
       const rows = terminal.rows;
-      await spawnRef.current(worktreeId, 'shell', cols, rows);
+      const ptyType = entityType === 'project' ? 'project' : 'shell';
+      await spawnRef.current(worktreeId, ptyType, cols, rows);
 
       // If component unmounted while spawning, kill the PTY immediately
       if (!isMounted) {

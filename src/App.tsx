@@ -1802,6 +1802,7 @@ function App() {
                           <DrawerTerminal
                             id={tab.id}
                             worktreeId={entityId}
+                            entityType={projects.some(p => p.id === entityId) ? 'project' : 'worktree'}
                             isActive={
                               entityId === activeEntityId &&
                               isDrawerOpen &&
