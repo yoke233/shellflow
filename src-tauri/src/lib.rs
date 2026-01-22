@@ -594,6 +594,39 @@ fn get_config(project_path: Option<String>) -> config::Config {
     config::load_config_for_project(project_path.as_deref())
 }
 
+// Action commands
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActionPromptContext {
+    pub worktree_dir: String,
+    pub worktree_name: String,
+    pub branch: String,
+    pub target_branch: String,
+}
+
+#[tauri::command]
+fn expand_action_prompt(
+    action_name: &str,
+    context: ActionPromptContext,
+    project_path: Option<String>,
+) -> Result<String> {
+    let cfg = config::load_config_for_project(project_path.as_deref());
+
+    let template = match action_name {
+        "merge_worktree_with_conflicts" => &cfg.actions.merge_worktree_with_conflicts,
+        _ => return Err(format!("Unknown action: {}", action_name)),
+    };
+
+    let ctx = template::ActionContext {
+        worktree_dir: context.worktree_dir,
+        worktree_name: context.worktree_name,
+        branch: context.branch,
+        target_branch: context.target_branch,
+    };
+
+    template::expand_action_template(template, &ctx).map_err(map_err)
+}
+
 // Git commands
 #[tauri::command]
 fn get_changed_files(worktree_path: &str) -> Result<Vec<FileChange>> {
@@ -655,9 +688,10 @@ pub struct MergeProgress {
 }
 
 #[tauri::command]
-fn check_merge_feasibility(worktree_path: &str) -> Result<MergeFeasibility> {
+fn check_merge_feasibility(worktree_path: &str, project_path: Option<String>) -> Result<MergeFeasibility> {
     let path = Path::new(worktree_path);
-    git::check_merge_feasibility(path).map_err(map_err)
+    let cfg = config::load_config_for_project(project_path.as_deref());
+    git::check_merge_feasibility(path, &cfg.worktree.base_branch).map_err(map_err)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1261,6 +1295,7 @@ pub fn run() {
             start_watching,
             stop_watching,
             get_config,
+            expand_action_prompt,
             check_merge_feasibility,
             execute_merge_workflow,
             cleanup_worktree,

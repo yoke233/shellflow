@@ -86,6 +86,21 @@ pub fn get_current_branch(repo: &Repository) -> Result<String, GitError> {
         })
 }
 
+/// Resolve a BaseBranch config to an actual branch name
+pub fn resolve_target_branch(repo: &Repository, base_branch: &BaseBranch) -> Result<String, GitError> {
+    match base_branch {
+        BaseBranch::Mode(BaseBranchMode::Auto) => get_default_branch(repo),
+        BaseBranch::Mode(BaseBranchMode::Current) => get_current_branch(repo),
+        BaseBranch::Named { name } => {
+            // Verify the branch exists
+            if repo.find_branch(name, BranchType::Local).is_err() {
+                return Err(GitError::BranchNotFound(name.clone()));
+            }
+            Ok(name.clone())
+        }
+    }
+}
+
 /// Check if a branch with the given name exists
 pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool, GitError> {
     let repo = Repository::open(repo_path)?;
@@ -308,7 +323,7 @@ pub fn get_ignored_files(repo_path: &Path) -> Result<Vec<String>, GitError> {
 }
 
 /// Check if a merge or rebase is feasible for a worktree branch
-pub fn check_merge_feasibility(worktree_path: &Path) -> Result<MergeFeasibility, GitError> {
+pub fn check_merge_feasibility(worktree_path: &Path, base_branch: &BaseBranch) -> Result<MergeFeasibility, GitError> {
     let repo = Repository::open(worktree_path)?;
 
     // Get current branch name
@@ -318,8 +333,8 @@ pub fn check_merge_feasibility(worktree_path: &Path) -> Result<MergeFeasibility,
         .ok_or_else(|| GitError::BranchNotFound("HEAD".to_string()))?
         .to_string();
 
-    // Get default branch (target)
-    let target_branch = get_default_branch(&repo)?;
+    // Get target branch from config
+    let target_branch = resolve_target_branch(&repo, base_branch)?;
 
     // If we're on the default branch, nothing to merge
     if current_branch == target_branch {

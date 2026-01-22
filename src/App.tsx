@@ -7,6 +7,7 @@ import { RightPanel } from './components/RightPanel/RightPanel';
 import { Drawer, DrawerTab } from './components/Drawer/Drawer';
 import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
 import { TaskTerminal } from './components/Drawer/TaskTerminal';
+import { ActionTerminal } from './components/Drawer/ActionTerminal';
 import { ConfirmModal } from './components/ConfirmModal';
 import { DeleteWorktreeModal } from './components/DeleteWorktreeModal';
 import { MergeModal } from './components/MergeModal';
@@ -16,7 +17,7 @@ import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext } from './lib/tauri';
 import { arrayMove } from '@dnd-kit/sortable';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
@@ -687,6 +688,77 @@ function App() {
       return next;
     });
   }, [activeEntityId, drawerTabCounters]);
+
+  // Trigger an action for a worktree (creates action tab in drawer)
+  const handleTriggerAction = useCallback(async (
+    worktreeId: string,
+    projectPath: string,
+    actionType: string,
+    context: ActionPromptContext
+  ) => {
+    try {
+      // Expand the prompt using the backend
+      const expandedPrompt = await expandActionPrompt(actionType, context, projectPath);
+
+      // Generate a unique tab ID
+      const currentCounter = drawerTabCounters.get(worktreeId) ?? 0;
+      const newCounter = currentCounter + 1;
+      const tabId = `${worktreeId}-action-${newCounter}`;
+
+      // Create the action tab
+      const newTab: DrawerTab = {
+        id: tabId,
+        label: 'Resolve Conflicts',
+        type: 'action',
+        actionType,
+        actionPrompt: expandedPrompt,
+      };
+
+      // Add the tab
+      setDrawerTabs((prev) => {
+        const currentTabs = prev.get(worktreeId) ?? [];
+        const next = new Map(prev);
+        next.set(worktreeId, [...currentTabs, newTab]);
+        return next;
+      });
+
+      // Update counter
+      setDrawerTabCounters((prev) => {
+        const next = new Map(prev);
+        next.set(worktreeId, newCounter);
+        return next;
+      });
+
+      // Set active tab
+      setDrawerActiveTabIds((prev) => {
+        const next = new Map(prev);
+        next.set(worktreeId, tabId);
+        return next;
+      });
+
+      // Open drawer and focus it
+      setIsDrawerOpen(true);
+      setFocusStates((prev) => {
+        const next = new Map(prev);
+        next.set(worktreeId, 'drawer');
+        return next;
+      });
+
+      // Switch to the worktree if not already active
+      if (activeWorktreeId !== worktreeId) {
+        setActiveWorktreeId(worktreeId);
+        // Also open the worktree if not open
+        setOpenWorktreeIds((prev) => {
+          if (prev.has(worktreeId)) return prev;
+          const next = new Set(prev);
+          next.add(worktreeId);
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to trigger action:', err);
+    }
+  }, [drawerTabCounters, activeWorktreeId]);
 
   // Select drawer tab handler
   const handleSelectDrawerTab = useCallback((tabId: string) => {
@@ -1798,8 +1870,16 @@ function App() {
     ? projects.flatMap((p) => p.worktrees).find((w) => w.id === pendingDeleteId)
     : null;
 
-  const pendingMergeWorktree = pendingMergeId
-    ? projects.flatMap((p) => p.worktrees).find((w) => w.id === pendingMergeId)
+  const pendingMergeInfo = pendingMergeId
+    ? (() => {
+        for (const project of projects) {
+          const worktree = project.worktrees.find((w) => w.id === pendingMergeId);
+          if (worktree) {
+            return { worktree, projectPath: project.path };
+          }
+        }
+        return null;
+      })()
     : null;
 
   return (
@@ -1833,12 +1913,21 @@ function App() {
         />
       )}
 
-      {pendingMergeWorktree && (
+      {pendingMergeInfo && (
         <MergeModal
-          worktree={pendingMergeWorktree}
+          worktree={pendingMergeInfo.worktree}
+          projectPath={pendingMergeInfo.projectPath}
           defaultConfig={config.merge}
           onClose={() => setPendingMergeId(null)}
           onMergeComplete={handleMergeComplete}
+          onTriggerAction={(actionType, context) => {
+            handleTriggerAction(
+              pendingMergeInfo.worktree.id,
+              pendingMergeInfo.projectPath,
+              actionType,
+              context
+            );
+          }}
           onModalOpen={onModalOpen}
           onModalClose={onModalClose}
         />
@@ -2023,6 +2112,26 @@ function App() {
                             mappings={config.mappings}
                             onPtyIdReady={(ptyId) => handleTaskPtyIdReady(entityId, tab.taskName!, ptyId)}
                             onTaskExit={(exitCode) => handleTaskExit(entityId, tab.taskName!, exitCode)}
+                            onFocus={() => handleDrawerFocused(entityId)}
+                          />
+                        ) : tab.type === 'action' && tab.actionPrompt ? (
+                          <ActionTerminal
+                            id={tab.id}
+                            worktreeId={entityId}
+                            actionPrompt={tab.actionPrompt}
+                            isActive={
+                              entityId === activeEntityId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId
+                            }
+                            shouldAutoFocus={
+                              entityId === activeEntityId &&
+                              isDrawerOpen &&
+                              tab.id === activeDrawerTabId &&
+                              activeFocusState === 'drawer'
+                            }
+                            terminalConfig={drawerTerminalConfig}
+                            mappings={config.mappings}
                             onFocus={() => handleDrawerFocused(entityId)}
                           />
                         ) : (

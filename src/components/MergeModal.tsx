@@ -1,15 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { GitMerge, AlertCircle, CheckCircle, Loader2, AlertTriangle, Circle } from 'lucide-react';
+import { GitMerge, AlertCircle, CheckCircle, Loader2, AlertTriangle, Circle, Sparkles } from 'lucide-react';
 import { Worktree, MergeFeasibility, MergeStrategy, MergeProgress, MergeCompleted } from '../types';
 import { MergeConfig } from '../hooks/useConfig';
 import { checkMergeFeasibility, executeMergeWorkflow, cleanupWorktree } from '../lib/tauri';
 
+export interface ActionContext {
+  worktreeDir: string;
+  worktreeName: string;
+  branch: string;
+  targetBranch: string;
+}
+
 interface MergeModalProps {
   worktree: Worktree;
+  projectPath: string;
   defaultConfig: MergeConfig;
   onClose: () => void;
   onMergeComplete: (worktreeId: string, deletedWorktree: boolean) => void;
+  onTriggerAction?: (actionType: string, context: ActionContext) => void;
   onModalOpen?: () => void;
   onModalClose?: () => void;
 }
@@ -21,9 +30,11 @@ interface Step {
 
 export function MergeModal({
   worktree,
+  projectPath,
   defaultConfig,
   onClose,
   onMergeComplete,
+  onTriggerAction,
   onModalOpen,
   onModalClose,
 }: MergeModalProps) {
@@ -51,11 +62,11 @@ export function MergeModal({
 
   // Fetch feasibility on mount
   useEffect(() => {
-    checkMergeFeasibility(worktree.path)
+    checkMergeFeasibility(worktree.path, projectPath)
       .then(setFeasibility)
       .catch((err) => setError(err.toString()))
       .finally(() => setLoading(false));
-  }, [worktree.path]);
+  }, [worktree.path, projectPath]);
 
   // Build the list of steps based on current options
   const buildSteps = useCallback((isMerge: boolean, strat: MergeStrategy, delWorktree: boolean, delLocal: boolean, delRemote: boolean): Step[] => {
@@ -451,6 +462,24 @@ export function MergeModal({
           >
             {executing ? 'Close' : 'Cancel'}
           </button>
+          {/* Show "Resolve with AI" when there's a conflict error */}
+          {error && !executing && onTriggerAction && feasibility && error.toLowerCase().includes('conflict') && (
+            <button
+              onClick={() => {
+                onTriggerAction('merge_worktree_with_conflicts', {
+                  worktreeDir: worktree.path,
+                  worktreeName: worktree.name,
+                  branch: feasibility.currentBranch,
+                  targetBranch: feasibility.targetBranch,
+                });
+                onClose();
+              }}
+              className="px-4 py-2 text-sm bg-purple-600 hover:bg-purple-500 text-white rounded flex items-center gap-2"
+            >
+              <Sparkles size={14} />
+              Resolve with AI
+            </button>
+          )}
           {canExecute && (
             <button
               onClick={handleMerge}

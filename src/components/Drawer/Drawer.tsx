@@ -19,8 +19,12 @@ import { SortableDrawerTab } from './SortableDrawerTab';
 export interface DrawerTab {
   id: string;
   label: string;
-  type: 'terminal' | 'task';
+  type: 'terminal' | 'task' | 'action';
   taskName?: string;
+  /** For action tabs: the action type (e.g., 'merge_worktree_with_conflicts') */
+  actionType?: string;
+  /** For action tabs: the expanded prompt to send when ready */
+  actionPrompt?: string;
 }
 
 interface TaskStatusInfo {

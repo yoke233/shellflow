@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, Terminal, Play, Square, Check } from 'lucide-react';
+import { X, Terminal, Play, Square, Check, Sparkles } from 'lucide-react';
 import { DrawerTab } from './Drawer';
 
 interface TaskStatusInfo {
@@ -56,7 +56,9 @@ export function SortableDrawerTab({
           : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
       } ${isDragging ? 'opacity-0' : ''}`}
     >
-      {tab.type === 'task' ? (
+      {tab.type === 'action' ? (
+        <Sparkles size={14} className="flex-shrink-0 text-purple-400" />
+      ) : tab.type === 'task' ? (
         (() => {
           if (!taskStatus) {
             // Task not started yet - show neutral square

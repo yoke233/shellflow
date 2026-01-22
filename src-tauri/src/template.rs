@@ -21,12 +21,21 @@ use minijinja::{Environment, Value};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-/// Context for template expansion.
+/// Context for template expansion (worktree directory templates).
 #[derive(Debug, Clone)]
 pub struct TemplateContext {
     pub repo_directory: String,
     pub branch: Option<String>,
     pub worktree_name: Option<String>,
+}
+
+/// Context for action prompt expansion.
+#[derive(Debug, Clone)]
+pub struct ActionContext {
+    pub worktree_dir: String,
+    pub worktree_name: String,
+    pub branch: String,
+    pub target_branch: String,
 }
 
 impl TemplateContext {
@@ -90,6 +99,27 @@ pub fn expand_template(template: &str, context: &TemplateContext) -> Result<Stri
         repo_directory => &context.repo_directory,
         branch => context.branch.as_deref().unwrap_or(""),
         worktree_name => context.worktree_name.as_deref().unwrap_or(""),
+    };
+
+    tmpl.render(ctx)
+        .map_err(|e| format!("Template render error: {}", e))
+}
+
+/// Expand an action prompt template with the given context.
+///
+/// Returns the expanded string, or an error message if template parsing/rendering fails.
+pub fn expand_action_template(template: &str, context: &ActionContext) -> Result<String, String> {
+    let env = create_environment();
+
+    let tmpl = env
+        .template_from_str(template)
+        .map_err(|e| format!("Template syntax error: {}", e))?;
+
+    let ctx = minijinja::context! {
+        worktree_dir => &context.worktree_dir,
+        worktree_name => &context.worktree_name,
+        branch => &context.branch,
+        target_branch => &context.target_branch,
     };
 
     tmpl.render(ctx)

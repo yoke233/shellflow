@@ -34,6 +34,12 @@
     "deleteRemoteBranch": false
   },
 
+  // Action prompts for AI-assisted operations.
+  // Template variables: {{ worktree_dir }}, {{ worktree_name }}, {{ branch }}, {{ target_branch }}
+  // "actions": {
+  //   "mergeWorktreeWithConflicts": "Your custom prompt here..."
+  // },
+
   // Keyboard mappings. Each mapping can be:
   // - A string: "cmd+c" (universal shortcut)
   // - A platform object: { "mac": "cmd+c", "other": "ctrl+shift+c" }

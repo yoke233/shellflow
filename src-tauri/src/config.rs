@@ -14,6 +14,7 @@ pub struct Config {
     pub mappings: MappingsConfig,
     pub indicators: IndicatorsConfig,
     pub tasks: Vec<TaskConfig>,
+    pub actions: ActionsConfig,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
@@ -118,6 +119,38 @@ impl Default for IndicatorsConfig {
         Self {
             activity_timeout: 250,
             show_idle_check: true,
+        }
+    }
+}
+
+/// Default prompt for merging a worktree with conflicts.
+/// Available template variables:
+/// - `worktree_dir` - Full path to the worktree
+/// - `worktree_name` - Name of the worktree
+/// - `branch` - Current branch (the feature branch)
+/// - `target_branch` - Target branch to merge into (e.g., main)
+pub const DEFAULT_MERGE_WORKTREE_WITH_CONFLICTS_PROMPT: &str = r#"In the git worktree at {{ worktree_dir }}, complete the merge of branch "{{ branch }}" into "{{ target_branch }}".
+
+There are merge conflicts that need to be resolved. Please:
+1. Identify all files with merge conflicts
+2. Review each conflict and resolve it appropriately based on the code context
+3. Stage resolved files with `git add`
+4. Complete the merge with `git commit`
+
+After the merge is complete, report what you did."#;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ActionsConfig {
+    /// Prompt template for resolving merge conflicts in a worktree.
+    #[serde(rename = "mergeWorktreeWithConflicts")]
+    pub merge_worktree_with_conflicts: String,
+}
+
+impl Default for ActionsConfig {
+    fn default() -> Self {
+        Self {
+            merge_worktree_with_conflicts: DEFAULT_MERGE_WORKTREE_WITH_CONFLICTS_PROMPT.to_string(),
         }
     }
 }

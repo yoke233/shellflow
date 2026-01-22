@@ -53,6 +53,10 @@ export interface IndicatorsConfig {
   showIdleCheck: boolean;
 }
 
+export interface ActionsConfig {
+  mergeWorktreeWithConflicts: string;
+}
+
 export interface MappingsConfig {
   toggleDrawer: Shortcut;
   toggleRightPanel: Shortcut;
@@ -87,6 +91,7 @@ export interface Config {
   mappings: MappingsConfig;
   indicators: IndicatorsConfig;
   tasks: TaskConfig[];
+  actions: ActionsConfig;
 }
 
 const defaultConfig: Config = {
@@ -140,6 +145,9 @@ const defaultConfig: Config = {
     zoomReset: '',
   },
   tasks: [],
+  actions: {
+    mergeWorktreeWithConflicts: '',
+  },
 };
 
 export function useConfig(projectPath?: string) {

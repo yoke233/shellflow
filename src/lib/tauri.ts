@@ -131,11 +131,28 @@ export async function selectFolder(): Promise<string | null> {
   return selected as string | null;
 }
 
+// Action commands
+export interface ActionPromptContext {
+  worktreeDir: string;
+  worktreeName: string;
+  branch: string;
+  targetBranch: string;
+}
+
+export async function expandActionPrompt(
+  actionName: string,
+  context: ActionPromptContext,
+  projectPath?: string
+): Promise<string> {
+  return invoke<string>('expand_action_prompt', { actionName, context, projectPath });
+}
+
 // Merge workflow commands
 export async function checkMergeFeasibility(
-  worktreePath: string
+  worktreePath: string,
+  projectPath?: string
 ): Promise<MergeFeasibility> {
-  return invoke<MergeFeasibility>('check_merge_feasibility', { worktreePath });
+  return invoke<MergeFeasibility>('check_merge_feasibility', { worktreePath, projectPath });
 }
 
 export async function executeMergeWorkflow(
