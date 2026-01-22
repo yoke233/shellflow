@@ -1,9 +1,13 @@
+import { useEffect } from 'react';
+
 interface StashModalProps {
   projectName: string;
   onStashAndCreate: () => void;
   onCancel: () => void;
   isLoading?: boolean;
   error?: string | null;
+  onModalOpen?: () => void;
+  onModalClose?: () => void;
 }
 
 export function StashModal({
@@ -12,7 +16,15 @@ export function StashModal({
   onCancel,
   isLoading = false,
   error = null,
+  onModalOpen,
+  onModalClose,
 }: StashModalProps) {
+  // Register modal open/close for app-wide tracking
+  useEffect(() => {
+    onModalOpen?.();
+    return () => onModalClose?.();
+  }, [onModalOpen, onModalClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={isLoading ? undefined : onCancel} />

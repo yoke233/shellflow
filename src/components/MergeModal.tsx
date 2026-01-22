@@ -10,6 +10,8 @@ interface MergeModalProps {
   defaultConfig: MergeConfig;
   onClose: () => void;
   onMergeComplete: (worktreeId: string, deletedWorktree: boolean) => void;
+  onModalOpen?: () => void;
+  onModalClose?: () => void;
 }
 
 export function MergeModal({
@@ -17,6 +19,8 @@ export function MergeModal({
   defaultConfig,
   onClose,
   onMergeComplete,
+  onModalOpen,
+  onModalClose,
 }: MergeModalProps) {
   const [feasibility, setFeasibility] = useState<MergeFeasibility | null>(null);
   const [loading, setLoading] = useState(true);
@@ -29,6 +33,12 @@ export function MergeModal({
   const [deleteWorktree, setDeleteWorktree] = useState(defaultConfig.deleteWorktree);
   const [deleteLocalBranch, setDeleteLocalBranch] = useState(defaultConfig.deleteLocalBranch);
   const [deleteRemoteBranch, setDeleteRemoteBranch] = useState(defaultConfig.deleteRemoteBranch);
+
+  // Register modal open/close for app-wide tracking
+  useEffect(() => {
+    onModalOpen?.();
+    return () => onModalClose?.();
+  }, [onModalOpen, onModalClose]);
 
   // Fetch feasibility on mount
   useEffect(() => {
@@ -345,7 +355,7 @@ export function MergeModal({
               onClick={handleCleanup}
               className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded"
             >
-              Delete
+              Clean Up
             </button>
           )}
         </div>

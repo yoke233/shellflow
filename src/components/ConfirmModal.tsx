@@ -1,9 +1,13 @@
+import { useEffect } from 'react';
+
 interface ConfirmModalProps {
   title: string;
   message: string;
   confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  onModalOpen?: () => void;
+  onModalClose?: () => void;
 }
 
 export function ConfirmModal({
@@ -12,7 +16,15 @@ export function ConfirmModal({
   confirmLabel = 'Delete',
   onConfirm,
   onCancel,
+  onModalOpen,
+  onModalClose,
 }: ConfirmModalProps) {
+  // Register modal open/close for app-wide tracking
+  useEffect(() => {
+    onModalOpen?.();
+    return () => onModalClose?.();
+  }, [onModalOpen, onModalClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />

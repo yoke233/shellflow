@@ -8,6 +8,8 @@ interface TaskSwitcherProps {
   onSelect: (taskName: string) => void;
   onRun: (taskName: string) => void;
   onClose: () => void;
+  onModalOpen?: () => void;
+  onModalClose?: () => void;
 }
 
 export function TaskSwitcher({
@@ -17,6 +19,8 @@ export function TaskSwitcher({
   onSelect,
   onRun,
   onClose,
+  onModalOpen,
+  onModalClose,
 }: TaskSwitcherProps) {
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -45,6 +49,12 @@ export function TaskSwitcher({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Register modal open/close for app-wide tracking
+  useEffect(() => {
+    onModalOpen?.();
+    return () => onModalClose?.();
+  }, [onModalOpen, onModalClose]);
 
   // Scroll highlighted item into view
   useEffect(() => {
