@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/shkm/One-Man-Band/compare/v0.2.0...v0.3.0) (2026-01-22)
+
+
+### Features
+
+* add configurable worktree base branch ([2db2747](https://github.com/shkm/One-Man-Band/commit/2db2747bc2e050f629602868cbec593cc021dce8))
+
+
+### Bug Fixes
+
+* remove default tasks from default config ([3b03462](https://github.com/shkm/One-Man-Band/commit/3b03462a74fa018c899ea98834814197ab01dc30))
+* run main command in project terminal, shell in drawers ([7308e4c](https://github.com/shkm/One-Man-Band/commit/7308e4c3afb9548bd8cdb2a80972c69de064de0a))
+
+
+### Miscellaneous Chores
+
+* release 0.3.0 ([6fc98d2](https://github.com/shkm/One-Man-Band/commit/6fc98d27486069b6f2e8a658f2295eda33b73690))
+
 ## [0.2.0](https://github.com/shkm/One-Man-Band/compare/v0.1.0...v0.2.0) (2026-01-22)
 
 
