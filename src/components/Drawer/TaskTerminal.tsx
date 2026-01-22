@@ -1,15 +1,14 @@
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { ExternalLink } from 'lucide-react';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalConfig, MappingsConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { attachKeyboardHandlers } from '../../lib/terminal';
-import { spawnTask, ptyWrite, ptyResize, ptyKill, getTaskUrls } from '../../lib/tauri';
+import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
 import '@xterm/xterm/css/xterm.css';
 
 // Fix for xterm.js not handling 5-part colon-separated RGB sequences.
@@ -61,14 +60,6 @@ export function TaskTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const ptyIdRef = useRef<string | null>(null);
-  const [urls, setUrls] = useState<string[]>([]);
-
-  // Fetch rendered URLs for this task
-  useEffect(() => {
-    getTaskUrls(entityId, taskName)
-      .then(setUrls)
-      .catch(console.error);
-  }, [entityId, taskName]);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
@@ -343,21 +334,6 @@ export function TaskTerminal({
   return (
     <div className="w-full h-full flex flex-col" style={{ backgroundColor: '#18181b' }}>
       <div ref={containerRef} className="flex-1 p-2" />
-
-      {urls.length > 0 && (
-        <div className="flex-shrink-0 h-7 px-3 flex items-center gap-4 bg-zinc-800 border-t border-zinc-700 overflow-x-auto">
-          {urls.map((url, index) => (
-            <button
-              key={index}
-              onClick={() => openUrl(url).catch(console.error)}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-blue-400 transition-colors whitespace-nowrap"
-            >
-              <ExternalLink size={12} />
-              <span>{url}</span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

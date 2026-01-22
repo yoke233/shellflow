@@ -72,11 +72,16 @@ export async function spawnTask(
   return invoke<string>('spawn_task', { entityId, taskName, cols, rows });
 }
 
+export interface NamedUrl {
+  name: string;
+  url: string;
+}
+
 export async function getTaskUrls(
   entityId: string,
   taskName: string
-): Promise<string[]> {
-  return invoke<string[]>('get_task_urls', { entityId, taskName });
+): Promise<NamedUrl[]> {
+  return invoke<NamedUrl[]>('get_task_urls', { entityId, taskName });
 }
 
 export async function ptyWrite(ptyId: string, data: string): Promise<void> {

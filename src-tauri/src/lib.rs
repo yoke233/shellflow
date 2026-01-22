@@ -347,14 +347,19 @@ fn spawn_main(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String> {
-    // Find worktree path and parent project path
-    let (worktree_path, project_path) = {
+    // Find worktree info and parent project path
+    let (worktree_path, worktree_name, worktree_branch, project_path) = {
         let persisted = state.persisted.read();
         let mut found = None;
 
         for project in &persisted.projects {
             if let Some(worktree) = project.worktrees.iter().find(|w| w.id == worktree_id) {
-                found = Some((worktree.path.clone(), project.path.clone()));
+                found = Some((
+                    worktree.path.clone(),
+                    worktree.name.clone(),
+                    worktree.branch.clone(),
+                    project.path.clone(),
+                ));
                 break;
             }
         }
@@ -364,7 +369,12 @@ fn spawn_main(
 
     // Load config with project-specific overrides
     let cfg = config::load_config_for_project(Some(&project_path));
-    let command = cfg.main.command;
+
+    // Expand template variables in command
+    let ctx = template::TemplateContext::new(&project_path)
+        .with_branch(&worktree_branch)
+        .with_worktree_name(&worktree_name);
+    let command = template::expand_template(&cfg.main.command, &ctx).map_err(map_err)?;
 
     pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows, None).map_err(map_err)
 }
@@ -411,17 +421,21 @@ fn spawn_task(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String> {
-    use template::{expand_template, TemplateContext};
-
-    // Find entity path, project path, and branch (entity can be a worktree or a project)
-    let (entity_path, project_path, branch) = {
+    // Find entity info and project path (entity can be a worktree or a project)
+    // Returns: (entity_path, project_path, branch, optional_worktree_name)
+    let (entity_path, project_path, branch, worktree_name) = {
         let persisted = state.persisted.read();
         let mut found = None;
 
         // First, try to find a worktree with this ID
         for project in &persisted.projects {
             if let Some(worktree) = project.worktrees.iter().find(|w| w.id == entity_id) {
-                found = Some((worktree.path.clone(), project.path.clone(), worktree.branch.clone()));
+                found = Some((
+                    worktree.path.clone(),
+                    project.path.clone(),
+                    worktree.branch.clone(),
+                    Some(worktree.name.clone()),
+                ));
                 break;
             }
         }
@@ -432,7 +446,7 @@ fn spawn_task(
                 // For main project, get current branch from git
                 let repo = git2::Repository::open(&project.path).map_err(map_err)?;
                 let branch = git::get_current_branch(&repo).map_err(map_err)?;
-                found = Some((project.path.clone(), project.path.clone(), branch));
+                found = Some((project.path.clone(), project.path.clone(), branch, None));
             }
         }
 
@@ -447,12 +461,22 @@ fn spawn_task(
         .find(|t| t.name == task_name)
         .ok_or_else(|| format!("Task not found: {}", task_name))?;
 
-    // Render command template
-    let ctx = TemplateContext::new(&project_path).with_branch(&branch);
-    let command = expand_template(&task.command, &ctx).map_err(map_err)?;
+    // Expand template variables in command
+    let mut ctx = template::TemplateContext::new(&project_path).with_branch(&branch);
+    if let Some(name) = worktree_name {
+        ctx = ctx.with_worktree_name(name);
+    }
+    let command = template::expand_template(&task.command, &ctx).map_err(map_err)?;
 
     pty::spawn_pty(&app, &state, entity_id, &entity_path, &command, cols, rows, task.shell.as_deref())
         .map_err(map_err)
+}
+
+/// A named URL returned from get_task_urls
+#[derive(Debug, Clone, Serialize)]
+struct NamedUrl {
+    name: String,
+    url: String,
 }
 
 #[tauri::command]
@@ -460,7 +484,7 @@ fn get_task_urls(
     state: State<'_, Arc<AppState>>,
     entity_id: &str,
     task_name: &str,
-) -> Result<Vec<String>> {
+) -> Result<Vec<NamedUrl>> {
     use template::{expand_template, TemplateContext};
 
     // Find entity info (worktree or project) to get branch and paths
@@ -500,12 +524,14 @@ fn get_task_urls(
     // Build template context
     let ctx = TemplateContext::new(&project_path).with_branch(&branch);
 
-    // Render each URL template
-    let urls: Vec<String> = task
+    // Render each URL template, keeping the name
+    let urls: Vec<NamedUrl> = task
         .urls
         .iter()
-        .filter_map(|url_template| {
-            expand_template(url_template, &ctx).ok()
+        .filter_map(|(name, url_template)| {
+            expand_template(url_template, &ctx)
+                .ok()
+                .map(|url| NamedUrl { name: name.clone(), url })
         })
         .collect();
 
@@ -533,7 +559,10 @@ fn spawn_project_shell(
 
     // Load config with project-specific overrides
     let cfg = config::load_config_for_project(Some(&project_path));
-    let command = cfg.main.command;
+
+    // Expand template variables in command (no branch/worktree_name for projects)
+    let ctx = template::TemplateContext::new(&project_path);
+    let command = template::expand_template(&cfg.main.command, &ctx).map_err(map_err)?;
 
     // Use project_id as the "worktree_id" for PTY tracking purposes
     pty::spawn_pty(&app, &state, project_id, &project_path, &command, cols, rows, None).map_err(map_err)

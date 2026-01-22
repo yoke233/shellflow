@@ -1,7 +1,9 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check, ExternalLink } from 'lucide-react';
 import { Project, Worktree, RunningTask } from '../../types';
 import { TaskConfig } from '../../hooks/useConfig';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { getTaskUrls, NamedUrl } from '../../lib/tauri';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { DragRegion } from '../DragRegion';
 import { ContextMenu } from '../ContextMenu';
 import { TaskSelector } from './TaskSelector';
@@ -137,6 +139,20 @@ export function Sidebar({
     x: number;
     y: number;
   } | null>(null);
+
+  const [taskUrls, setTaskUrls] = useState<NamedUrl[]>([]);
+
+  // Fetch URLs for the running task
+  const entityId = activeWorktreeId || activeProjectId;
+  useEffect(() => {
+    if (runningTask?.status === 'running' && runningTask.taskName && entityId) {
+      getTaskUrls(entityId, runningTask.taskName)
+        .then(setTaskUrls)
+        .catch(() => setTaskUrls([]));
+    } else {
+      setTaskUrls([]);
+    }
+  }, [entityId, runningTask?.taskName, runningTask?.status]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -631,6 +647,23 @@ export function Sidebar({
           </div>
         );
       })()}
+
+      {/* Task URLs - show when a task with URLs is running */}
+      {taskUrls.length > 0 && (
+        <div className="px-2 py-1 border-t border-zinc-800 flex items-center gap-3 overflow-x-auto">
+          {taskUrls.map(({ name, url }) => (
+            <button
+              key={name}
+              onClick={() => openUrl(url).catch(console.error)}
+              title={url}
+              className="flex items-center gap-1 text-xs text-zinc-400 hover:text-blue-400 transition-colors whitespace-nowrap"
+            >
+              <ExternalLink size={12} />
+              <span>{name}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Task selector - above status bar */}
       {(activeWorktreeId || activeProjectId) && tasks.length > 0 && (

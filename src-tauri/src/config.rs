@@ -53,6 +53,10 @@ impl Default for BaseBranch {
     }
 }
 
+/// A named URL with label and template.
+/// Example: { "Dev": "http://localhost:{{ branch | hash_port }}" }
+pub type UrlMap = std::collections::HashMap<String, String>;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TaskConfig {
     pub name: String,
@@ -64,9 +68,11 @@ pub struct TaskConfig {
     pub silent: bool,
     /// Override shell to run command with (e.g., "/bin/bash", "fish")
     pub shell: Option<String>,
-    /// URL templates to display when task is running (supports minijinja)
+    /// Named URL templates to display when task is running.
+    /// Key is the display label, value is the URL template (supports minijinja).
+    /// Example: { "Dev": "http://localhost:{{ branch | hash_port }}" }
     #[serde(default)]
-    pub urls: Vec<String>,
+    pub urls: UrlMap,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

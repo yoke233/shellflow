@@ -27,7 +27,8 @@ export interface TaskConfig {
   kind?: TaskKind;
   silent?: boolean;
   shell?: string;
-  urls?: string[];
+  /** Named URL templates. Key is display label, value is URL template (supports minijinja). */
+  urls?: Record<string, string>;
 }
 
 /** Platform-specific shortcut mapping */
