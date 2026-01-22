@@ -67,6 +67,7 @@ export interface MappingsConfig {
   switchFocus: Shortcut;
   taskSwitcher: Shortcut;
   expandDrawer: Shortcut;
+  previousView: Shortcut;
 }
 
 export interface Config {
@@ -118,6 +119,7 @@ const defaultConfig: Config = {
     switchFocus: '',
     taskSwitcher: '',
     expandDrawer: '',
+    previousView: '',
   },
   tasks: [],
 };

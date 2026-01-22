@@ -145,6 +145,11 @@
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to paste text in terminals",
           "default": { "mac": "cmd+v", "other": "ctrl+shift+v" }
+        },
+        "previousView": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch between current and previous view (worktree or project)",
+          "default": { "mac": "cmd+'", "other": "ctrl+'" }
         }
       },
       "additionalProperties": false

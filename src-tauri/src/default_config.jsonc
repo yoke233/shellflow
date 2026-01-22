@@ -67,6 +67,7 @@
     "newWorkspace": { "mac": "cmd+n", "other": "ctrl+n" },
     "switchFocus": "ctrl+\\",
     "taskSwitcher": { "mac": "cmd+;", "other": "ctrl+;" },
-    "expandDrawer": "shift+Escape"
+    "expandDrawer": "shift+Escape",
+    "previousView": { "mac": "cmd+'", "other": "ctrl+'" }
   }
 }

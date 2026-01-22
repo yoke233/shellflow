@@ -237,6 +237,8 @@ pub struct MappingsConfig {
     pub task_switcher: Shortcut,
     #[serde(rename = "expandDrawer")]
     pub expand_drawer: Shortcut,
+    #[serde(rename = "previousView")]
+    pub previous_view: Shortcut,
 }
 
 /// Helper struct to extract just mappings from DEFAULT_CONFIG without recursion
@@ -288,6 +290,8 @@ struct MappingsConfigRaw {
     task_switcher: Shortcut,
     #[serde(rename = "expandDrawer")]
     expand_drawer: Shortcut,
+    #[serde(rename = "previousView")]
+    previous_view: Shortcut,
 }
 
 impl Default for MappingsConfig {
@@ -318,6 +322,7 @@ impl Default for MappingsConfig {
                     switch_focus: m.switch_focus,
                     task_switcher: m.task_switcher,
                     expand_drawer: m.expand_drawer,
+                    previous_view: m.previous_view,
                 };
             }
         }

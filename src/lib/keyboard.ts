@@ -20,6 +20,7 @@ const KEY_CODE_MAP: Record<string, string> = {
   ']': 'BracketRight',
   '`': 'Backquote',
   'escape': 'Escape',
+  "'": 'Quote',
 };
 
 function matchesSingleShortcut(event: KeyboardEvent, shortcut: string): boolean {

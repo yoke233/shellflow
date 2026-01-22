@@ -39,6 +39,9 @@ function App() {
   // If activeWorktreeId is null and activeProjectId is set, we're viewing the project's main terminal
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
 
+  // Previous view state (for cmd+' to toggle back)
+  const [previousView, setPreviousView] = useState<{ worktreeId: string | null; projectId: string | null } | null>(null);
+
   // Open project terminals (main repo shells are kept alive for these)
   const [openProjectIds, setOpenProjectIds] = useState<Set<string>>(new Set());
 
@@ -704,6 +707,34 @@ function App() {
     });
   }, [activeEntityId, focusStates, isDrawerOpen, drawerTabs, drawerTabCounters, dispatchPanelResizeComplete]);
 
+  // Switch to previous view (cmd+' toggle)
+  const handleSwitchToPreviousView = useCallback(() => {
+    if (!previousView) return;
+
+    // Check if previous view is still valid (worktree/project still exists and is open)
+    const prevWorktreeId = previousView.worktreeId;
+    const prevProjectId = previousView.projectId;
+
+    // Save current view before switching
+    const currentView = { worktreeId: activeWorktreeId, projectId: activeProjectId };
+
+    if (prevWorktreeId && openWorktreeIds.has(prevWorktreeId)) {
+      // Switch to previous worktree
+      setActiveWorktreeId(prevWorktreeId);
+      // Update project context if needed
+      if (prevProjectId) {
+        setActiveProjectId(prevProjectId);
+      }
+      setPreviousView(currentView);
+    } else if (prevProjectId && openProjectIds.has(prevProjectId)) {
+      // Switch to previous project view
+      setActiveWorktreeId(null);
+      setActiveProjectId(prevProjectId);
+      setPreviousView(currentView);
+    }
+    // If previous view is no longer valid, do nothing
+  }, [previousView, activeWorktreeId, activeProjectId, openWorktreeIds, openProjectIds]);
+
   // Task handlers
   const handleSelectTask = useCallback((taskName: string) => {
     if (!activeProjectPath) return;
@@ -1042,6 +1073,10 @@ function App() {
     const project = projects.find((p) => p.worktrees.some((w) => w.id === worktree.id));
     if (project) {
       setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+      // Save current view as previous before switching (only if actually changing)
+      if (activeWorktreeId !== worktree.id) {
+        setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId });
+      }
       setActiveProjectId(project.id);
       // Auto-open project terminal so cmd+0 can switch to it
       setOpenProjectIds((prev) => {
@@ -1054,7 +1089,7 @@ function App() {
       return new Set([...prev, worktree.id]);
     });
     setActiveWorktreeId(worktree.id);
-  }, [projects]);
+  }, [projects, activeWorktreeId, activeProjectId]);
 
   const handleSelectProject = useCallback((project: Project) => {
     // Mark the project as active (touched this session)
@@ -1064,10 +1099,12 @@ function App() {
       if (prev.has(project.id)) return prev;
       return new Set([...prev, project.id]);
     });
+    // Save current view as previous before switching
+    setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId });
     // Clear worktree selection, set project as active
     setActiveWorktreeId(null);
     setActiveProjectId(project.id);
-  }, []);
+  }, [activeWorktreeId, activeProjectId]);
 
   const handleCloseProject = useCallback((projectId: string) => {
     setOpenProjectIds((prev) => {
@@ -1329,6 +1366,8 @@ function App() {
       // Cmd+0: Switch from worktree to project view (hardcoded, not configurable)
       if ((e.metaKey || e.ctrlKey) && e.key === '0' && activeWorktreeId && activeProjectId) {
         e.preventDefault();
+        // Save current view as previous before switching
+        setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId });
         setActiveWorktreeId(null);
         return;
       }
@@ -1337,6 +1376,13 @@ function App() {
       if (matchesShortcut(e, mappings.switchFocus)) {
         e.preventDefault();
         handleSwitchFocus();
+        return;
+      }
+
+      // Switch to previous view (cmd+' toggle)
+      if (matchesShortcut(e, mappings.previousView)) {
+        e.preventDefault();
+        handleSwitchToPreviousView();
         return;
       }
 
@@ -1448,7 +1494,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [activeWorktreeId, activeProjectId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleAddWorktree, handleToggleTaskSwitcher]);
+  }, [activeWorktreeId, activeProjectId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleToggleTaskSwitcher]);
 
   const pendingWorktree = pendingDeleteId
     ? projects.flatMap((p) => p.worktrees).find((w) => w.id === pendingDeleteId)
