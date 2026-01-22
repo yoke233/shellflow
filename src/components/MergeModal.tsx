@@ -363,9 +363,6 @@ export function MergeModal({
             className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded disabled:opacity-50 inline-flex items-center gap-2"
           >
             {executing ? 'Close' : 'Cancel'}
-            {!executing && (
-              <kbd className="px-1.5 py-0.5 text-[10px] bg-zinc-800 rounded text-zinc-500">Esc</kbd>
-            )}
           </button>
           {canExecute && (
             <button
@@ -373,8 +370,7 @@ export function MergeModal({
               className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded flex items-center gap-2"
             >
               <GitMerge size={14} />
-              {strategy === 'rebase' ? 'Rebase & Merge' : 'Merge'}
-              <kbd className="px-1.5 py-0.5 text-[10px] bg-blue-700/50 rounded text-blue-200">{isMac ? '⌘' : 'Ctrl'}↵</kbd>
+              Merge
             </button>
           )}
           {showCleanupButton && (
@@ -382,8 +378,7 @@ export function MergeModal({
               onClick={handleCleanup}
               className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded inline-flex items-center gap-2"
             >
-Clean Up
-              <kbd className="px-1.5 py-0.5 text-[10px] bg-red-700/50 rounded text-red-200">{isMac ? '⌘' : 'Ctrl'}↵</kbd>
+              Clean Up
             </button>
           )}
         </div>
