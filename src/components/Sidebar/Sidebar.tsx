@@ -338,13 +338,13 @@ export function Sidebar({
       </DragRegion>
       <div className="flex-1 overflow-y-auto px-1.5 py-2">
         {/* Scratch Terminals Section - always shown */}
-        <div className="mb-3 pb-2 border-b border-zinc-800">
+        <div className="mb-4 pb-3 border-b border-zinc-800">
           {/* Scratch section header */}
           <div className="group relative flex items-center py-1 pr-2 text-zinc-500">
             <div className="w-7 flex-shrink-0 flex items-center justify-center">
-              <Hash size={14} className="text-zinc-600" />
+              <Hash size={12} className="text-zinc-600" />
             </div>
-            <span className="text-xs font-medium uppercase tracking-wide">Scratch</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Scratch</span>
             {/* Add button - show on hover */}
             <div className="absolute right-1 hidden group-hover:flex items-center gap-0.5 bg-zinc-900 rounded">
               <button
@@ -419,20 +419,36 @@ export function Sidebar({
           )}
         </div>
 
+        {/* Projects section header */}
+        <div className="group relative flex items-center py-1 pr-2 mb-1 text-zinc-500">
+          <div className="w-7 flex-shrink-0 flex items-center justify-center">
+            <FolderGit2 size={12} className="text-zinc-600" />
+          </div>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Projects</span>
+          {/* Add button - show on hover */}
+          <div className="absolute right-1 hidden group-hover:flex items-center gap-0.5 bg-zinc-900 rounded">
+            <button
+              onClick={onAddProject}
+              className="p-0.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200"
+              title="Add project"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+        </div>
+
         {projects.length === 0 ? (
-          <div className="text-center py-8 text-zinc-400 text-sm">
-            <FolderGit2 className="mx-auto mb-2" size={32} />
+          <div className="text-center py-6 text-zinc-500 text-xs">
             <p>No projects yet</p>
             <button
               onClick={onAddProject}
-              className="mt-2 text-blue-400 hover:text-blue-300"
+              className="mt-1 text-blue-400 hover:text-blue-300"
             >
               Add a project
             </button>
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div className="text-center py-8 text-zinc-400 text-sm">
-            <FolderGit2 className="mx-auto mb-2" size={32} />
+          <div className="text-center py-6 text-zinc-500 text-xs">
             <p>No active projects</p>
           </div>
         ) : (
@@ -551,11 +567,11 @@ export function Sidebar({
                       </div>
 
                       {expandedProjects.has(project.id) && (
-                        <div className="mt-1 space-y-0.5 bg-zinc-800/30 py-1">
+                        <div className="mt-0.5 space-y-0.5 ml-3 border-l border-zinc-700/50 py-0.5">
                           {project.worktrees.length === 0 ? (
                             <button
                               onClick={() => onAddWorktree(project.id)}
-                              className="flex items-center gap-1.5 pl-7 pr-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+                              className="flex items-center gap-1.5 pl-4 pr-2 py-1 text-xs text-zinc-500 hover:text-zinc-300"
                             >
                               <Plus size={12} />
                               Add worktree
@@ -583,12 +599,12 @@ export function Sidebar({
                                         isSelected
                                           ? 'bg-zinc-700 text-zinc-100'
                                           : isOpen
-                                            ? 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
-                                            : 'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                                            ? 'text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100'
+                                            : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-300'
                                       }`}
                                     >
-                                      {/* Left indicator column - fixed width to align text with folder icon */}
-                                      <div className="w-7 flex-shrink-0 flex items-center justify-center">
+                                      {/* Left indicator column */}
+                                      <div className="w-5 flex-shrink-0 flex items-center justify-center">
                                         {isModifierKeyHeld && shortcutNumber !== null ? (
                                           <span className={`text-xs font-medium ${runningTaskCounts.has(worktree.id) ? 'text-emerald-400' : 'text-zinc-400'}`}>{shortcutNumber}</span>
                                         ) : runningTaskCounts.has(worktree.id) ? (
@@ -670,13 +686,6 @@ export function Sidebar({
                 );
               })}
             </SortableContext>
-            <button
-              onClick={onAddProject}
-              className="flex items-center gap-1.5 px-2 py-1.5 mt-2 text-xs text-zinc-500 hover:text-zinc-300"
-            >
-              <Plus size={12} />
-              Add project
-            </button>
             <DragOverlay dropAnimation={null}>
               {activeDragItem && (
                 <div className="bg-zinc-700 text-zinc-100 px-2 py-1 rounded shadow-lg border border-zinc-600 text-sm">

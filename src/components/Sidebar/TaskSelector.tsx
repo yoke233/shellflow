@@ -70,7 +70,7 @@ export function TaskSelector({
       <div ref={dropdownRef} className="relative flex-1 min-w-0">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center justify-between w-full gap-1 px-2 py-1 text-sm text-zinc-300 bg-zinc-800 rounded hover:bg-zinc-700"
+          className="flex items-center justify-between w-full gap-1 px-2 py-0.5 text-xs text-zinc-300 bg-zinc-800 rounded hover:bg-zinc-700"
         >
           <span className="truncate">{currentTask?.name || 'Select task...'}</span>
           <ChevronDown size={14} className="flex-shrink-0 text-zinc-500" />
