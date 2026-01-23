@@ -482,18 +482,19 @@ fn watch_rebase_state(
     state: State<'_, Arc<AppState>>,
     worktree_id: &str,
 ) -> Result<()> {
-    // Find project path (where the rebase is happening, not the worktree path)
-    let project_path = {
+    // Find worktree path - rebase happens in the worktree, not the project
+    let worktree_path = {
         let persisted = state.persisted.read();
         persisted
             .projects
             .iter()
-            .find(|p| p.worktrees.iter().any(|w| w.id == worktree_id))
-            .map(|p| p.path.clone())
+            .flat_map(|p| &p.worktrees)
+            .find(|w| w.id == worktree_id)
+            .map(|w| w.path.clone())
             .ok_or_else(|| format!("Worktree not found: {}", worktree_id))?
     };
 
-    watcher::watch_rebase_state(app, worktree_id.to_string(), project_path);
+    watcher::watch_rebase_state(app, worktree_id.to_string(), worktree_path);
     Ok(())
 }
 

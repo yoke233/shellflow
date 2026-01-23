@@ -654,12 +654,8 @@ pub fn rebase_branch_onto_target(
         .output()?;
 
     if !output.status.success() {
-        // Abort the rebase if it failed
-        let _ = Command::new("git")
-            .args(["rebase", "--abort"])
-            .current_dir(worktree_path)
-            .output();
-
+        // Don't abort here - leave conflicts for resolution (AI or manual)
+        // Caller should call abort_rebase if user cancels without resolving
         return Err(GitError::MergeConflict(format!(
             "Rebase failed: {}",
             String::from_utf8_lossy(&output.stderr)

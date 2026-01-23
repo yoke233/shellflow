@@ -318,13 +318,15 @@ export function MergeModal({
   const handleClose = useCallback(async () => {
     if (hasConflict) {
       // Abort the merge/rebase to clean up conflict state
+      // Merge happens in projectPath, rebase happens in worktree.path
       const abortFn = strategy === 'rebase' ? abortRebase : abortMerge;
-      await abortFn(projectPath).catch(() => {
+      const abortPath = strategy === 'rebase' ? worktree.path : projectPath;
+      await abortFn(abortPath).catch(() => {
         // Ignore errors - merge/rebase might not be in progress
       });
     }
     onClose();
-  }, [hasConflict, projectPath, onClose, strategy]);
+  }, [hasConflict, projectPath, worktree.path, onClose, strategy]);
 
   const handleResolveWithAI = useCallback(() => {
     if (!feasibility || !onTriggerAction) return;
@@ -332,9 +334,11 @@ export function MergeModal({
     const actionType = strategy === 'rebase'
       ? 'rebase_worktree_with_conflicts'
       : 'merge_worktree_with_conflicts';
-    // Pass projectPath as worktreeDir - that's where the conflicts are
+    // For merge: conflicts are in projectPath (main repo)
+    // For rebase: conflicts are in worktree.path (the worktree itself)
+    const conflictDir = strategy === 'rebase' ? worktree.path : projectPath;
     onTriggerAction(actionType, {
-      worktreeDir: projectPath,
+      worktreeDir: conflictDir,
       worktreeName: worktree.name,
       branch: feasibility.currentBranch,
       targetBranch: feasibility.targetBranch,
@@ -347,7 +351,7 @@ export function MergeModal({
     });
     // Close without aborting - user is going to resolve the conflicts
     onClose();
-  }, [feasibility, onTriggerAction, worktree.name, projectPath, onClose, deleteWorktree, deleteLocalBranch, deleteRemoteBranch, strategy]);
+  }, [feasibility, onTriggerAction, worktree.name, worktree.path, projectPath, onClose, deleteWorktree, deleteLocalBranch, deleteRemoteBranch, strategy]);
 
   // Primary action is the main "confirm" action - changes based on state
   const primaryAction = useMemo(() => {
