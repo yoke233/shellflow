@@ -225,3 +225,8 @@ export async function cleanupWorktree(
 export async function shutdown(): Promise<boolean> {
   return invoke<boolean>('shutdown');
 }
+
+// Update menu item enabled states based on action availability
+export async function updateActionAvailability(availability: Record<string, boolean>): Promise<void> {
+  return invoke<void>('update_action_availability', { availability });
+}

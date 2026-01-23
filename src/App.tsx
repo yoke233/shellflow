@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle, PanelImperativeHandle } from 'react-resizable-panels';
+import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { MainPane } from './components/MainPane/MainPane';
@@ -17,7 +18,10 @@ import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability } from './lib/tauri';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { ActionContext, getMenuAvailability } from './lib/actions';
+import { useActions, ActionHandlers } from './hooks/useActions';
 import { arrayMove } from '@dnd-kit/sortable';
 import { sendOsNotification } from './lib/notifications';
 import { matchesShortcut } from './lib/keyboard';
@@ -1692,6 +1696,103 @@ function App() {
     }
   }, [removeProject, pendingRemoveProject, activeWorktreeId, openWorktreeIds]);
 
+  // === Action System ===
+  // Build the context that determines action availability
+  const actionContext: ActionContext = useMemo(() => ({
+    activeProjectId,
+    activeWorktreeId,
+    activeEntityId,
+    isDrawerOpen,
+    activeDrawerTabId,
+    openWorktreeCount: openWorktreesInOrder.length,
+    previousView,
+    activeSelectedTask,
+    taskCount: config.tasks.length,
+  }), [activeProjectId, activeWorktreeId, activeEntityId, isDrawerOpen, activeDrawerTabId, openWorktreesInOrder.length, previousView, activeSelectedTask, config.tasks.length]);
+
+  // Build the handlers for each action
+  const actionHandlers: ActionHandlers = useMemo(() => ({
+    addProject: handleAddProject,
+    newWorktree: () => activeProjectId && handleAddWorktree(activeProjectId),
+    closeTab: () => activeDrawerTabId && handleCloseDrawerTab(activeDrawerTabId),
+    openInFinder: () => {
+      if (activeWorktreeId) {
+        const worktree = projects.flatMap(p => p.worktrees).find(w => w.id === activeWorktreeId);
+        if (worktree) invoke('open_folder', { path: worktree.path });
+      } else if (activeProjectId) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) invoke('open_folder', { path: project.path });
+      }
+    },
+    setInactive: () => activeProjectId && handleMarkProjectInactive(activeProjectId),
+    removeProject: () => {
+      if (activeProjectId && !activeWorktreeId) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) handleRemoveProject(project);
+      }
+    },
+    toggleDrawer: handleToggleDrawer,
+    expandDrawer: handleToggleDrawerExpand,
+    toggleRightPanel: handleToggleRightPanel,
+    zoomIn: handleZoomIn,
+    zoomOut: handleZoomOut,
+    zoomReset: handleZoomReset,
+    worktreePrev: () => {
+      if (openWorktreesInOrder.length > 0) {
+        if (activeWorktreeId) {
+          const currentIndex = openWorktreesInOrder.indexOf(activeWorktreeId);
+          if (currentIndex !== -1) {
+            const prevIndex = currentIndex === 0 ? openWorktreesInOrder.length - 1 : currentIndex - 1;
+            setActiveWorktreeId(openWorktreesInOrder[prevIndex]);
+          }
+        } else {
+          setActiveWorktreeId(openWorktreesInOrder[openWorktreesInOrder.length - 1]);
+        }
+      }
+    },
+    worktreeNext: () => {
+      if (openWorktreesInOrder.length > 0) {
+        if (activeWorktreeId) {
+          const currentIndex = openWorktreesInOrder.indexOf(activeWorktreeId);
+          if (currentIndex !== -1) {
+            const nextIndex = currentIndex === openWorktreesInOrder.length - 1 ? 0 : currentIndex + 1;
+            setActiveWorktreeId(openWorktreesInOrder[nextIndex]);
+          }
+        } else {
+          setActiveWorktreeId(openWorktreesInOrder[0]);
+        }
+      }
+    },
+    previousView: handleSwitchToPreviousView,
+    switchFocus: handleSwitchFocus,
+    worktree1: () => openWorktreesInOrder.length >= 1 && setActiveWorktreeId(openWorktreesInOrder[0]),
+    worktree2: () => openWorktreesInOrder.length >= 2 && setActiveWorktreeId(openWorktreesInOrder[1]),
+    worktree3: () => openWorktreesInOrder.length >= 3 && setActiveWorktreeId(openWorktreesInOrder[2]),
+    worktree4: () => openWorktreesInOrder.length >= 4 && setActiveWorktreeId(openWorktreesInOrder[3]),
+    worktree5: () => openWorktreesInOrder.length >= 5 && setActiveWorktreeId(openWorktreesInOrder[4]),
+    worktree6: () => openWorktreesInOrder.length >= 6 && setActiveWorktreeId(openWorktreesInOrder[5]),
+    worktree7: () => openWorktreesInOrder.length >= 7 && setActiveWorktreeId(openWorktreesInOrder[6]),
+    worktree8: () => openWorktreesInOrder.length >= 8 && setActiveWorktreeId(openWorktreesInOrder[7]),
+    worktree9: () => openWorktreesInOrder.length >= 9 && setActiveWorktreeId(openWorktreesInOrder[8]),
+    mergeWorktree: () => activeWorktreeId && handleMergeWorktree(activeWorktreeId),
+    deleteWorktree: () => activeWorktreeId && handleDeleteWorktree(activeWorktreeId),
+    runTask: handleToggleTask,
+    taskSwitcher: handleToggleTaskSwitcher,
+    // Help menu
+    helpDocs: () => openUrl('https://github.com/shkm/One-Man-Band#readme'),
+    helpReportIssue: () => openUrl('https://github.com/shkm/One-Man-Band/issues/new'),
+    helpReleaseNotes: () => openUrl('https://github.com/shkm/One-Man-Band/releases'),
+  }), [
+    activeProjectId, activeWorktreeId, activeDrawerTabId, openWorktreesInOrder, projects,
+    handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleMarkProjectInactive,
+    handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
+    handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
+    handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
+  ]);
+
+  // The action system hook
+  const actions = useActions(actionContext, actionHandlers);
+
   // Keyboard shortcuts
   useEffect(() => {
     const { mappings } = config;
@@ -1895,6 +1996,25 @@ function App() {
       window.removeEventListener('blur', handleBlur);
     };
   }, [activeWorktreeId, activeProjectId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openWorktreesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleToggleTaskSwitcher, handleZoomIn, handleZoomOut, handleZoomReset]);
+
+  // Listen for menu bar actions from the backend
+  useEffect(() => {
+    const unlistenMenu = listen<string>('menu-action', (event) => {
+      // Use the action system to execute menu actions
+      // The action system handles availability checking internally
+      actions.executeByMenuId(event.payload);
+    });
+
+    return () => {
+      unlistenMenu.then((fn) => fn());
+    };
+  }, [actions]);
+
+  // Sync action availability to menu bar
+  useEffect(() => {
+    const menuAvailability = getMenuAvailability(actionContext);
+    updateActionAvailability(menuAvailability);
+  }, [actionContext]);
 
   const pendingWorktree = pendingDeleteId
     ? projects.flatMap((p) => p.worktrees).find((w) => w.id === pendingDeleteId)

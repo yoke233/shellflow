@@ -1,5 +1,6 @@
 mod config;
 mod git;
+mod menu;
 mod pty;
 mod state;
 mod template;
@@ -11,10 +12,10 @@ use git::MergeFeasibility;
 use log::info;
 use serde::{Deserialize, Serialize};
 use state::{AppState, FileChange, Project, Worktree};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 type Result<T> = std::result::Result<T, String>;
@@ -1329,6 +1330,12 @@ fn reorder_worktrees(
     Ok(())
 }
 
+// Update menu item enabled states based on action availability from frontend
+#[tauri::command]
+fn update_action_availability(availability: HashMap<String, bool>) {
+    menu::update_action_availability(availability);
+}
+
 // Shutdown command - gracefully terminates all PTY processes
 // Spawns a background thread and returns immediately so events can stream to frontend
 #[tauri::command]
@@ -1373,30 +1380,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(app_state)
         .setup(|app| {
-            // Create custom app menu with our own Quit handler
-            let quit_item = MenuItemBuilder::with_id("quit", "Quit One Man Band")
-                .accelerator("CmdOrCtrl+Q")
-                .build(app)?;
-
-            let app_submenu = SubmenuBuilder::new(app, "One Man Band")
-                .item(&quit_item)
-                .build()?;
-
-            let menu = MenuBuilder::new(app)
-                .item(&app_submenu)
-                .build()?;
-
-            app.set_menu(menu)?;
-
-            // Handle our custom quit menu item
-            app.on_menu_event(move |app_handle, event| {
-                if event.id().as_ref() == "quit" {
-                    // Trigger graceful shutdown via window close
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.emit("close-requested", ());
-                    }
-                }
-            });
+            // Set up application menu
+            menu::setup_menu(app)?;
 
             // Start file watchers for all existing worktrees
             // This enables detection of externally deleted worktree folders
@@ -1457,6 +1442,7 @@ pub fn run() {
             execute_merge_workflow,
             cleanup_worktree,
             shutdown,
+            update_action_availability,
         ])
         .on_window_event(|window, event| {
             match event {
