@@ -38,7 +38,7 @@ interface SidebarProps {
   scratchTerminals: ScratchTerminal[];
   openProjectIds: Set<string>;
   openWorktreeIds: Set<string>;
-  openEntitiesInOrder: Array<{ type: 'scratch' | 'worktree'; id: string }>;
+  openEntitiesInOrder: Array<{ type: 'scratch' | 'worktree' | 'project'; id: string }>;
   isModifierKeyHeld: boolean;
   loadingWorktrees: Set<string>;
   notifiedWorktreeIds: Set<string>;
@@ -466,6 +466,9 @@ export function Sidebar({
                 const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
                 const isProjectOpen = openProjectIds.has(project.id);
                 const isProjectSelected = activeProjectId === project.id && !activeWorktreeId && !activeScratchId;
+                // Get shortcut number (1-9) for open projects
+                const projectShortcutIndex = isProjectOpen ? openEntitiesInOrder.findIndex(e => e.type === 'project' && e.id === project.id) : -1;
+                const projectShortcutNumber = projectShortcutIndex >= 0 && projectShortcutIndex < 9 ? projectShortcutIndex + 1 : null;
                 return (
                   <SortableProject key={project.id} projectId={project.id}>
                     <div className="mb-2">
@@ -480,10 +483,10 @@ export function Sidebar({
                         onClick={() => onSelectProject(project)}
                         onContextMenu={(e) => handleProjectContextMenu(e, project)}
                       >
-                        {/* Chevron/shortcut - shows "0" when cmd held and this is active project, otherwise chevron */}
+                        {/* Chevron/shortcut - shows shortcut number when cmd held and project is open, otherwise chevron */}
                         <div className="w-7 flex-shrink-0 flex items-center justify-center">
-                          {isModifierKeyHeld && activeProjectId === project.id ? (
-                            <span className="text-xs text-zinc-400 font-medium">0</span>
+                          {isModifierKeyHeld && projectShortcutNumber !== null ? (
+                            <span className={`text-xs font-medium ${runningTaskCounts.has(project.id) ? 'text-emerald-400' : 'text-zinc-400'}`}>{projectShortcutNumber}</span>
                           ) : (
                             <button
                               onClick={(e) => {

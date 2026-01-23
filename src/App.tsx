@@ -252,13 +252,29 @@ function App() {
       .map(w => w.id);
   }, [projects, openWorktreeIds]);
 
-  // Open entities in sidebar order - scratch terminals first, then worktrees
+  // Open entities in sidebar order - scratch terminals first, then projects/worktrees
   // Used for unified keyboard navigation (1-9, j/k)
+  // When includeProjects is true, projects are interleaved with their worktrees in sidebar order
   const openEntitiesInOrder = useMemo(() => {
     const scratchIds = scratchTerminals.map(s => ({ type: 'scratch' as const, id: s.id }));
-    const worktreeIds = openWorktreesInOrder.map(id => ({ type: 'worktree' as const, id }));
-    return [...scratchIds, ...worktreeIds];
-  }, [scratchTerminals, openWorktreesInOrder]);
+
+    // Build project/worktree list in sidebar visual order
+    const projectAndWorktreeIds: Array<{ type: 'project' | 'worktree'; id: string }> = [];
+    for (const project of projects) {
+      // Include project if includeProjects is enabled and project terminal is open
+      if (config.navigation.includeProjects && openProjectIds.has(project.id)) {
+        projectAndWorktreeIds.push({ type: 'project' as const, id: project.id });
+      }
+      // Include open worktrees from this project
+      for (const worktree of project.worktrees) {
+        if (openWorktreeIds.has(worktree.id)) {
+          projectAndWorktreeIds.push({ type: 'worktree' as const, id: worktree.id });
+        }
+      }
+    }
+
+    return [...scratchIds, ...projectAndWorktreeIds];
+  }, [scratchTerminals, projects, openProjectIds, openWorktreeIds, config.navigation.includeProjects]);
 
   // Worktrees with running tasks and their counts (for sidebar indicator)
   const runningTaskCounts = useMemo(() => {
@@ -1843,6 +1859,37 @@ function App() {
     taskCount: config.tasks.length,
   }), [activeProjectId, activeWorktreeId, activeEntityId, isDrawerOpen, activeDrawerTabId, openWorktreesInOrder.length, previousView, activeSelectedTask, config.tasks.length]);
 
+  // Helper to get current entity index in openEntitiesInOrder
+  const getCurrentEntityIndex = useCallback(() => {
+    const currentEntityId = activeWorktreeId ?? activeScratchId ?? (activeProjectId && !activeWorktreeId ? activeProjectId : null);
+    const currentEntityType = activeWorktreeId ? 'worktree' : activeScratchId ? 'scratch' : activeProjectId ? 'project' : null;
+    return currentEntityId && currentEntityType
+      ? openEntitiesInOrder.findIndex(e => e.id === currentEntityId && e.type === currentEntityType)
+      : -1;
+  }, [activeWorktreeId, activeScratchId, activeProjectId, openEntitiesInOrder]);
+
+  // Helper to select an entity at a given index
+  const selectEntityAtIndex = useCallback((index: number) => {
+    const entity = openEntitiesInOrder[index];
+    if (!entity) return;
+    if (entity.type === 'scratch') {
+      setActiveWorktreeId(null);
+      setActiveScratchId(entity.id);
+    } else if (entity.type === 'project') {
+      setActiveWorktreeId(null);
+      setActiveScratchId(null);
+      setActiveProjectId(entity.id);
+    } else {
+      // For worktrees, also set the project context
+      const project = projects.find(p => p.worktrees.some(w => w.id === entity.id));
+      if (project) {
+        setActiveProjectId(project.id);
+      }
+      setActiveWorktreeId(entity.id);
+      setActiveScratchId(null);
+    }
+  }, [openEntitiesInOrder, projects]);
+
   // Build the handlers for each action
   const actionHandlers: ActionHandlers = useMemo(() => ({
     addProject: handleAddProject,
@@ -1889,42 +1936,32 @@ function App() {
     zoomOut: handleZoomOut,
     zoomReset: handleZoomReset,
     worktreePrev: () => {
-      if (openWorktreesInOrder.length > 0) {
-        if (activeWorktreeId) {
-          const currentIndex = openWorktreesInOrder.indexOf(activeWorktreeId);
-          if (currentIndex !== -1) {
-            const prevIndex = currentIndex === 0 ? openWorktreesInOrder.length - 1 : currentIndex - 1;
-            setActiveWorktreeId(openWorktreesInOrder[prevIndex]);
-          }
-        } else {
-          setActiveWorktreeId(openWorktreesInOrder[openWorktreesInOrder.length - 1]);
-        }
-      }
+      if (openEntitiesInOrder.length === 0) return;
+      const currentIndex = getCurrentEntityIndex();
+      const prevIndex = currentIndex !== -1
+        ? (currentIndex === 0 ? openEntitiesInOrder.length - 1 : currentIndex - 1)
+        : openEntitiesInOrder.length - 1;
+      selectEntityAtIndex(prevIndex);
     },
     worktreeNext: () => {
-      if (openWorktreesInOrder.length > 0) {
-        if (activeWorktreeId) {
-          const currentIndex = openWorktreesInOrder.indexOf(activeWorktreeId);
-          if (currentIndex !== -1) {
-            const nextIndex = currentIndex === openWorktreesInOrder.length - 1 ? 0 : currentIndex + 1;
-            setActiveWorktreeId(openWorktreesInOrder[nextIndex]);
-          }
-        } else {
-          setActiveWorktreeId(openWorktreesInOrder[0]);
-        }
-      }
+      if (openEntitiesInOrder.length === 0) return;
+      const currentIndex = getCurrentEntityIndex();
+      const nextIndex = currentIndex !== -1
+        ? (currentIndex === openEntitiesInOrder.length - 1 ? 0 : currentIndex + 1)
+        : 0;
+      selectEntityAtIndex(nextIndex);
     },
     previousView: handleSwitchToPreviousView,
     switchFocus: handleSwitchFocus,
-    worktree1: () => openWorktreesInOrder.length >= 1 && setActiveWorktreeId(openWorktreesInOrder[0]),
-    worktree2: () => openWorktreesInOrder.length >= 2 && setActiveWorktreeId(openWorktreesInOrder[1]),
-    worktree3: () => openWorktreesInOrder.length >= 3 && setActiveWorktreeId(openWorktreesInOrder[2]),
-    worktree4: () => openWorktreesInOrder.length >= 4 && setActiveWorktreeId(openWorktreesInOrder[3]),
-    worktree5: () => openWorktreesInOrder.length >= 5 && setActiveWorktreeId(openWorktreesInOrder[4]),
-    worktree6: () => openWorktreesInOrder.length >= 6 && setActiveWorktreeId(openWorktreesInOrder[5]),
-    worktree7: () => openWorktreesInOrder.length >= 7 && setActiveWorktreeId(openWorktreesInOrder[6]),
-    worktree8: () => openWorktreesInOrder.length >= 8 && setActiveWorktreeId(openWorktreesInOrder[7]),
-    worktree9: () => openWorktreesInOrder.length >= 9 && setActiveWorktreeId(openWorktreesInOrder[8]),
+    worktree1: () => selectEntityAtIndex(0),
+    worktree2: () => selectEntityAtIndex(1),
+    worktree3: () => selectEntityAtIndex(2),
+    worktree4: () => selectEntityAtIndex(3),
+    worktree5: () => selectEntityAtIndex(4),
+    worktree6: () => selectEntityAtIndex(5),
+    worktree7: () => selectEntityAtIndex(6),
+    worktree8: () => selectEntityAtIndex(7),
+    worktree9: () => selectEntityAtIndex(8),
     mergeWorktree: () => activeWorktreeId && handleMergeWorktree(activeWorktreeId),
     deleteWorktree: () => activeWorktreeId && handleDeleteWorktree(activeWorktreeId),
     runTask: handleToggleTask,
@@ -1940,6 +1977,7 @@ function App() {
     handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
     handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
+    getCurrentEntityIndex, selectEntityAtIndex,
   ]);
 
   // The action system hook
@@ -1975,7 +2013,16 @@ function App() {
           if (entity.type === 'scratch') {
             setActiveWorktreeId(null);
             setActiveScratchId(entity.id);
+          } else if (entity.type === 'project') {
+            setActiveWorktreeId(null);
+            setActiveScratchId(null);
+            setActiveProjectId(entity.id);
           } else {
+            // For worktrees, also set the project context
+            const project = projects.find(p => p.worktrees.some(w => w.id === entity.id));
+            if (project) {
+              setActiveProjectId(project.id);
+            }
             setActiveWorktreeId(entity.id);
             setActiveScratchId(null);
           }
@@ -2086,20 +2133,30 @@ function App() {
         }
       }
 
-      // Entity navigation - cycle through all entities (scratch terminals + worktrees) in sidebar order
+      // Entity navigation - cycle through all entities (scratch terminals + projects + worktrees) in sidebar order
       // Works from worktree, scratch, or project view
       if (openEntitiesInOrder.length > 0) {
-        // Find current entity index
-        const currentEntityId = activeWorktreeId ?? activeScratchId;
-        const currentIndex = currentEntityId
-          ? openEntitiesInOrder.findIndex(e => e.id === currentEntityId)
+        // Find current entity index - check worktree, scratch, or project
+        const currentEntityId = activeWorktreeId ?? activeScratchId ?? (activeProjectId && !activeWorktreeId ? activeProjectId : null);
+        const currentEntityType = activeWorktreeId ? 'worktree' : activeScratchId ? 'scratch' : activeProjectId ? 'project' : null;
+        const currentIndex = currentEntityId && currentEntityType
+          ? openEntitiesInOrder.findIndex(e => e.id === currentEntityId && e.type === currentEntityType)
           : -1;
 
-        const selectEntity = (entity: { type: 'scratch' | 'worktree'; id: string }) => {
+        const selectEntity = (entity: { type: 'scratch' | 'worktree' | 'project'; id: string }) => {
           if (entity.type === 'scratch') {
             setActiveWorktreeId(null);
             setActiveScratchId(entity.id);
+          } else if (entity.type === 'project') {
+            setActiveWorktreeId(null);
+            setActiveScratchId(null);
+            setActiveProjectId(entity.id);
           } else {
+            // For worktrees, also set the project context
+            const project = projects.find(p => p.worktrees.some(w => w.id === entity.id));
+            if (project) {
+              setActiveProjectId(project.id);
+            }
             setActiveWorktreeId(entity.id);
             setActiveScratchId(null);
           }
@@ -2117,8 +2174,8 @@ function App() {
             const nextIndex = currentIndex === openEntitiesInOrder.length - 1 ? 0 : currentIndex + 1;
             selectEntity(openEntitiesInOrder[nextIndex]);
           }
-        } else {
-          // Currently viewing a project (no entity selected) - select first/last entity
+        } else if (openEntitiesInOrder.length > 0) {
+          // Not viewing any entity in the list - select first/last entity
           if (matchesShortcut(e, mappings.worktreePrev)) {
             e.preventDefault();
             selectEntity(openEntitiesInOrder[openEntitiesInOrder.length - 1]);
