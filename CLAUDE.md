@@ -33,6 +33,8 @@ npm install
 npm run tauri dev
 ```
 
+**Important**: Do not run the app. The user will always run and test the app themselves.
+
 ## Commits and Releases
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/) with release-please for automated versioning.
