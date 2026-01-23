@@ -371,7 +371,7 @@
         },
         "command": {
           "type": "string",
-          "description": "Shell command to run. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}"
+          "description": "Shell command to run. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}, {{ branch | shell_escape }}"
         },
         "kind": {
           "type": "string",
@@ -390,7 +390,7 @@
         },
         "env": {
           "type": "object",
-          "description": "Environment variables to set when running the task. Values support minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}",
+          "description": "Environment variables to set when running the task. Values support minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}, {{ branch | shell_escape }}",
           "additionalProperties": {
             "type": "string",
             "description": "Environment variable value (supports templates)"
@@ -402,7 +402,7 @@
         },
         "urls": {
           "type": "object",
-          "description": "Named URL templates to display when task is running. Key is the link label, value is the URL template. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}",
+          "description": "Named URL templates to display when task is running. Key is the link label, value is the URL template. Supports minijinja: {{ branch }}, {{ branch | hash_port }}, {{ branch | sanitize }}, {{ branch | shell_escape }}",
           "additionalProperties": {
             "type": "string",
             "description": "URL template"

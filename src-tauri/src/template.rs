@@ -10,11 +10,13 @@
 //! # Available Filters
 //! - `sanitize` - Replace `/` and `\` with `-` for filesystem-safe paths
 //! - `hash_port` - Hash to deterministic port number (10000-19999)
+//! - `shell_escape` - Escape for safe use in shell commands
 //!
 //! # Examples
 //! ```text
 //! {{ repo_directory }}/.worktrees/{{ branch | sanitize }}
 //! PORT={{ branch | hash_port }}
+//! echo "Working on {{ branch | shell_escape }}"
 //! ```
 
 use minijinja::{Environment, Value};
@@ -66,6 +68,12 @@ fn sanitize(value: Value) -> String {
         .replace(['/', '\\'], "-")
 }
 
+/// Escape a string for safe use in shell commands.
+fn shell_escape_filter(value: Value) -> String {
+    let s = value.as_str().unwrap_or_default();
+    shell_escape::escape(s.into()).into_owned()
+}
+
 /// Create a minijinja environment with custom filters registered.
 fn create_environment() -> Environment<'static> {
     let mut env = Environment::new();
@@ -73,6 +81,7 @@ fn create_environment() -> Environment<'static> {
     // Register custom filters
     env.add_filter("hash_port", hash_port);
     env.add_filter("sanitize", sanitize);
+    env.add_filter("shell_escape", shell_escape_filter);
 
     env
 }
@@ -229,5 +238,39 @@ mod tests {
         let ctx = TemplateContext::new("/home/user/myproject");
         let result = expand_template("{{repo_directory}}/.worktrees", &ctx).unwrap();
         assert_eq!(result, "/home/user/myproject/.worktrees");
+    }
+
+    #[test]
+    fn test_shell_escape_simple() {
+        // Simple strings pass through unchanged
+        assert_eq!(shell_escape_filter(Value::from("main")), "main");
+        assert_eq!(shell_escape_filter(Value::from("feature-foo")), "feature-foo");
+    }
+
+    #[test]
+    fn test_shell_escape_special_chars() {
+        // Shell metacharacters get escaped
+        assert_eq!(shell_escape_filter(Value::from("test$(whoami)")), "'test$(whoami)'");
+        assert_eq!(shell_escape_filter(Value::from("foo;rm -rf /")), "'foo;rm -rf /'");
+        assert_eq!(shell_escape_filter(Value::from("a`id`b")), "'a`id`b'");
+    }
+
+    #[test]
+    fn test_shell_escape_spaces() {
+        assert_eq!(shell_escape_filter(Value::from("hello world")), "'hello world'");
+    }
+
+    #[test]
+    fn test_shell_escape_quotes() {
+        // Single quotes in input require special handling
+        let result = shell_escape_filter(Value::from("it's"));
+        assert!(result.contains("it") && result.contains("s"), "Should escape single quote: {}", result);
+    }
+
+    #[test]
+    fn test_expand_template_shell_escape() {
+        let ctx = TemplateContext::new("/repo").with_branch("test$(whoami)");
+        let result = expand_template("echo {{ branch | shell_escape }}", &ctx).unwrap();
+        assert_eq!(result, "echo 'test$(whoami)'");
     }
 }
