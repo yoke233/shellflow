@@ -75,6 +75,16 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("open_in_finder", open_in_finder.clone());
 
+    let open_in_terminal = MenuItemBuilder::with_id("open_in_terminal", "Open in Terminal")
+        .enabled(false)
+        .build(app)?;
+    dynamic_items.insert("open_in_terminal", open_in_terminal.clone());
+
+    let open_in_editor = MenuItemBuilder::with_id("open_in_editor", "Open in Editor")
+        .enabled(false)
+        .build(app)?;
+    dynamic_items.insert("open_in_editor", open_in_editor.clone());
+
     let set_inactive = MenuItemBuilder::with_id("set_inactive", "Set Inactive")
         .enabled(false)
         .build(app)?;
@@ -92,6 +102,8 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&close_tab)
         .separator()
         .item(&open_in_finder)
+        .item(&open_in_terminal)
+        .item(&open_in_editor)
         .item(&set_inactive)
         .separator()
         .item(&remove_project)

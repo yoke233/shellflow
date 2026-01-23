@@ -1725,6 +1725,24 @@ function App() {
         if (project) invoke('open_folder', { path: project.path });
       }
     },
+    openInTerminal: () => {
+      if (activeWorktreeId) {
+        const worktree = projects.flatMap(p => p.worktrees).find(w => w.id === activeWorktreeId);
+        if (worktree) invoke('open_with_app', { path: worktree.path, app: config.apps.terminal });
+      } else if (activeProjectId) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) invoke('open_with_app', { path: project.path, app: config.apps.terminal });
+      }
+    },
+    openInEditor: () => {
+      if (activeWorktreeId) {
+        const worktree = projects.flatMap(p => p.worktrees).find(w => w.id === activeWorktreeId);
+        if (worktree) invoke('open_with_app', { path: worktree.path, app: config.apps.editor });
+      } else if (activeProjectId) {
+        const project = projects.find(p => p.id === activeProjectId);
+        if (project) invoke('open_with_app', { path: project.path, app: config.apps.editor });
+      }
+    },
     setInactive: () => activeProjectId && handleMarkProjectInactive(activeProjectId),
     removeProject: () => {
       if (activeProjectId && !activeWorktreeId) {
@@ -1785,6 +1803,7 @@ function App() {
     helpReleaseNotes: () => openUrl('https://github.com/shkm/One-Man-Band/releases'),
   }), [
     activeProjectId, activeWorktreeId, activeDrawerTabId, openWorktreesInOrder, projects,
+    config.apps.terminal, config.apps.editor,
     handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleMarkProjectInactive,
     handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,

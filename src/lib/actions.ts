@@ -18,6 +18,8 @@ export type ActionId =
   | 'newWorktree'
   | 'closeTab'
   | 'openInFinder'
+  | 'openInTerminal'
+  | 'openInEditor'
   | 'setInactive'
   | 'removeProject'
   // View menu
@@ -71,6 +73,8 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   newWorktree: (ctx) => !!ctx.activeProjectId,
   closeTab: (ctx) => ctx.isDrawerOpen && !!ctx.activeDrawerTabId,
   openInFinder: (ctx) => !!ctx.activeEntityId,
+  openInTerminal: (ctx) => !!ctx.activeEntityId,
+  openInEditor: (ctx) => !!ctx.activeEntityId,
   setInactive: (ctx) => !!ctx.activeEntityId,
   removeProject: (ctx) => !!ctx.activeProjectId && !ctx.activeWorktreeId,
 
@@ -115,6 +119,8 @@ const ACTION_TO_MENU_ID: Record<ActionId, string> = {
   newWorktree: 'new_worktree',
   closeTab: 'close_tab',
   openInFinder: 'open_in_finder',
+  openInTerminal: 'open_in_terminal',
+  openInEditor: 'open_in_editor',
   setInactive: 'set_inactive',
   removeProject: 'remove_project',
   toggleDrawer: 'toggle_drawer',
