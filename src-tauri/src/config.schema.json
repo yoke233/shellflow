@@ -366,6 +366,11 @@
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to reset terminal font size in focused pane to base size",
           "default": { "mac": "cmd+shift+0", "other": "ctrl+shift+0" }
+        },
+        "commandPalette": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to open the command palette",
+          "default": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
         }
       },
       "additionalProperties": false

@@ -15,6 +15,7 @@ import { MergeModal } from './components/MergeModal';
 import { StashModal } from './components/StashModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
 import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
+import { CommandPalette } from './components/CommandPalette';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
@@ -207,6 +208,7 @@ function App() {
   const [pendingMergeId, setPendingMergeId] = useState<string | null>(null);
   const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
   const [isTaskSwitcherOpen, setIsTaskSwitcherOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
   const [stashError, setStashError] = useState<string | null>(null);
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
@@ -1332,6 +1334,11 @@ function App() {
     setIsTaskSwitcherOpen(false);
   }, [handleSelectTask, handleStartTask]);
 
+  // Command palette handlers
+  const handleToggleCommandPalette = useCallback(() => {
+    setIsCommandPaletteOpen(prev => !prev);
+  }, []);
+
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
     setRunningTasks((prev) => {
       const existing = prev.get(worktreeId);
@@ -1994,6 +2001,7 @@ function App() {
         if (project) handleRemoveProject(project);
       }
     },
+    commandPalette: handleToggleCommandPalette,
     toggleDrawer: handleToggleDrawer,
     expandDrawer: handleToggleDrawerExpand,
     toggleRightPanel: handleToggleRightPanel,
@@ -2268,6 +2276,13 @@ function App() {
         return;
       }
 
+      // Command palette
+      if (matchesShortcut(e, mappings.commandPalette)) {
+        e.preventDefault();
+        handleToggleCommandPalette();
+        return;
+      }
+
       // New workspace - creates worktree when in project/worktree, scratch terminal otherwise
       if (matchesShortcut(e, mappings.newWorkspace)) {
         e.preventDefault();
@@ -2300,7 +2315,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openEntitiesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleAddScratchTerminal, handleCloseScratch, handleToggleTaskSwitcher, handleZoomIn, handleZoomOut, handleZoomReset]);
+  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openEntitiesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleAddScratchTerminal, handleCloseScratch, handleToggleTaskSwitcher, handleToggleCommandPalette, handleZoomIn, handleZoomOut, handleZoomReset]);
 
   // Listen for menu bar actions from the backend
   useEffect(() => {
@@ -2411,6 +2426,42 @@ function App() {
           onSelect={handleTaskSwitcherSelect}
           onRun={handleTaskSwitcherRun}
           onClose={() => setIsTaskSwitcherOpen(false)}
+          onModalOpen={onModalOpen}
+          onModalClose={onModalClose}
+        />
+      )}
+
+      {isCommandPaletteOpen && (
+        <CommandPalette
+          actionContext={actionContext}
+          mappings={config.mappings}
+          tasks={config.tasks}
+          projects={projects}
+          scratchTerminals={scratchTerminals}
+          openEntitiesInOrder={openEntitiesInOrder}
+          onExecute={(actionId) => actions.execute(actionId)}
+          onRunTask={(taskName) => {
+            handleSelectTask(taskName);
+            handleStartTask(taskName);
+          }}
+          onNavigate={(type, id) => {
+            if (type === 'scratch') {
+              setActiveWorktreeId(null);
+              setActiveScratchId(id);
+            } else if (type === 'project') {
+              setActiveWorktreeId(null);
+              setActiveScratchId(null);
+              setActiveProjectId(id);
+            } else if (type === 'worktree') {
+              const project = projects.find(p => p.worktrees.some(w => w.id === id));
+              if (project) {
+                setActiveProjectId(project.id);
+              }
+              setActiveWorktreeId(id);
+              setActiveScratchId(null);
+            }
+          }}
+          onClose={() => setIsCommandPaletteOpen(false)}
           onModalOpen={onModalOpen}
           onModalClose={onModalClose}
         />

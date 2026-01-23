@@ -126,3 +126,66 @@ export function matchesShortcut(event: KeyboardEvent, shortcut: Shortcut): boole
   const shortcuts = resolveShortcut(shortcut);
   return shortcuts.some(s => matchesSingleShortcut(event, s));
 }
+
+// ============================================================================
+// Shortcut Display Formatting
+// ============================================================================
+
+/** Map of shortcut keys to display symbols */
+const DISPLAY_KEY_MAP: Record<string, string> = {
+  cmd: isMac ? '⌘' : 'Ctrl',
+  ctrl: isMac ? '⌃' : 'Ctrl',
+  alt: isMac ? '⌥' : 'Alt',
+  shift: isMac ? '⇧' : 'Shift',
+  escape: 'Esc',
+  '`': '`',
+  '\\': '\\',
+  '/': '/',
+  '[': '[',
+  ']': ']',
+  "'": "'",
+  '-': '-',
+  '=': '+',
+};
+
+/**
+ * Format a shortcut string for display.
+ * E.g., "cmd+shift+p" -> "⌘⇧P" on Mac, "Ctrl+Shift+P" elsewhere
+ */
+function formatSingleShortcut(shortcut: string): string {
+  const parts = shortcut.toLowerCase().split('+');
+  const key = parts.pop();
+  const modifiers = parts;
+
+  if (!key) return '';
+
+  const formattedParts: string[] = [];
+
+  // Format modifiers in standard order
+  const modOrder = ['ctrl', 'alt', 'shift', 'cmd'];
+  for (const mod of modOrder) {
+    if (modifiers.includes(mod)) {
+      formattedParts.push(DISPLAY_KEY_MAP[mod] || mod);
+    }
+  }
+
+  // Format key
+  const displayKey = DISPLAY_KEY_MAP[key] || key.toUpperCase();
+  formattedParts.push(displayKey);
+
+  // On Mac, modifiers are typically shown without separators
+  if (isMac) {
+    return formattedParts.join('');
+  }
+  return formattedParts.join('+');
+}
+
+/**
+ * Format a Shortcut configuration for display (first applicable shortcut).
+ * Returns undefined if no shortcut is available for the current platform.
+ */
+export function formatShortcut(shortcut: Shortcut): string | undefined {
+  const shortcuts = resolveShortcut(shortcut);
+  if (shortcuts.length === 0) return undefined;
+  return formatSingleShortcut(shortcuts[0]);
+}

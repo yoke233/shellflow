@@ -451,6 +451,8 @@ pub struct MappingsConfig {
     pub zoom_out: Shortcut,
     #[serde(rename = "zoomReset")]
     pub zoom_reset: Shortcut,
+    #[serde(rename = "commandPalette")]
+    pub command_palette: Shortcut,
 }
 
 /// Helper struct to extract just mappings from DEFAULT_CONFIG without recursion
@@ -510,6 +512,8 @@ struct MappingsConfigRaw {
     zoom_out: Shortcut,
     #[serde(rename = "zoomReset")]
     zoom_reset: Shortcut,
+    #[serde(rename = "commandPalette")]
+    command_palette: Shortcut,
 }
 
 impl Default for MappingsConfig {
@@ -544,6 +548,7 @@ impl Default for MappingsConfig {
                     zoom_in: m.zoom_in,
                     zoom_out: m.zoom_out,
                     zoom_reset: m.zoom_reset,
+                    command_palette: m.command_palette,
                 };
             }
         }

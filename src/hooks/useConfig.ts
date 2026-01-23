@@ -101,6 +101,7 @@ export interface MappingsConfig {
   zoomIn: Shortcut;
   zoomOut: Shortcut;
   zoomReset: Shortcut;
+  commandPalette: Shortcut;
 }
 
 export interface Config {
@@ -187,6 +188,7 @@ const defaultConfig: Config = {
     zoomIn: '',
     zoomOut: '',
     zoomReset: '',
+    commandPalette: '',
   },
   tasks: [],
   actions: {

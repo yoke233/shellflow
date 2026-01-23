@@ -107,7 +107,8 @@
     "previousView": { "mac": "cmd+'", "other": "ctrl+'" },
     "zoomIn": { "mac": "cmd+=", "other": "ctrl+=" },
     "zoomOut": { "mac": "cmd+-", "other": "ctrl+-" },
-    "zoomReset": { "mac": "cmd+shift+0", "other": "ctrl+shift+0" }
+    "zoomReset": { "mac": "cmd+shift+0", "other": "ctrl+shift+0" },
+    "commandPalette": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
   }
 
   // Example tasks (define in your project's .onemanband/config.jsonc):

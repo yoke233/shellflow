@@ -140,6 +140,11 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("expand_drawer", expand_drawer.clone());
 
+    let command_palette = MenuItemBuilder::with_id("command_palette", "Command Palette…")
+        .accelerator("CmdOrCtrl+Shift+P")
+        .build(app)?;
+    // command_palette is always enabled, no need to track it
+
     let zoom_in = MenuItemBuilder::with_id("zoom_in", "Zoom In")
         .accelerator("CmdOrCtrl+=")
         .build(app)?;
@@ -151,6 +156,8 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
 
     let view_submenu = SubmenuBuilder::new(app, "View")
+        .item(&command_palette)
+        .separator()
         .item(&toggle_drawer)
         .item(&toggle_right_panel)
         .item(&expand_drawer)
