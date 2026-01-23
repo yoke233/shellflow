@@ -579,7 +579,7 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
   }, [shouldAutoFocus]);
 
   return (
-    <div className="relative w-full h-full p-2" style={{ backgroundColor: '#09090b' }}>
+    <div className="relative w-full h-full" style={{ backgroundColor: '#09090b', padding: terminalConfig.padding }}>
       {!isReady && !hasExited && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-zinc-950">
           <div className="flex flex-col items-center gap-3 text-zinc-400">

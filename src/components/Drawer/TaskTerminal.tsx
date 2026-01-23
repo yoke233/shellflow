@@ -332,8 +332,8 @@ export function TaskTerminal({
   }, [shouldAutoFocus]);
 
   return (
-    <div className="w-full h-full p-2" style={{ backgroundColor: '#18181b' }}>
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="w-full h-full flex flex-col" style={{ backgroundColor: '#18181b', padding: terminalConfig.padding }}>
+      <div ref={containerRef} className="flex-1 min-h-0" />
     </div>
   );
 }

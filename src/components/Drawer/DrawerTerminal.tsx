@@ -295,7 +295,7 @@ export function DrawerTerminal({ id, worktreeId, isActive, shouldAutoFocus, term
   }, [shouldAutoFocus]);
 
   return (
-    <div className="w-full h-full p-2" style={{ backgroundColor: '#18181b' }}>
+    <div className="w-full h-full" style={{ backgroundColor: '#18181b', padding: terminalConfig.padding }}>
       <div
         ref={containerRef}
         className="w-full h-full"

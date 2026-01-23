@@ -7,6 +7,7 @@ export interface TerminalConfig {
   fontFamily: string;
   fontSize: number;
   fontLigatures: boolean;
+  padding: number;
 }
 
 export interface MainConfig extends TerminalConfig {
@@ -113,11 +114,13 @@ const defaultConfig: Config = {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
+    padding: 8,
   },
   terminal: {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
+    padding: 8,
   },
   merge: {
     strategy: 'merge',

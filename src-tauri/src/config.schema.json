@@ -34,6 +34,13 @@
           "type": "boolean",
           "description": "Enable font ligatures (disables WebGL rendering)",
           "default": false
+        },
+        "padding": {
+          "type": "integer",
+          "description": "Padding around the terminal content in pixels",
+          "minimum": 0,
+          "maximum": 64,
+          "default": 8
         }
       },
       "additionalProperties": false
@@ -58,6 +65,13 @@
           "type": "boolean",
           "description": "Enable font ligatures (disables WebGL rendering)",
           "default": false
+        },
+        "padding": {
+          "type": "integer",
+          "description": "Padding around the terminal content in pixels",
+          "minimum": 0,
+          "maximum": 64,
+          "default": 8
         }
       },
       "additionalProperties": false

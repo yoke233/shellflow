@@ -7,13 +7,17 @@
     "command": "claude",
     "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
     "fontSize": 13,
-    "fontLigatures": false
+    "fontLigatures": false,
+    // Padding around the terminal content in pixels
+    "padding": 8
   },
 
   "terminal": {
     "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
     "fontSize": 13,
-    "fontLigatures": false
+    "fontLigatures": false,
+    // Padding around the terminal content in pixels
+    "padding": 8
   },
 
   "worktree": {

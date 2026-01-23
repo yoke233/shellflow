@@ -399,7 +399,7 @@ export function ActionTerminal({
   }, [worktreeId, deleteWorktree, deleteLocalBranch, deleteRemoteBranch]);
 
   return (
-    <div className="w-full h-full p-2 flex flex-col" style={{ backgroundColor: '#18181b' }}>
+    <div className="w-full h-full flex flex-col" style={{ backgroundColor: '#18181b', padding: terminalConfig.padding }}>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
       {isMergeComplete && (
         <div className="px-3 py-2 bg-green-900/30 border-t border-green-700/50 text-sm">
