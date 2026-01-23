@@ -6,10 +6,18 @@ export interface Project {
   order?: number;
 }
 
+// Scratch terminal - a general-purpose terminal not tied to any project/worktree
+export interface ScratchTerminal {
+  id: string;
+  name: string;
+  order: number;
+}
+
 // Represents what's currently selected in the main content area
 export type ActiveSelection =
   | { type: 'project'; projectId: string }
   | { type: 'worktree'; worktreeId: string }
+  | { type: 'scratch'; scratchId: string }
   | null;
 
 export interface Worktree {

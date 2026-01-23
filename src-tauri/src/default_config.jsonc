@@ -45,6 +45,11 @@
     "showIdleCheck": true
   },
 
+  "scratch": {
+    // Create a scratch terminal when the app launches
+    "startOnLaunch": true
+  },
+
   // AI-assisted actions configuration.
   // Variables: {{ worktree_dir }}, {{ worktree_name }}, {{ branch }}, {{ target_branch }}, {{ conflicted_files }}
   "actions": {

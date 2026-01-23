@@ -59,6 +59,10 @@ export interface ActionsConfig {
   mergeWorktreeWithConflicts: string;
 }
 
+export interface ScratchConfig {
+  startOnLaunch: boolean;
+}
+
 export interface MappingsConfig {
   toggleDrawer: Shortcut;
   toggleRightPanel: Shortcut;
@@ -94,6 +98,7 @@ export interface Config {
   indicators: IndicatorsConfig;
   tasks: TaskConfig[];
   actions: ActionsConfig;
+  scratch: ScratchConfig;
 }
 
 /** An error from parsing a config file */
@@ -163,6 +168,9 @@ const defaultConfig: Config = {
   tasks: [],
   actions: {
     mergeWorktreeWithConflicts: '',
+  },
+  scratch: {
+    startOnLaunch: true,
   },
 };
 

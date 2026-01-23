@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { PtyOutput } from '../types';
 
-type PtyType = 'main' | 'shell' | 'project';
+type PtyType = 'main' | 'shell' | 'project' | 'scratch';
 
 export function usePty(onOutput?: (data: string) => void) {
   const [ptyId, setPtyId] = useState<string | null>(null);
@@ -49,9 +49,22 @@ export function usePty(onOutput?: (data: string) => void) {
       });
 
       // Now spawn the PTY
-      // For 'project' type, we use spawn_project_shell with projectId instead of worktreeId
-      const command = type === 'main' ? 'spawn_main' : type === 'project' ? 'spawn_project_shell' : 'spawn_terminal';
-      const params = type === 'project' ? { projectId: worktreeId, cols, rows } : { worktreeId, cols, rows };
+      // Different types use different backend commands
+      let command: string;
+      let params: Record<string, unknown>;
+      if (type === 'main') {
+        command = 'spawn_main';
+        params = { worktreeId, cols, rows };
+      } else if (type === 'project') {
+        command = 'spawn_project_shell';
+        params = { projectId: worktreeId, cols, rows };
+      } else if (type === 'scratch') {
+        command = 'spawn_scratch_terminal';
+        params = { scratchId: worktreeId, cols, rows };
+      } else {
+        command = 'spawn_terminal';
+        params = { worktreeId, cols, rows };
+      }
       const id = await invoke<string>(command, params);
 
       // Set ref immediately for synchronous access

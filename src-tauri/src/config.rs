@@ -29,6 +29,7 @@ pub struct Config {
     pub indicators: IndicatorsConfig,
     pub tasks: Vec<TaskConfig>,
     pub actions: ActionsConfig,
+    pub scratch: ScratchConfig,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
@@ -201,6 +202,22 @@ impl Default for ActionsConfig {
             command: "claude".to_string(),
             merge_worktree_with_conflicts: DEFAULT_MERGE_WORKTREE_WITH_CONFLICTS_PROMPT.to_string(),
             rebase_worktree_with_conflicts: DEFAULT_REBASE_WORKTREE_WITH_CONFLICTS_PROMPT.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ScratchConfig {
+    /// Create a scratch terminal on app launch
+    #[serde(rename = "startOnLaunch")]
+    pub start_on_launch: bool,
+}
+
+impl Default for ScratchConfig {
+    fn default() -> Self {
+        Self {
+            start_on_launch: true,
         }
     }
 }

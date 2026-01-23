@@ -671,6 +671,26 @@ fn spawn_project_shell(
 }
 
 #[tauri::command]
+fn spawn_scratch_terminal(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    scratch_id: &str,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String> {
+    // Scratch terminals start in the user's home directory
+    let home_dir = dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())?;
+    let home_path = home_dir.to_string_lossy().to_string();
+
+    // Get the user's shell (scratch terminals just run a shell, no main command)
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
+    // Use scratch_id as the entity ID for PTY tracking purposes
+    pty::spawn_pty(&app, &state, scratch_id, &home_path, &shell, cols, rows, None, None).map_err(map_err)
+}
+
+#[tauri::command]
 fn pty_write(state: State<'_, Arc<AppState>>, pty_id: &str, data: &str) -> Result<()> {
     pty::write_to_pty(&state, pty_id, data).map_err(map_err)
 }
@@ -1429,6 +1449,7 @@ pub fn run() {
             open_folder,
             spawn_main,
             spawn_terminal,
+            spawn_scratch_terminal,
             spawn_action,
             watch_merge_state,
             stop_merge_watcher,

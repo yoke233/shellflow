@@ -31,7 +31,7 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
 
 interface MainTerminalProps {
   entityId: string;
-  type?: 'main' | 'project';
+  type?: 'main' | 'project' | 'scratch';
   isActive: boolean;
   shouldAutoFocus: boolean;
   terminalConfig: TerminalConfig;
@@ -53,7 +53,7 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
   const [hasExited, setHasExited] = useState(false);
   const [exitInfo, setExitInfo] = useState<{ command: string; exitCode: number | null } | null>(null);
-  const [currentMode, setCurrentMode] = useState<'main' | 'project' | 'shell'>(type);
+  const [currentMode, setCurrentMode] = useState<'main' | 'project' | 'scratch' | 'shell'>(type);
 
   // Progress indicator state refs (declared early so handleOutput can use them)
   // Only track activity when terminal is NOT active (background tabs only)

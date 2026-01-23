@@ -177,6 +177,18 @@
       },
       "additionalProperties": false
     },
+    "scratch": {
+      "type": "object",
+      "description": "Configuration for scratch terminals (general-purpose terminals not tied to any project)",
+      "properties": {
+        "startOnLaunch": {
+          "type": "boolean",
+          "description": "Create a scratch terminal when the app launches",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
     "actions": {
       "type": "object",
       "description": "Configuration for AI-assisted actions",

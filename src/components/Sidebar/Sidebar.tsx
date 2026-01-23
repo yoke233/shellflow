@@ -1,5 +1,5 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check, ExternalLink } from 'lucide-react';
-import { Project, Worktree, RunningTask } from '../../types';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check, ExternalLink, TerminalSquare } from 'lucide-react';
+import { Project, Worktree, RunningTask, ScratchTerminal } from '../../types';
 import { TaskConfig } from '../../hooks/useConfig';
 import { useState, useMemo, useEffect } from 'react';
 import { getTaskUrls, NamedUrl } from '../../lib/tauri';
@@ -27,15 +27,18 @@ import {
 } from '@dnd-kit/sortable';
 import { SortableProject } from './SortableProject';
 import { SortableWorktree } from './SortableWorktree';
+import { SortableScratch } from './SortableScratch';
 
 interface SidebarProps {
   projects: Project[];
   activeProjectId: string | null;
   activeWorktreeId: string | null;
+  activeScratchId: string | null;
   activeWorktree: Worktree | null;
+  scratchTerminals: ScratchTerminal[];
   openProjectIds: Set<string>;
   openWorktreeIds: Set<string>;
-  openWorktreesInOrder: string[];
+  openEntitiesInOrder: Array<{ type: 'scratch' | 'worktree'; id: string }>;
   isModifierKeyHeld: boolean;
   loadingWorktrees: Set<string>;
   notifiedWorktreeIds: Set<string>;
@@ -77,16 +80,23 @@ interface SidebarProps {
   onRenameWorktree: (worktreeId: string, newName: string) => Promise<void>;
   onReorderProjects: (projectIds: string[]) => void;
   onReorderWorktrees: (projectId: string, worktreeIds: string[]) => void;
+  onAddScratchTerminal: () => void;
+  onSelectScratch: (scratchId: string) => void;
+  onCloseScratch: (scratchId: string) => void;
+  onRenameScratch: (scratchId: string, newName: string) => void;
+  onReorderScratchTerminals: (scratchIds: string[]) => void;
 }
 
 export function Sidebar({
   projects,
   activeProjectId,
   activeWorktreeId,
+  activeScratchId,
   activeWorktree,
+  scratchTerminals,
   openProjectIds,
   openWorktreeIds,
-  openWorktreesInOrder,
+  openEntitiesInOrder,
   isModifierKeyHeld,
   loadingWorktrees,
   notifiedWorktreeIds,
@@ -128,6 +138,11 @@ export function Sidebar({
   onRenameWorktree,
   onReorderProjects,
   onReorderWorktrees,
+  onAddScratchTerminal,
+  onSelectScratch,
+  onCloseScratch,
+  onRenameScratch,
+  onReorderScratchTerminals,
 }: SidebarProps) {
   const [contextMenu, setContextMenu] = useState<{
     project: Project;
@@ -233,6 +248,14 @@ export function Sidebar({
           onReorderWorktrees(projectId, reordered.map((w) => w.id));
         }
       }
+    } else if (activeType === 'scratch') {
+      const oldIndex = scratchTerminals.findIndex((s) => s.id === active.id);
+      const newIndex = scratchTerminals.findIndex((s) => s.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const reordered = arrayMove(scratchTerminals, oldIndex, newIndex);
+        onReorderScratchTerminals(reordered.map((s) => s.id));
+      }
     }
 
     setActiveDragItem(null);
@@ -310,6 +333,88 @@ export function Sidebar({
         </button>
       </DragRegion>
       <div className="flex-1 overflow-y-auto px-1.5 py-2">
+        {/* Scratch Terminals Section - always shown */}
+        <div className="mb-3 pb-2 border-b border-zinc-800">
+          {/* Scratch section header */}
+          <div className="group relative flex items-center py-1 pr-2 text-zinc-500">
+            <div className="w-7 flex-shrink-0 flex items-center justify-center">
+              <TerminalSquare size={14} className="text-zinc-600" />
+            </div>
+            <span className="text-xs font-medium uppercase tracking-wide">Scratch</span>
+            {/* Add button - show on hover */}
+            <div className="absolute right-1 hidden group-hover:flex items-center gap-0.5 bg-zinc-900 rounded">
+              <button
+                onClick={onAddScratchTerminal}
+                className="p-0.5 rounded hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200"
+                title="Add scratch terminal"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+          {/* Scratch terminal list */}
+          {scratchTerminals.length > 0 && (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={scratchTerminals.map((s) => s.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-0.5 py-0.5">
+                  {scratchTerminals.map((scratch) => {
+                    const isSelected = activeScratchId === scratch.id;
+                    // Get shortcut number (1-9) for scratch terminals
+                    const shortcutIndex = openEntitiesInOrder.findIndex(e => e.type === 'scratch' && e.id === scratch.id);
+                    const shortcutNumber = shortcutIndex >= 0 && shortcutIndex < 9 ? shortcutIndex + 1 : null;
+                    return (
+                      <SortableScratch key={scratch.id} scratchId={scratch.id}>
+                        <div
+                          onClick={() => onSelectScratch(scratch.id)}
+                          className={`group/scratch relative flex items-center py-1 pr-2 text-sm active:cursor-grabbing ${
+                            isSelected
+                              ? 'bg-zinc-700 text-zinc-100'
+                              : 'text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100'
+                          }`}
+                        >
+                          {/* Left indicator column */}
+                          <div className="w-7 flex-shrink-0 flex items-center justify-center">
+                            {isModifierKeyHeld && shortcutNumber !== null ? (
+                              <span className="text-xs font-medium text-zinc-400">{shortcutNumber}</span>
+                            ) : null}
+                          </div>
+                          <EditableWorktreeName
+                            name={scratch.name}
+                            onRename={(newName) => {
+                              onRenameScratch(scratch.id, newName);
+                              return Promise.resolve();
+                            }}
+                          />
+                          {/* Action buttons - show on hover */}
+                          <div className={`absolute right-1 hidden group-hover/scratch:flex items-center gap-0.5 rounded ${isSelected ? 'bg-zinc-700' : 'bg-zinc-800'}`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onCloseScratch(scratch.id);
+                              }}
+                              className="p-0.5 rounded hover:bg-zinc-600 text-zinc-500 hover:text-zinc-300"
+                              title="Close terminal"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </SortableScratch>
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </div>
+
         {projects.length === 0 ? (
           <div className="text-center py-8 text-zinc-400 text-sm">
             <FolderGit2 className="mx-auto mb-2" size={32} />
@@ -340,7 +445,7 @@ export function Sidebar({
               {filteredProjects.map((project) => {
                 const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
                 const isProjectOpen = openProjectIds.has(project.id);
-                const isProjectSelected = activeProjectId === project.id && !activeWorktreeId;
+                const isProjectSelected = activeProjectId === project.id && !activeWorktreeId && !activeScratchId;
                 return (
                   <SortableProject key={project.id} projectId={project.id}>
                     <div className="mb-2">
@@ -463,8 +568,8 @@ export function Sidebar({
                                 const isNotified = notifiedWorktreeIds.has(worktree.id);
                                 const isOpen = openWorktreeIds.has(worktree.id);
                                 const isSelected = activeWorktreeId === worktree.id;
-                                // Get shortcut number (1-9) for open worktrees
-                                const shortcutIndex = isOpen ? openWorktreesInOrder.indexOf(worktree.id) : -1;
+                                // Get shortcut number (1-9) for open entities
+                                const shortcutIndex = isOpen ? openEntitiesInOrder.findIndex(e => e.type === 'worktree' && e.id === worktree.id) : -1;
                                 const shortcutNumber = shortcutIndex >= 0 && shortcutIndex < 9 ? shortcutIndex + 1 : null;
                                 return (
                                   <SortableWorktree key={worktree.id} worktreeId={worktree.id} projectId={project.id}>
