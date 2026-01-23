@@ -1775,7 +1775,9 @@ function App() {
         // Expand/collapse drawer (only when drawer is open)
         if (isDrawerOpen && matchesShortcut(e, mappings.expandDrawer)) {
           e.preventDefault();
+          e.stopPropagation();
           handleToggleDrawerExpand();
+          return;
         }
 
         // Cmd+T to add new terminal tab (when drawer is open)
