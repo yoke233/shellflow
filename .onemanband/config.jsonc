@@ -3,9 +3,13 @@
   "tasks": [
     {
       "name": "Dev",
-      "command": "VITE_PORT={{ branch | hash_port }} npm run tauri dev",
+      "command": "npm run tauri dev",
       "kind": "daemon",
       "shell": "/bin/bash",
+      "env": {
+        "VITE_PORT": "{{ branch | hash_port }}",
+        "TAURI_DEV_URL": "http://localhost:{{ branch | hash_port }}"
+      },
       "urls": {
         "Vite": "http://localhost:{{ branch | hash_port }}"
       }
