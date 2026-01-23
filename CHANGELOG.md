@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/shkm/One-Man-Band/compare/v0.5.0...v0.6.0) (2026-01-23)
+
+
+### Features
+
+* add buttons to open worktree in terminal/editor ([7b4e7f1](https://github.com/shkm/One-Man-Band/commit/7b4e7f192e5713cb04d6321d0e0fb53246a62b75))
+* add clickable folder path display with context menu ([bffcafb](https://github.com/shkm/One-Man-Band/commit/bffcafb8583e94e064b97f5b4f4e0a4004fea6d0))
+* add configurable terminal padding ([10412ce](https://github.com/shkm/One-Man-Band/commit/10412ce490bd2df25fa39b392b6fa288b20bae33))
+* add environment variable support to task configuration ([f22b2c2](https://github.com/shkm/One-Man-Band/commit/f22b2c2bcfbbfe78309605571a07431825fe1f6a))
+* add menu bar with centralized action system ([af86498](https://github.com/shkm/One-Man-Band/commit/af8649833b2f576acc2f034757061996753f5d9b))
+* add open in terminal/editor to menu bar ([0181cf8](https://github.com/shkm/One-Man-Band/commit/0181cf83bd1eeeb39eddbfd5630d34842a14fdb8))
+* add scratch terminals for general-purpose shell access ([8613f4b](https://github.com/shkm/One-Man-Band/commit/8613f4bf26e798e1a363a5b890e8c37c0b1e469c))
+* add shell_escape template filter ([2f83817](https://github.com/shkm/One-Man-Band/commit/2f83817bdec8aac135e97efbda9bf4dc91696f63))
+* auto-reload config and show parse errors ([620959f](https://github.com/shkm/One-Man-Band/commit/620959f0db9782e31f0168a429cfb466b5f7a6e7))
+* implement includeProjects navigation config ([c55a5af](https://github.com/shkm/One-Man-Band/commit/c55a5af05c081a21f3e93b996b00dbccae828f33))
+* include projects in keyboard navigation ([0aeb540](https://github.com/shkm/One-Man-Band/commit/0aeb540e3bdaf7ec82ed76d98d3513831e4839b2))
+* unify process exit UI across worktree and project views ([2347ebd](https://github.com/shkm/One-Man-Band/commit/2347ebdf077fb4388529f25d86da5feaf8149747))
+
+
+### Bug Fixes
+
+* add missing keyboard mappings to config schema ([cf51559](https://github.com/shkm/One-Man-Band/commit/cf51559f7dc6f62f070abd9fdd1a0199e8b54db7))
+* correct TaskTerminal container sizing for scrollbar ([3637fe9](https://github.com/shkm/One-Man-Band/commit/3637fe9dbd93e860e700f205e6ae7a5ed53ec684))
+* dispatch resize event on zoom level change ([c9246b4](https://github.com/shkm/One-Man-Band/commit/c9246b46243ebdc7bc135ef641ebfccf32d1ee13))
+* drawer terminals in projects now spawn shell instead of main command ([9651341](https://github.com/shkm/One-Man-Band/commit/9651341a60daabf92a7772b35a985ddff42ef257))
+* enable drawer terminal for scratch terminals ([207f7ea](https://github.com/shkm/One-Man-Band/commit/207f7ea7a675284cf16f34d88453434d3833b2ef))
+* limit task search to name only ([a812380](https://github.com/shkm/One-Man-Band/commit/a8123808928fba2b88234c7657435ee949a2a908))
+* prevent add project dialog from reopening on escape ([ed27687](https://github.com/shkm/One-Man-Band/commit/ed276879bd53b7e70f40924e08d1abfd01295f30))
+* recover WebGL renderer after context loss to prevent terminal blur ([be0f75a](https://github.com/shkm/One-Man-Band/commit/be0f75a5e97fe1eb2773197f173a204215509cee))
+* shift+esc does not send esc to terminal ([d61cb35](https://github.com/shkm/One-Man-Band/commit/d61cb35c23c5590d2eb09d8e399d50efc2824a14))
+* task terminal not scrolling ([abaf1e1](https://github.com/shkm/One-Man-Band/commit/abaf1e16631001584eef85423e69a8fafbd187ee))
+
 ## [0.5.0](https://github.com/shkm/One-Man-Band/compare/v0.4.0...v0.5.0) (2026-01-23)
 
 
