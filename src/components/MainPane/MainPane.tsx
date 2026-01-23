@@ -27,6 +27,7 @@ interface MainPaneProps {
   onProjectThinkingChange?: (projectId: string, isThinking: boolean) => void;
   onScratchNotification?: (scratchId: string, title: string, body: string) => void;
   onScratchThinkingChange?: (scratchId: string, isThinking: boolean) => void;
+  onScratchCwdChange?: (scratchId: string, cwd: string) => void;
 }
 
 export function MainPane({
@@ -48,6 +49,7 @@ export function MainPane({
   onProjectThinkingChange,
   onScratchNotification,
   onScratchThinkingChange,
+  onScratchCwdChange,
 }: MainPaneProps) {
   // Determine the active entity (worktree takes precedence, then scratch, then project)
   const activeEntityId = activeWorktreeId ?? activeScratchId ?? activeProjectId;
@@ -139,6 +141,7 @@ export function MainPane({
             onFocus={() => onFocus(scratch.id)}
             onNotification={(title, body) => onScratchNotification?.(scratch.id, title, body)}
             onThinkingChange={(isThinking) => onScratchThinkingChange?.(scratch.id, isThinking)}
+            onCwdChange={(cwd) => onScratchCwdChange?.(scratch.id, cwd)}
           />
         </div>
       ))}

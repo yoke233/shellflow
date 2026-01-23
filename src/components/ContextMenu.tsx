@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, ReactNode } from 'react';
 
 export interface ContextMenuItem {
   label: string;
   onClick: () => void;
+  icon?: ReactNode;
   danger?: boolean;
   toggle?: boolean;
   checked?: boolean;
@@ -78,7 +79,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
           }`}
           style={{ width: 'calc(100% - 8px)' }}
         >
-          <span>{item.label}</span>
+          <span className="flex items-center gap-2">
+            {item.icon}
+            {item.label}
+          </span>
           {item.toggle && <ToggleSwitch checked={item.checked ?? false} />}
         </button>
       ))}

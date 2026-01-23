@@ -39,9 +39,10 @@ interface MainTerminalProps {
   onFocus?: () => void;
   onNotification?: (title: string, body: string) => void;
   onThinkingChange?: (isThinking: boolean) => void;
+  onCwdChange?: (cwd: string) => void;
 }
 
-export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocus, terminalConfig, mappings, activityTimeout = 250, onFocus, onNotification, onThinkingChange }: MainTerminalProps) {
+export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocus, terminalConfig, mappings, activityTimeout = 250, onFocus, onNotification, onThinkingChange, onCwdChange }: MainTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -177,6 +178,12 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
   useEffect(() => {
     onThinkingChangeRef.current = onThinkingChange;
   }, [onThinkingChange]);
+
+  // Store onCwdChange in ref so handlers can access the latest version
+  const onCwdChangeRef = useRef(onCwdChange);
+  useEffect(() => {
+    onCwdChangeRef.current = onCwdChange;
+  }, [onCwdChange]);
 
   // Progress indicator logic:
   // - Activity (output/title): start timer, reset on more activity, turn off when timer expires
@@ -314,12 +321,36 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
     };
     containerRef.current.addEventListener('focusin', handleFocus);
 
-    // Disposables to clean up (only used for main type)
+    // Disposables to clean up
+    let osc7Disposable: { dispose: () => void } | null = null;
     let osc777Disposable: { dispose: () => void } | null = null;
     let osc9Disposable: { dispose: () => void } | null = null;
     let osc99Disposable: { dispose: () => void } | null = null;
     let bellDisposable: { dispose: () => void } | null = null;
     let titleChangeDisposable: { dispose: () => void } | null = null;
+
+    // OSC 7: Current working directory (works for all terminal types)
+    // Format: file://hostname/path or just /path
+    osc7Disposable = terminal.parser.registerOscHandler(7, (data) => {
+      let path = data;
+      // Parse file:// URL format
+      if (data.startsWith('file://')) {
+        try {
+          const url = new URL(data);
+          path = decodeURIComponent(url.pathname);
+        } catch {
+          // If URL parsing fails, try to extract path after hostname
+          const match = data.match(/^file:\/\/[^/]*(\/.*)/);
+          if (match) {
+            path = decodeURIComponent(match[1]);
+          }
+        }
+      }
+      if (path && path.startsWith('/')) {
+        onCwdChangeRef.current?.(path);
+      }
+      return true;
+    });
 
     // Register notification handlers only for main terminals
     if (type === 'main') {
@@ -433,6 +464,7 @@ export function MainTerminal({ entityId, type = 'main', isActive, shouldAutoFocu
       onDataDisposable.dispose();
       webglCleanup?.();
       containerRef.current?.removeEventListener('focusin', handleFocus);
+      osc7Disposable?.dispose();
       osc777Disposable?.dispose();
       osc9Disposable?.dispose();
       osc99Disposable?.dispose();

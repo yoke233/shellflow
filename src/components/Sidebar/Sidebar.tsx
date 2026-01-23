@@ -61,6 +61,8 @@ interface SidebarProps {
   terminalApp: string;
   editorApp: string;
   showIdleCheck: boolean;
+  activeScratchCwd: string | null;
+  homeDir: string | null;
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
@@ -121,6 +123,8 @@ export function Sidebar({
   terminalApp,
   editorApp,
   showIdleCheck,
+  activeScratchCwd,
+  homeDir,
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
@@ -159,7 +163,21 @@ export function Sidebar({
     y: number;
   } | null>(null);
 
+  const [folderMenu, setFolderMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
   const [taskUrls, setTaskUrls] = useState<NamedUrl[]>([]);
+
+  // Compute active path for folder display (worktree, project, or scratch)
+  // Priority: worktree > scratch > project (based on what's actually selected)
+  const activeProject = activeProjectId ? projects.find(p => p.id === activeProjectId) : null;
+  const activePath = activeWorktreeId
+    ? activeWorktree?.path
+    : activeScratchId
+      ? activeScratchCwd
+      : activeProject?.path;
 
   // Fetch URLs for the running task
   const entityId = activeWorktreeId || activeProjectId;
@@ -746,43 +764,61 @@ export function Sidebar({
         />
       )}
 
-      {/* Worktree folder path display */}
-      {activeWorktree && (() => {
-        const folderName = activeWorktree.path.split('/').pop() ?? '';
+      {/* Folder path display - shows for worktrees, projects, and scratch */}
+      {activePath && (() => {
+        // For scratch: show full path with ~ for home dir, truncate from left
+        // For worktree/project: show just the folder name
+        const isScratch = !!activeScratchId;
+        const fullPath = homeDir && activePath.startsWith(homeDir)
+          ? '~' + activePath.slice(homeDir.length)
+          : activePath;
+        const folderName = activePath.split('/').pop() ?? '';
+        const displayPath = isScratch ? fullPath : folderName;
+
         return (
-          <div className="h-8 px-2 border-t border-zinc-800 text-xs text-zinc-500 flex items-center gap-1.5">
-            <button
-              onClick={() => invoke('open_folder', { path: activeWorktree.path })}
-              className="p-1 -ml-1 rounded hover:bg-zinc-800 hover:text-zinc-300 flex-shrink-0 flex items-center justify-center"
-              title="Open folder"
-            >
-              <Folder size={14} />
-            </button>
+          <button
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              setFolderMenu({ x: rect.left, y: rect.top - 100 });
+            }}
+            className="h-8 px-2 border-t border-zinc-800 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 flex items-center w-full transition-colors overflow-hidden"
+            title={activePath}
+          >
             <span
-              className="truncate"
-              style={{ fontFamily: terminalFontFamily }}
-              title={activeWorktree.path}
+              className="w-full overflow-hidden whitespace-nowrap text-ellipsis"
+              style={{ fontFamily: terminalFontFamily, direction: isScratch ? 'rtl' : 'ltr' }}
             >
-              {folderName}
+              <bdi>{displayPath}</bdi>
             </span>
-            <div className="flex-1" />
-            <button
-              onClick={() => invoke('open_with_app', { path: activeWorktree.path, app: terminalApp })}
-              className="p-1 rounded hover:bg-zinc-800 hover:text-zinc-300 flex-shrink-0 flex items-center justify-center"
-              title={`Open in ${terminalApp}`}
-            >
-              <SquareTerminal size={14} />
-            </button>
-            <button
-              onClick={() => invoke('open_with_app', { path: activeWorktree.path, app: editorApp })}
-              className="p-1 -mr-1 rounded hover:bg-zinc-800 hover:text-zinc-300 flex-shrink-0 flex items-center justify-center"
-              title={`Open in ${editorApp}`}
-            >
-              <Code size={14} />
-            </button>
-          </div>
+          </button>
         );
       })()}
+
+      {/* Folder context menu */}
+      {folderMenu && activePath && (
+        <ContextMenu
+          x={folderMenu.x}
+          y={folderMenu.y}
+          items={[
+            {
+              label: 'Open in Finder',
+              icon: <Folder size={14} />,
+              onClick: () => invoke('open_folder', { path: activePath }),
+            },
+            {
+              label: `Open in ${terminalApp}`,
+              icon: <SquareTerminal size={14} />,
+              onClick: () => invoke('open_with_app', { path: activePath, app: terminalApp }),
+            },
+            {
+              label: `Open in ${editorApp}`,
+              icon: <Code size={14} />,
+              onClick: () => invoke('open_with_app', { path: activePath, app: editorApp }),
+            },
+          ]}
+          onClose={() => setFolderMenu(null)}
+        />
+      )}
 
       {/* Task URLs - show when a task with URLs is running */}
       {taskUrls.length > 0 && (

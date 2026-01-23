@@ -1195,6 +1195,14 @@ fn cleanup_worktree(
     info!("[cleanup_worktree] spawned background thread");
 }
 
+/// Get the user's home directory
+#[tauri::command]
+fn get_home_dir() -> Result<String> {
+    dirs::home_dir()
+        .ok_or_else(|| "Could not determine home directory".to_string())
+        .map(|p| p.to_string_lossy().to_string())
+}
+
 /// Open a folder in the system file manager
 #[tauri::command]
 fn open_folder(path: &str) -> Result<()> {
@@ -1463,6 +1471,7 @@ pub fn run() {
             rename_worktree,
             reorder_projects,
             reorder_worktrees,
+            get_home_dir,
             open_folder,
             open_with_app,
             spawn_main,
