@@ -1,8 +1,22 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Default configuration file content (embedded at compile time)
 pub const DEFAULT_CONFIG: &str = include_str!("default_config.jsonc");
+
+/// A configuration error from parsing a config file
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfigError {
+    pub file: String,
+    pub message: String,
+}
+
+/// Result of loading configuration, includes both config and any errors
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfigResult {
+    pub config: Config,
+    pub errors: Vec<ConfigError>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -488,10 +502,25 @@ pub fn load_config() -> Config {
     load_config_for_project(None)
 }
 
-fn parse_jsonc_value(content: &str) -> Option<serde_json::Value> {
+fn parse_jsonc_value(content: &str) -> Result<serde_json::Value, String> {
     let mut json = content.to_string();
-    json_strip_comments::strip(&mut json).ok()?;
-    serde_json::from_str(&json).ok()
+    json_strip_comments::strip(&mut json)
+        .map_err(|e| format!("Failed to strip comments: {}", e))?;
+    serde_json::from_str(&json)
+        .map_err(|e| format!("{}", e))
+}
+
+/// Get all config file paths that should be watched for a given project
+pub fn get_config_paths(project_path: Option<&str>) -> Vec<PathBuf> {
+    let mut paths = vec![get_config_path()];
+
+    if let Some(project_path) = project_path {
+        let project_dir = Path::new(project_path);
+        paths.push(project_dir.join(".onemanband").join("config.jsonc"));
+        paths.push(project_dir.join(".onemanband").join("config.local.jsonc"));
+    }
+
+    paths
 }
 
 /// Recursively merge overlay into base. Overlay values take precedence.
@@ -561,16 +590,38 @@ fn merge_arrays(base: &mut serde_json::Value, overlay: &serde_json::Value) {
 /// - Repo: {project_path}/.onemanband/config.jsonc (tracked in git)
 /// - Local: {project_path}/.onemanband/config.local.jsonc (gitignored)
 pub fn load_config_for_project(project_path: Option<&str>) -> Config {
+    load_config_with_errors(project_path).config
+}
+
+/// Load config with error reporting.
+/// Returns both the config (with defaults for invalid parts) and any parse errors.
+pub fn load_config_with_errors(project_path: Option<&str>) -> ConfigResult {
     use serde_json::Value;
-    use std::path::Path;
+
+    let mut errors = Vec::new();
 
     // Start with global config (or empty object if missing)
     let global_path = get_config_path();
     let mut merged: Value = if global_path.exists() {
-        std::fs::read_to_string(&global_path)
-            .ok()
-            .and_then(|content| parse_jsonc_value(&content))
-            .unwrap_or_else(|| Value::Object(serde_json::Map::new()))
+        match std::fs::read_to_string(&global_path) {
+            Ok(content) => match parse_jsonc_value(&content) {
+                Ok(value) => value,
+                Err(e) => {
+                    errors.push(ConfigError {
+                        file: global_path.display().to_string(),
+                        message: e,
+                    });
+                    Value::Object(serde_json::Map::new())
+                }
+            },
+            Err(e) => {
+                errors.push(ConfigError {
+                    file: global_path.display().to_string(),
+                    message: format!("Failed to read file: {}", e),
+                });
+                Value::Object(serde_json::Map::new())
+            }
+        }
     } else {
         // Create default config file if it doesn't exist
         if let Some(parent) = global_path.parent() {
@@ -587,26 +638,42 @@ pub fn load_config_for_project(project_path: Option<&str>) -> Config {
         // Repo config: {project_path}/.onemanband/config.jsonc
         let repo_config_path = project_dir.join(".onemanband").join("config.jsonc");
         if repo_config_path.exists() {
-            if let Some(repo_value) = std::fs::read_to_string(&repo_config_path)
-                .ok()
-                .and_then(|content| parse_jsonc_value(&content))
-            {
-                deep_merge(&mut merged, &repo_value);
+            match std::fs::read_to_string(&repo_config_path) {
+                Ok(content) => match parse_jsonc_value(&content) {
+                    Ok(repo_value) => deep_merge(&mut merged, &repo_value),
+                    Err(e) => errors.push(ConfigError {
+                        file: repo_config_path.display().to_string(),
+                        message: e,
+                    }),
+                },
+                Err(e) => errors.push(ConfigError {
+                    file: repo_config_path.display().to_string(),
+                    message: format!("Failed to read file: {}", e),
+                }),
             }
         }
 
         // Local config: {project_path}/.onemanband/config.local.jsonc
         let local_config_path = project_dir.join(".onemanband").join("config.local.jsonc");
         if local_config_path.exists() {
-            if let Some(local_value) = std::fs::read_to_string(&local_config_path)
-                .ok()
-                .and_then(|content| parse_jsonc_value(&content))
-            {
-                deep_merge(&mut merged, &local_value);
+            match std::fs::read_to_string(&local_config_path) {
+                Ok(content) => match parse_jsonc_value(&content) {
+                    Ok(local_value) => deep_merge(&mut merged, &local_value),
+                    Err(e) => errors.push(ConfigError {
+                        file: local_config_path.display().to_string(),
+                        message: e,
+                    }),
+                },
+                Err(e) => errors.push(ConfigError {
+                    file: local_config_path.display().to_string(),
+                    message: format!("Failed to read file: {}", e),
+                }),
             }
         }
     }
 
     // Deserialize merged config, falling back to defaults
-    serde_json::from_value(merged).unwrap_or_default()
+    let config = serde_json::from_value(merged).unwrap_or_default();
+
+    ConfigResult { config, errors }
 }

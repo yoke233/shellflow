@@ -69,7 +69,7 @@ function App() {
     return undefined;
   }, [activeWorktreeId, activeProjectId, projects]);
 
-  const { config } = useConfig(activeProjectPath);
+  const { config, errors: configErrors } = useConfig(activeProjectPath);
 
   // Open worktrees (main terminals are kept alive for these)
   const [openWorktreeIds, setOpenWorktreeIds] = useState<Set<string>>(new Set());
@@ -2070,6 +2070,7 @@ function App() {
                 mappings={config.mappings}
                 activityTimeout={config.indicators.activityTimeout}
                 shouldAutoFocus={activeFocusState === 'main'}
+                configErrors={configErrors}
                 onFocus={handleMainPaneFocused}
                 onWorktreeNotification={handleWorktreeNotification}
                 onWorktreeThinkingChange={handleWorktreeThinkingChange}

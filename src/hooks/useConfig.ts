@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { MergeStrategy } from '../types';
 
 export interface TerminalConfig {
@@ -94,6 +95,18 @@ export interface Config {
   actions: ActionsConfig;
 }
 
+/** An error from parsing a config file */
+export interface ConfigError {
+  file: string;
+  message: string;
+}
+
+/** Result from get_config, includes config and any parse errors */
+interface ConfigResult {
+  config: Config;
+  errors: ConfigError[];
+}
+
 const defaultConfig: Config = {
   main: {
     command: 'claude',
@@ -152,17 +165,44 @@ const defaultConfig: Config = {
 
 export function useConfig(projectPath?: string) {
   const [config, setConfig] = useState<Config>(defaultConfig);
+  const [errors, setErrors] = useState<ConfigError[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    invoke<Config>('get_config', { projectPath: projectPath ?? null })
-      .then(setConfig)
+  const loadConfig = useCallback(() => {
+    invoke<ConfigResult>('get_config', { projectPath: projectPath ?? null })
+      .then((result) => {
+        setConfig(result.config);
+        setErrors(result.errors);
+      })
       .catch((err) => {
         console.error('Failed to load config:', err);
       })
       .finally(() => setLoading(false));
   }, [projectPath]);
 
-  return { config, loading };
+  // Initial load
+  useEffect(() => {
+    setLoading(true);
+    loadConfig();
+  }, [loadConfig]);
+
+  // Start config watcher and listen for changes
+  useEffect(() => {
+    // Start watching config files
+    invoke('watch_config', { projectPath: projectPath ?? null }).catch((err) => {
+      console.error('Failed to start config watcher:', err);
+    });
+
+    // Listen for config changes
+    const unlisten = listen('config-changed', () => {
+      loadConfig();
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+      invoke('stop_config_watcher').catch(() => {});
+    };
+  }, [projectPath, loadConfig]);
+
+  return { config, errors, loading };
 }

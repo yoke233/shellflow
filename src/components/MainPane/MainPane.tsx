@@ -1,6 +1,7 @@
 import { Terminal } from 'lucide-react';
 import { MainTerminal } from './MainTerminal';
-import { TerminalConfig, MappingsConfig } from '../../hooks/useConfig';
+import { TerminalConfig, MappingsConfig, ConfigError } from '../../hooks/useConfig';
+import { ConfigErrorBanner } from '../ConfigErrorBanner';
 
 interface MainPaneProps {
   // Worktree terminals
@@ -14,6 +15,7 @@ interface MainPaneProps {
   mappings: MappingsConfig;
   activityTimeout: number;
   shouldAutoFocus: boolean;
+  configErrors: ConfigError[];
   onFocus: (entityId: string) => void;
   onWorktreeNotification?: (worktreeId: string, title: string, body: string) => void;
   onWorktreeThinkingChange?: (worktreeId: string, isThinking: boolean) => void;
@@ -30,6 +32,7 @@ export function MainPane({
   mappings,
   activityTimeout,
   shouldAutoFocus,
+  configErrors,
   onFocus,
   onWorktreeNotification,
   onWorktreeThinkingChange,
@@ -51,7 +54,12 @@ export function MainPane({
   }
 
   return (
-    <div className="h-full bg-zinc-950 relative">
+    <div className="h-full bg-zinc-950 flex flex-col">
+      {/* Config error banner */}
+      <ConfigErrorBanner errors={configErrors} />
+
+      {/* Terminal container */}
+      <div className="flex-1 relative">
       {/* Render worktree terminals */}
       {Array.from(openWorktreeIds).map((worktreeId) => (
         <div
@@ -100,6 +108,7 @@ export function MainPane({
           />
         </div>
       ))}
+      </div>
     </div>
   );
 }

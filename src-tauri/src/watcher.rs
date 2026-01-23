@@ -1,3 +1,4 @@
+use crate::config;
 use crate::git;
 use crate::state::FileChange;
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
@@ -320,6 +321,130 @@ pub fn watch_rebase_state(app: AppHandle, worktree_id: String, worktree_path: St
 
 pub fn stop_rebase_watcher(worktree_id: &str) {
     if let Some(tx) = REBASE_WATCHERS.lock().remove(worktree_id) {
+        let _ = tx.send(());
+    }
+}
+
+// Track active config watcher
+lazy_static::lazy_static! {
+    static ref CONFIG_WATCHER: Mutex<Option<Sender<()>>> = Mutex::new(None);
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigChanged {
+    pub project_path: Option<String>,
+}
+
+/// Watch config files for changes and emit events when they change.
+/// Watches: global config, repo config, local config (if project_path provided)
+pub fn watch_config(app: AppHandle, project_path: Option<String>) {
+    // Stop any existing config watcher
+    stop_config_watcher();
+
+    let config_paths = config::get_config_paths(project_path.as_deref());
+
+    // Filter to only existing files and their parent directories
+    let watch_targets: Vec<PathBuf> = config_paths
+        .iter()
+        .filter_map(|p| {
+            if p.exists() {
+                Some(p.clone())
+            } else {
+                // Watch parent directory so we detect file creation
+                p.parent().map(|parent| parent.to_path_buf())
+            }
+        })
+        .collect();
+
+    if watch_targets.is_empty() {
+        return;
+    }
+
+    let (stop_tx, stop_rx) = channel::<()>();
+    *CONFIG_WATCHER.lock() = Some(stop_tx);
+
+    let project_path_clone = project_path.clone();
+
+    thread::spawn(move || {
+        let (tx, rx) = channel::<notify::Result<Event>>();
+
+        let watcher_config = Config::default()
+            .with_poll_interval(Duration::from_secs(2))
+            .with_compare_contents(false);
+
+        let mut watcher: RecommendedWatcher = match Watcher::new(tx, watcher_config) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("[ConfigWatcher] Failed to create watcher: {}", e);
+                *CONFIG_WATCHER.lock() = None;
+                return;
+            }
+        };
+
+        // Watch each target path
+        for path in &watch_targets {
+            if let Err(e) = watcher.watch(path, RecursiveMode::NonRecursive) {
+                eprintln!("[ConfigWatcher] Failed to watch {:?}: {}", path, e);
+            }
+        }
+
+        eprintln!("[ConfigWatcher] Watching {} paths", watch_targets.len());
+
+        // Trailing-edge debounce
+        let debounce_duration = Duration::from_millis(300);
+        let mut pending_update = false;
+        let mut last_event_time = std::time::Instant::now();
+
+        // Track which files we care about
+        let config_files: Vec<PathBuf> = config::get_config_paths(project_path_clone.as_deref());
+
+        loop {
+            // Check for stop signal
+            if stop_rx.try_recv().is_ok() {
+                eprintln!("[ConfigWatcher] Stopping config watcher");
+                break;
+            }
+
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(Ok(event)) => {
+                    // Check if the event is for a config file we care about
+                    let is_config_file = event.paths.iter().any(|p| {
+                        config_files.iter().any(|cf| p.ends_with(cf.file_name().unwrap_or_default()))
+                    });
+
+                    if is_config_file {
+                        pending_update = true;
+                        last_event_time = std::time::Instant::now();
+                    }
+                }
+                Ok(Err(e)) => {
+                    eprintln!("[ConfigWatcher] Watch error: {}", e);
+                }
+                Err(_) => {
+                    // Timeout - check if we should process pending update
+                }
+            }
+
+            // Process pending update after debounce period
+            if pending_update && last_event_time.elapsed() >= debounce_duration {
+                pending_update = false;
+                eprintln!("[ConfigWatcher] Config changed, emitting event");
+                let _ = app.emit(
+                    "config-changed",
+                    ConfigChanged {
+                        project_path: project_path_clone.clone(),
+                    },
+                );
+            }
+        }
+
+        *CONFIG_WATCHER.lock() = None;
+    });
+}
+
+pub fn stop_config_watcher() {
+    if let Some(tx) = CONFIG_WATCHER.lock().take() {
         let _ = tx.send(());
     }
 }

@@ -692,8 +692,18 @@ fn pty_force_kill(state: State<'_, Arc<AppState>>, pty_id: &str) -> Result<()> {
 
 // Config commands
 #[tauri::command]
-fn get_config(project_path: Option<String>) -> config::Config {
-    config::load_config_for_project(project_path.as_deref())
+fn get_config(project_path: Option<String>) -> config::ConfigResult {
+    config::load_config_with_errors(project_path.as_deref())
+}
+
+#[tauri::command]
+fn watch_config(app: AppHandle, project_path: Option<String>) {
+    watcher::watch_config(app, project_path);
+}
+
+#[tauri::command]
+fn stop_config_watcher() {
+    watcher::stop_config_watcher();
 }
 
 // Action commands
@@ -1440,6 +1450,8 @@ pub fn run() {
             start_watching,
             stop_watching,
             get_config,
+            watch_config,
+            stop_config_watcher,
             expand_action_prompt,
             check_merge_feasibility,
             execute_merge_workflow,
