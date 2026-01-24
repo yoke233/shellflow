@@ -277,6 +277,16 @@
           "description": "Shortcut to switch to the next worktree",
           "default": { "mac": "cmd+j", "other": "ctrl+shift+j" }
         },
+        "drawerTabPrev": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to the previous drawer tab",
+          "default": { "mac": "cmd+h", "other": "ctrl+h" }
+        },
+        "drawerTabNext": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to the next drawer tab",
+          "default": { "mac": "cmd+l", "other": "ctrl+l" }
+        },
         "worktree1": {
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to switch to worktree 1",
@@ -321,6 +331,11 @@
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to switch to worktree 9",
           "default": { "mac": "cmd+9", "other": "ctrl+9" }
+        },
+        "renameBranch": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to rename the current branch",
+          "default": "F2"
         },
         "runTask": {
           "$ref": "#/$defs/shortcut",

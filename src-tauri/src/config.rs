@@ -415,6 +415,10 @@ pub struct MappingsConfig {
     pub worktree_prev: Shortcut,
     #[serde(rename = "worktreeNext")]
     pub worktree_next: Shortcut,
+    #[serde(rename = "drawerTabPrev")]
+    pub drawer_tab_prev: Shortcut,
+    #[serde(rename = "drawerTabNext")]
+    pub drawer_tab_next: Shortcut,
     #[serde(rename = "worktree1")]
     pub worktree_1: Shortcut,
     #[serde(rename = "worktree2")]
@@ -433,6 +437,8 @@ pub struct MappingsConfig {
     pub worktree_8: Shortcut,
     #[serde(rename = "worktree9")]
     pub worktree_9: Shortcut,
+    #[serde(rename = "renameBranch")]
+    pub rename_branch: Shortcut,
     #[serde(rename = "runTask")]
     pub run_task: Shortcut,
     #[serde(rename = "newWorkspace")]
@@ -478,6 +484,10 @@ struct MappingsConfigRaw {
     worktree_prev: Shortcut,
     #[serde(rename = "worktreeNext")]
     worktree_next: Shortcut,
+    #[serde(rename = "drawerTabPrev")]
+    drawer_tab_prev: Shortcut,
+    #[serde(rename = "drawerTabNext")]
+    drawer_tab_next: Shortcut,
     #[serde(rename = "worktree1")]
     worktree_1: Shortcut,
     #[serde(rename = "worktree2")]
@@ -496,6 +506,8 @@ struct MappingsConfigRaw {
     worktree_8: Shortcut,
     #[serde(rename = "worktree9")]
     worktree_9: Shortcut,
+    #[serde(rename = "renameBranch")]
+    rename_branch: Shortcut,
     #[serde(rename = "runTask")]
     run_task: Shortcut,
     #[serde(rename = "newWorkspace")]
@@ -534,6 +546,8 @@ impl Default for MappingsConfig {
                     terminal_paste: m.terminal_paste,
                     worktree_prev: m.worktree_prev,
                     worktree_next: m.worktree_next,
+                    drawer_tab_prev: m.drawer_tab_prev,
+                    drawer_tab_next: m.drawer_tab_next,
                     worktree_1: m.worktree_1,
                     worktree_2: m.worktree_2,
                     worktree_3: m.worktree_3,
@@ -543,6 +557,7 @@ impl Default for MappingsConfig {
                     worktree_7: m.worktree_7,
                     worktree_8: m.worktree_8,
                     worktree_9: m.worktree_9,
+                    rename_branch: m.rename_branch,
                     run_task: m.run_task,
                     new_workspace: m.new_workspace,
                     switch_focus: m.switch_focus,

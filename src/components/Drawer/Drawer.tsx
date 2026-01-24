@@ -45,6 +45,7 @@ interface DrawerProps {
   tabs: DrawerTab[];
   activeTabId: string | null;
   taskStatuses: Map<string, TaskStatusInfo>;
+  isCtrlKeyHeld?: boolean;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
@@ -60,6 +61,7 @@ export function Drawer({
   tabs,
   activeTabId,
   taskStatuses,
+  isCtrlKeyHeld = false,
   onSelectTab,
   onCloseTab,
   onAddTab,
@@ -160,13 +162,15 @@ export function Drawer({
               strategy={horizontalListSortingStrategy}
             >
               <div className="flex items-stretch overflow-x-auto flex-1">
-                {tabs.map((tab) => (
+                {tabs.map((tab, index) => (
                   <SortableDrawerTab
                     key={tab.id}
                     tab={tab}
                     isActive={activeTabId === tab.id}
                     taskStatus={taskStatuses.get(tab.taskName ?? '')}
                     isAnyDragging={activeDragTab !== null}
+                    shortcutNumber={index < 9 ? index + 1 : null}
+                    isCtrlKeyHeld={isCtrlKeyHeld}
                     onSelect={() => onSelectTab(tab.id)}
                     onClose={() => handleCloseTab(tab.id)}
                   />

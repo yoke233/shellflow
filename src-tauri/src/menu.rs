@@ -247,6 +247,12 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("worktree9", worktree9.clone());
 
+    let rename_branch = MenuItemBuilder::with_id("rename_branch", "Rename Branch…")
+        .accelerator("F2")
+        .enabled(false)
+        .build(app)?;
+    dynamic_items.insert("rename_branch", rename_branch.clone());
+
     let merge_worktree = MenuItemBuilder::with_id("merge_worktree", "Merge Worktree…")
         .enabled(false)
         .build(app)?;
@@ -274,6 +280,7 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&worktree8)
         .item(&worktree9)
         .separator()
+        .item(&rename_branch)
         .item(&merge_worktree)
         .item(&delete_worktree)
         .build()?;

@@ -220,6 +220,7 @@ function App() {
   const [idleProjectIds, setIdleProjectIds] = useState<Set<string>>(new Set());
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const [isModifierKeyHeld, setIsModifierKeyHeld] = useState(false);
+  const [isCtrlKeyHeld, setIsCtrlKeyHeld] = useState(false);
 
   // Centralized modal open tracking - modals register themselves on mount/unmount
   const [modalCount, setModalCount] = useState(0);
@@ -1796,6 +1797,10 @@ function App() {
     setPendingMergeId(worktreeId);
   }, []);
 
+  const handleRenameBranch = useCallback((worktreeId: string) => {
+    setAutoEditWorktreeId(worktreeId);
+  }, []);
+
   const handleMergeComplete = useCallback(
     (worktreeId: string, deletedWorktree: boolean) => {
       if (deletedWorktree) {
@@ -2017,6 +2022,7 @@ function App() {
     worktree7: () => selectEntityAtIndex(6),
     worktree8: () => selectEntityAtIndex(7),
     worktree9: () => selectEntityAtIndex(8),
+    renameBranch: () => activeWorktreeId && handleRenameBranch(activeWorktreeId),
     mergeWorktree: () => activeWorktreeId && handleMergeWorktree(activeWorktreeId),
     deleteWorktree: () => activeWorktreeId && handleDeleteWorktree(activeWorktreeId),
     runTask: handleToggleTask,
@@ -2031,7 +2037,7 @@ function App() {
     handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleCloseProject,
     handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
-    handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
+    handleRenameBranch, handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
     getCurrentEntityIndex, selectEntityAtIndex,
   ]);
 
@@ -2047,6 +2053,31 @@ function App() {
       // Track modifier key state (cmd on mac, ctrl on other)
       if ((isMac && e.metaKey) || (!isMac && e.ctrlKey)) {
         setIsModifierKeyHeld(true);
+      }
+
+      // Track Ctrl key separately for drawer tab shortcuts
+      if (e.ctrlKey) {
+        setIsCtrlKeyHeld(true);
+      }
+
+      // Ctrl+1-9 to select drawer tabs (when drawer is open)
+      if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && isDrawerOpen && activeDrawerTabs.length > 0) {
+        const digit = parseInt(e.key, 10);
+        if (digit >= 1 && digit <= 9) {
+          const tabIndex = digit - 1;
+          if (tabIndex < activeDrawerTabs.length) {
+            e.preventDefault();
+            handleSelectDrawerTab(activeDrawerTabs[tabIndex].id);
+            return;
+          }
+        }
+      }
+
+      // Rename branch shortcut (F2 by default)
+      if (matchesShortcut(e, mappings.renameBranch) && activeWorktreeId) {
+        e.preventDefault();
+        setAutoEditWorktreeId(activeWorktreeId);
+        return;
       }
 
       // Entity selection by index (1-9) - includes scratch terminals and worktrees
@@ -2161,6 +2192,33 @@ function App() {
         if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'w' && activeScratchId) {
           e.preventDefault();
           handleCloseScratch(activeScratchId);
+        }
+
+        // Drawer tab cycling (Cmd+H/L on mac, Ctrl+H/L on other)
+        // Always capture these shortcuts to prevent system actions (e.g., Cmd+H hides app on macOS)
+        if (matchesShortcut(e, mappings.drawerTabPrev)) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (isDrawerOpen && activeDrawerTabs.length > 1) {
+            const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
+            if (currentIndex !== -1) {
+              const prevIndex = currentIndex === 0 ? activeDrawerTabs.length - 1 : currentIndex - 1;
+              handleSelectDrawerTab(activeDrawerTabs[prevIndex].id);
+            }
+          }
+          return;
+        }
+        if (matchesShortcut(e, mappings.drawerTabNext)) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (isDrawerOpen && activeDrawerTabs.length > 1) {
+            const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
+            if (currentIndex !== -1) {
+              const nextIndex = currentIndex === activeDrawerTabs.length - 1 ? 0 : currentIndex + 1;
+              handleSelectDrawerTab(activeDrawerTabs[nextIndex].id);
+            }
+          }
+          return;
         }
 
         // Ctrl+Tab / Ctrl+Shift+Tab to cycle through drawer tabs (when drawer is open and focused)
@@ -2288,11 +2346,16 @@ function App() {
       if ((isMac && e.key === 'Meta') || (!isMac && e.key === 'Control')) {
         setIsModifierKeyHeld(false);
       }
+      // Clear Ctrl key state when released
+      if (e.key === 'Control') {
+        setIsCtrlKeyHeld(false);
+      }
     };
 
     // Clear modifier state when window loses focus
     const handleBlur = () => {
       setIsModifierKeyHeld(false);
+      setIsCtrlKeyHeld(false);
     };
 
     // Use capture phase so shortcuts are handled before terminal consumes events
@@ -2592,6 +2655,7 @@ function App() {
                   tabs={activeDrawerTabs}
                   activeTabId={activeDrawerTabId}
                   taskStatuses={activeTaskStatuses}
+                  isCtrlKeyHeld={isCtrlKeyHeld && !isModalOpen}
                   onSelectTab={handleSelectDrawerTab}
                   onCloseTab={handleCloseDrawerTab}
                   onAddTab={handleAddDrawerTab}

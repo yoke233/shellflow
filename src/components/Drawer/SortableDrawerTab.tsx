@@ -13,6 +13,8 @@ interface SortableDrawerTabProps {
   isActive: boolean;
   taskStatus?: TaskStatusInfo;
   isAnyDragging: boolean;
+  shortcutNumber: number | null;
+  isCtrlKeyHeld: boolean;
   onSelect: () => void;
   onClose: () => void;
 }
@@ -22,6 +24,8 @@ export function SortableDrawerTab({
   isActive,
   taskStatus,
   isAnyDragging,
+  shortcutNumber,
+  isCtrlKeyHeld,
   onSelect,
   onClose,
 }: SortableDrawerTabProps) {
@@ -56,7 +60,9 @@ export function SortableDrawerTab({
           : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
       } ${isDragging ? 'opacity-0' : ''}`}
     >
-      {tab.type === 'action' ? (
+      {isCtrlKeyHeld && shortcutNumber !== null ? (
+        <span className="text-xs font-medium text-zinc-400 w-3.5 text-center flex-shrink-0">{shortcutNumber}</span>
+      ) : tab.type === 'action' ? (
         <Sparkles size={14} className="flex-shrink-0 text-purple-400" />
       ) : tab.type === 'task' ? (
         (() => {

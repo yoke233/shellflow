@@ -47,6 +47,7 @@ export type ActionId =
   | 'worktree7'
   | 'worktree8'
   | 'worktree9'
+  | 'renameBranch'
   | 'mergeWorktree'
   | 'deleteWorktree'
   // Tasks menu
@@ -105,6 +106,7 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   worktree7: (ctx) => ctx.openWorktreeCount >= 7,
   worktree8: (ctx) => ctx.openWorktreeCount >= 8,
   worktree9: (ctx) => ctx.openWorktreeCount >= 9,
+  renameBranch: (ctx) => !!ctx.activeWorktreeId,
   mergeWorktree: (ctx) => !!ctx.activeWorktreeId,
   deleteWorktree: (ctx) => !!ctx.activeWorktreeId,
 
@@ -148,6 +150,7 @@ const ACTION_TO_MENU_ID: Record<ActionId, string> = {
   worktree7: 'worktree7',
   worktree8: 'worktree8',
   worktree9: 'worktree9',
+  renameBranch: 'rename_branch',
   mergeWorktree: 'merge_worktree',
   deleteWorktree: 'delete_worktree',
   runTask: 'run_task',
@@ -251,6 +254,7 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   worktree7: { label: 'Go to Worktree 7', category: 'Navigate', shortcutKey: 'worktree7', showInPalette: false },
   worktree8: { label: 'Go to Worktree 8', category: 'Navigate', shortcutKey: 'worktree8', showInPalette: false },
   worktree9: { label: 'Go to Worktree 9', category: 'Navigate', shortcutKey: 'worktree9', showInPalette: false },
+  renameBranch: { label: 'Rename Branch', category: 'Navigate', shortcutKey: 'renameBranch', showInPalette: true },
   mergeWorktree: { label: 'Merge Worktree', category: 'Navigate', showInPalette: true },
   deleteWorktree: { label: 'Delete Worktree', category: 'Navigate', showInPalette: true },
 
