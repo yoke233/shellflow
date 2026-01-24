@@ -390,11 +390,33 @@ export function ActionTerminal({
     // onMergeComplete is called by the merge-completed event listener in App.tsx
   }, [worktreeId, deleteWorktree, deleteLocalBranch, deleteRemoteBranch]);
 
+  // Keyboard shortcut for Cmd+Enter to complete when banner is showing
+  // Use capture phase to handle before terminal intercepts the event
+  useEffect(() => {
+    if (!isMergeComplete || !isActive) return;
+
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (isMac ? e.metaKey : e.ctrlKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleComplete();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isMergeComplete, isActive, handleComplete]);
+
   return (
     <div className="w-full h-full flex flex-col" style={{ backgroundColor: '#18181b', padding: terminalConfig.padding }}>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
       {isMergeComplete && (
-        <div className="px-3 py-2 bg-green-900/30 border-t border-green-700/50 text-sm">
+        <div
+          className="px-3 py-2 bg-green-900/30 border-t border-green-700/50 text-sm"
+          style={{ margin: `0 -${terminalConfig.padding}px -${terminalConfig.padding}px -${terminalConfig.padding}px` }}
+        >
           <div className="flex items-center justify-between gap-3 mb-2">
             <span className="text-green-300 font-medium">
               {strategy === 'rebase' ? 'Rebase complete!' : 'Merge complete!'}
