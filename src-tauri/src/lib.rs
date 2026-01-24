@@ -62,6 +62,43 @@ fn remove_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<(
     Ok(())
 }
 
+#[tauri::command]
+fn close_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
+    {
+        let mut persisted = state.persisted.write();
+        if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
+            project.is_active = false;
+        }
+    }
+    state.save().map_err(map_err)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn reopen_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
+    {
+        let mut persisted = state.persisted.write();
+        if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
+            project.is_active = true;
+            project.last_accessed_at = Some(worktree::chrono_lite_now());
+        }
+    }
+    state.save().map_err(map_err)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn touch_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
+    {
+        let mut persisted = state.persisted.write();
+        if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
+            project.last_accessed_at = Some(worktree::chrono_lite_now());
+        }
+    }
+    state.save().map_err(map_err)?;
+    Ok(())
+}
+
 // Worktree commands
 #[tauri::command]
 fn create_worktree(
@@ -1502,6 +1539,9 @@ pub fn run() {
             add_project,
             list_projects,
             remove_project,
+            close_project,
+            reopen_project,
+            touch_project,
             create_worktree,
             list_worktrees,
             delete_worktree,

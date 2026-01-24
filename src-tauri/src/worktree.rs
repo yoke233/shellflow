@@ -106,6 +106,8 @@ pub fn create_project(path: &Path) -> Result<Project, WorktreeError> {
         path: path.to_string_lossy().to_string(),
         worktrees: vec![],
         order: 0,
+        is_active: true,
+        last_accessed_at: Some(chrono_lite_now()),
     })
 }
 
@@ -273,7 +275,7 @@ pub fn delete_worktree(project: &mut Project, worktree_id: &str) -> Result<(), W
 }
 
 // Simple timestamp without external chrono dependency
-fn chrono_lite_now() -> String {
+pub fn chrono_lite_now() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)

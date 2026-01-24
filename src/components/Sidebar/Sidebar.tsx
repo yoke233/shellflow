@@ -49,8 +49,6 @@ interface SidebarProps {
   idleProjectIds: Set<string>;
   runningTaskCounts: Map<string, number>;
   expandedProjects: Set<string>;
-  showActiveOnly: boolean;
-  sessionTouchedProjects: Set<string>;
   isDrawerOpen: boolean;
   isRightPanelOpen: boolean;
   tasks: TaskConfig[];
@@ -77,8 +75,6 @@ interface SidebarProps {
   onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
   onRemoveProject: (project: Project) => void;
-  onMarkProjectInactive: (projectId: string) => void;
-  onToggleShowActiveOnly: () => void;
   onSelectTask: (taskName: string) => void;
   onStartTask: () => void;
   onStopTask: () => void;
@@ -114,8 +110,6 @@ export function Sidebar({
   idleProjectIds,
   runningTaskCounts,
   expandedProjects,
-  showActiveOnly,
-  sessionTouchedProjects,
   isDrawerOpen,
   isRightPanelOpen,
   tasks,
@@ -141,8 +135,6 @@ export function Sidebar({
   onToggleDrawer,
   onToggleRightPanel,
   onRemoveProject,
-  onMarkProjectInactive,
-  onToggleShowActiveOnly,
   onSelectTask,
   onStartTask,
   onStopTask,
@@ -328,23 +320,17 @@ export function Sidebar({
     }
   };
 
-  const handleMarkInactive = () => {
+  const handleCloseProject = () => {
     if (contextMenu) {
-      onMarkProjectInactive(contextMenu.project.id);
+      onCloseProject(contextMenu.project.id);
       setContextMenu(null);
     }
   };
 
-  // Filter projects based on showActiveOnly setting
-  // A project is "active" if it has open worktrees OR was touched this session
+  // Filter projects to show only active ones in the sidebar
   const filteredProjects = useMemo(() => {
-    if (!showActiveOnly) return projects;
-    return projects.filter((project) => {
-      const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
-      const wasTouchedThisSession = sessionTouchedProjects.has(project.id);
-      return hasOpenWorktrees || wasTouchedThisSession;
-    });
-  }, [projects, showActiveOnly, openWorktreeIds, sessionTouchedProjects]);
+    return projects.filter((project) => project.isActive);
+  }, [projects]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 select-none">
@@ -735,16 +721,10 @@ export function Sidebar({
           x={contextMenu.x}
           y={contextMenu.y}
           items={[
-            // Only show "Mark as inactive" if:
-            // - Project is in session touched set
-            // - Project has no open worktrees (so it would hide when we mark it inactive)
-            ...(sessionTouchedProjects.has(contextMenu.project.id) &&
-              !contextMenu.project.worktrees.some((w) => openWorktreeIds.has(w.id))
-              ? [{
-                  label: 'Mark as Inactive',
-                  onClick: handleMarkInactive,
-                }]
-              : []),
+            {
+              label: 'Close Project',
+              onClick: handleCloseProject,
+            },
             {
               label: 'Remove Project',
               onClick: handleRemoveProject,
@@ -761,10 +741,8 @@ export function Sidebar({
           y={optionsMenu.y}
           items={[
             {
-              label: 'Show Active Only',
-              onClick: onToggleShowActiveOnly,
-              toggle: true,
-              checked: showActiveOnly,
+              label: 'hi mom',
+              onClick: () => setOptionsMenu(null),
             },
           ]}
           onClose={() => setOptionsMenu(null)}

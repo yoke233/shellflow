@@ -4,6 +4,8 @@ export interface Project {
   path: string;
   worktrees: Worktree[];
   order?: number;
+  isActive: boolean;
+  lastAccessedAt?: string;
 }
 
 // Scratch terminal - a general-purpose terminal not tied to any project/worktree

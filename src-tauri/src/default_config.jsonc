@@ -108,7 +108,8 @@
     "zoomIn": { "mac": "cmd+=", "other": "ctrl+=" },
     "zoomOut": { "mac": "cmd+-", "other": "ctrl+-" },
     "zoomReset": { "mac": "cmd+shift+0", "other": "ctrl+shift+0" },
-    "commandPalette": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
+    "commandPalette": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" },
+    "projectSwitcher": { "mac": "cmd+shift+o", "other": "ctrl+shift+o" }
   }
 
   // Example tasks (define in your project's .onemanband/config.jsonc):

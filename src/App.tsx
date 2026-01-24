@@ -16,10 +16,11 @@ import { StashModal } from './components/StashModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
 import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
 import { CommandPalette } from './components/CommandPalette';
+import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, closeProject, reopenProject, touchProject } from './lib/tauri';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ActionContext, getMenuAvailability } from './lib/actions';
 import { useActions, ActionHandlers } from './hooks/useActions';
@@ -29,8 +30,6 @@ import { matchesShortcut } from './lib/keyboard';
 import { Project, Worktree, RunningTask, MergeCompleted, ScratchTerminal } from './types';
 
 const EXPANDED_PROJECTS_KEY = 'onemanband:expandedProjects';
-const SHOW_ACTIVE_ONLY_KEY = 'onemanband:showActiveOnly';
-const ACTIVE_PROJECTS_KEY = 'onemanband:activeProjects';
 const SELECTED_TASKS_KEY = 'onemanband:selectedTasks';
 
 // Zoom constants
@@ -209,6 +208,7 @@ function App() {
   const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
   const [isTaskSwitcherOpen, setIsTaskSwitcherOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isProjectSwitcherOpen, setIsProjectSwitcherOpen] = useState(false);
   const [isStashing, setIsStashing] = useState(false);
   const [stashError, setStashError] = useState<string | null>(null);
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
@@ -360,43 +360,6 @@ function App() {
   useEffect(() => {
     localStorage.setItem(EXPANDED_PROJECTS_KEY, JSON.stringify([...expandedProjects]));
   }, [expandedProjects]);
-
-  // Show active projects only toggle - persisted to localStorage
-  const [showActiveOnly, setShowActiveOnly] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(SHOW_ACTIVE_ONLY_KEY);
-      if (saved !== null) {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.error('Failed to load showActiveOnly:', e);
-    }
-    return false;
-  });
-
-  // Persist showActiveOnly to localStorage
-  useEffect(() => {
-    localStorage.setItem(SHOW_ACTIVE_ONLY_KEY, JSON.stringify(showActiveOnly));
-  }, [showActiveOnly]);
-
-  // Track projects marked as active (persisted to localStorage)
-  // This prevents hiding a project we're actively working in
-  const [sessionTouchedProjects, setSessionTouchedProjects] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(ACTIVE_PROJECTS_KEY);
-      if (saved) {
-        return new Set(JSON.parse(saved));
-      }
-    } catch (e) {
-      console.error('Failed to load active projects:', e);
-    }
-    return new Set();
-  });
-
-  // Persist active projects to localStorage
-  useEffect(() => {
-    localStorage.setItem(ACTIVE_PROJECTS_KEY, JSON.stringify([...sessionTouchedProjects]));
-  }, [sessionTouchedProjects]);
 
   const toggleProject = useCallback((projectId: string) => {
     setExpandedProjects((prev) => {
@@ -1339,6 +1302,35 @@ function App() {
     setIsCommandPaletteOpen(prev => !prev);
   }, []);
 
+  // Project switcher handlers
+  const handleToggleProjectSwitcher = useCallback(() => {
+    setIsProjectSwitcherOpen(prev => !prev);
+  }, []);
+
+  const handleProjectSwitcherSelect = useCallback(async (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
+
+    // If project is closed (inactive), reopen it
+    if (!project.isActive) {
+      await reopenProject(projectId);
+      await refreshProjects();
+    } else {
+      // Just update last accessed time
+      await touchProject(projectId);
+    }
+
+    // Navigate to the project
+    setOpenProjectIds((prev) => {
+      if (prev.has(projectId)) return prev;
+      return new Set([...prev, projectId]);
+    });
+    setActiveWorktreeId(null);
+    setActiveScratchId(null);
+    setActiveProjectId(projectId);
+    setIsProjectSwitcherOpen(false);
+  }, [projects, refreshProjects]);
+
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
     setRunningTasks((prev) => {
       const existing = prev.get(worktreeId);
@@ -1409,7 +1401,6 @@ function App() {
           const project = await addProject(path);
           setExpandedProjects((prev) => new Set([...prev, project.id]));
           // Activate the newly added project immediately
-          setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
           setOpenProjectIds((prev) => new Set([...prev, project.id]));
           setActiveWorktreeId(null);
           setActiveProjectId(project.id);
@@ -1433,8 +1424,6 @@ function App() {
       console.log('[handleAddWorktree] Found project:', project.name, 'path:', project.path);
 
       setExpandedProjects((prev) => new Set([...prev, projectId]));
-      // Mark project as touched this session so it stays visible
-      setSessionTouchedProjects((prev) => new Set([...prev, projectId]));
 
       console.log('[handleAddWorktree] About to call createWorktree...');
       try {
@@ -1521,7 +1510,8 @@ function App() {
     // Mark the project as active and auto-open its project terminal
     const project = projects.find((p) => p.worktrees.some((w) => w.id === worktree.id));
     if (project) {
-      setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+      // Update last accessed timestamp
+      touchProject(project.id).catch(() => {});
       // Save current view as previous before switching (only if actually changing)
       if (activeWorktreeId !== worktree.id) {
         setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId, scratchId: activeScratchId });
@@ -1542,8 +1532,8 @@ function App() {
   }, [projects, activeWorktreeId, activeProjectId, activeScratchId]);
 
   const handleSelectProject = useCallback((project: Project) => {
-    // Mark the project as active (touched this session)
-    setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
+    // Update last accessed timestamp
+    touchProject(project.id).catch(() => {});
     // Add to open projects if not already
     setOpenProjectIds((prev) => {
       if (prev.has(project.id)) return prev;
@@ -1668,17 +1658,24 @@ function App() {
     });
   }, []);
 
-  const handleCloseProject = useCallback((projectId: string) => {
+  const handleCloseProject = useCallback(async (projectId: string) => {
+    // Mark project as inactive (closes it from sidebar)
+    await closeProject(projectId);
+    await refreshProjects();
+
+    // Also close the terminal
     setOpenProjectIds((prev) => {
       const next = new Set(prev);
       next.delete(projectId);
       return next;
     });
-    // If this was the active project with no worktree selected, switch to another
+
+    // If this was the active project, switch to another active project
     if (activeProjectId === projectId && !activeWorktreeId) {
-      const remainingProjects = Array.from(openProjectIds).filter(id => id !== projectId);
-      if (remainingProjects.length > 0) {
-        setActiveProjectId(remainingProjects[remainingProjects.length - 1]);
+      // Find another active project
+      const remainingActiveProjects = projects.filter(p => p.id !== projectId && p.isActive);
+      if (remainingActiveProjects.length > 0) {
+        setActiveProjectId(remainingActiveProjects[0].id);
       } else if (openWorktreeIds.size > 0) {
         // Switch to an open worktree
         const firstWorktreeId = Array.from(openWorktreeIds)[0];
@@ -1694,7 +1691,7 @@ function App() {
         setActiveProjectId(null);
       }
     }
-  }, [activeProjectId, activeWorktreeId, openProjectIds, openWorktreeIds, projects]);
+  }, [activeProjectId, activeWorktreeId, openWorktreeIds, projects, refreshProjects]);
 
   const handleCloseWorktree = useCallback(
     (worktreeId: string) => {
@@ -1745,12 +1742,6 @@ function App() {
 
   const handleDeleteComplete = useCallback(
     (worktreeId: string) => {
-      // Mark the project as session-touched so it stays visible after deletion
-      const project = projects.find((p) => p.worktrees.some((w) => w.id === worktreeId));
-      if (project) {
-        setSessionTouchedProjects((prev) => new Set([...prev, project.id]));
-      }
-
       // Clean up UI state (backend already deleted the worktree)
       setOpenWorktreeIds((prev) => {
         const next = new Set(prev);
@@ -1799,15 +1790,6 @@ function App() {
 
   const handleRemoveProject = useCallback((project: Project) => {
     setPendingRemoveProject(project);
-  }, []);
-
-  // Mark a project as inactive (remove from session touched)
-  const handleMarkProjectInactive = useCallback((projectId: string) => {
-    setSessionTouchedProjects((prev) => {
-      const next = new Set(prev);
-      next.delete(projectId);
-      return next;
-    });
   }, []);
 
   const handleMergeWorktree = useCallback((worktreeId: string) => {
@@ -1994,7 +1976,7 @@ function App() {
         if (project) invoke('open_with_app', { path: project.path, app: config.apps.editor });
       }
     },
-    setInactive: () => activeProjectId && handleMarkProjectInactive(activeProjectId),
+    setInactive: () => activeProjectId && handleCloseProject(activeProjectId),
     removeProject: () => {
       if (activeProjectId && !activeWorktreeId) {
         const project = projects.find(p => p.id === activeProjectId);
@@ -2046,7 +2028,7 @@ function App() {
   }), [
     activeProjectId, activeWorktreeId, activeDrawerTabId, openWorktreesInOrder, projects,
     config.apps.terminal, config.apps.editor,
-    handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleMarkProjectInactive,
+    handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleCloseProject,
     handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
     handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
@@ -2283,6 +2265,13 @@ function App() {
         return;
       }
 
+      // Project switcher
+      if (matchesShortcut(e, mappings.projectSwitcher)) {
+        e.preventDefault();
+        handleToggleProjectSwitcher();
+        return;
+      }
+
       // New workspace - creates worktree when in project/worktree, scratch terminal otherwise
       if (matchesShortcut(e, mappings.newWorkspace)) {
         e.preventDefault();
@@ -2315,7 +2304,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openEntitiesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleAddScratchTerminal, handleCloseScratch, handleToggleTaskSwitcher, handleToggleCommandPalette, handleZoomIn, handleZoomOut, handleZoomReset]);
+  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openEntitiesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleAddScratchTerminal, handleCloseScratch, handleToggleTaskSwitcher, handleToggleCommandPalette, handleToggleProjectSwitcher, handleZoomIn, handleZoomOut, handleZoomReset]);
 
   // Listen for menu bar actions from the backend
   useEffect(() => {
@@ -2467,6 +2456,17 @@ function App() {
         />
       )}
 
+      {isProjectSwitcherOpen && (
+        <ProjectSwitcher
+          projects={projects}
+          activeProjectId={activeProjectId}
+          onSelect={handleProjectSwitcherSelect}
+          onClose={() => setIsProjectSwitcherOpen(false)}
+          onModalOpen={onModalOpen}
+          onModalClose={onModalClose}
+        />
+      )}
+
       {/* Main content - horizontal layout */}
       <PanelGroup
         orientation="horizontal"
@@ -2495,8 +2495,6 @@ function App() {
               idleProjectIds={idleProjectIds}
               runningTaskCounts={runningTaskCounts}
               expandedProjects={expandedProjects}
-              showActiveOnly={showActiveOnly}
-              sessionTouchedProjects={sessionTouchedProjects}
               isDrawerOpen={isDrawerOpen}
               isRightPanelOpen={isRightPanelOpen}
               tasks={config.tasks}
@@ -2522,8 +2520,6 @@ function App() {
               onToggleDrawer={handleToggleDrawer}
               onToggleRightPanel={handleToggleRightPanel}
               onRemoveProject={handleRemoveProject}
-              onMarkProjectInactive={handleMarkProjectInactive}
-              onToggleShowActiveOnly={() => setShowActiveOnly(prev => !prev)}
               onSelectTask={handleSelectTask}
               onStartTask={handleStartTask}
               onStopTask={handleStopTask}

@@ -371,6 +371,11 @@
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to open the command palette",
           "default": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
+        },
+        "projectSwitcher": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to open the project switcher",
+          "default": { "mac": "cmd+shift+o", "other": "ctrl+shift+o" }
         }
       },
       "additionalProperties": false

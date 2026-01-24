@@ -3,6 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
     pub id: String,
@@ -11,6 +15,10 @@ pub struct Project {
     pub worktrees: Vec<Worktree>,
     #[serde(default)]
     pub order: i32,
+    #[serde(default = "default_true", rename = "isActive")]
+    pub is_active: bool,
+    #[serde(default, rename = "lastAccessedAt")]
+    pub last_accessed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
