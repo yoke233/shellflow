@@ -66,6 +66,8 @@ So I went looking for other options. [Conductor](https://docs.conductor.build) o
 
 So that's why I built Shellflow. Now I can run Claude, or any other terminal-based LLM, without losing the potential of rich GUI interactions. And that potential isn't yet realised, but we're getting there...
 
+By the way, this was called "One Man Band" to begin with. So any references to that are just legacy.
+
 ## Features
 
 - **Project Management** — Add git repositories and manage multiple worktrees
