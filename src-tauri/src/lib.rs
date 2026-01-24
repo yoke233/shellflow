@@ -46,41 +46,16 @@ fn list_projects(state: State<'_, Arc<AppState>>) -> Result<Vec<Project>> {
 }
 
 #[tauri::command]
-fn remove_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
-    {
-        let mut persisted = state.persisted.write();
-        // Find and clean up watchers before removing project
-        if let Some(project) = persisted.projects.iter().find(|p| p.id == project_id) {
-            // Stop watching individual worktrees
-            for wt in &project.worktrees {
-                watcher::stop_watching(&wt.id);
-            }
-        }
-        persisted.projects.retain(|p| p.id != project_id);
-    }
-    state.save().map_err(map_err)?;
-    Ok(())
-}
-
-#[tauri::command]
 fn close_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
     {
         let mut persisted = state.persisted.write();
         if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
+            // Stop watching individual worktrees
+            for wt in &project.worktrees {
+                watcher::stop_watching(&wt.id);
+            }
+            // Mark as inactive (keeps in recent list)
             project.is_active = false;
-        }
-    }
-    state.save().map_err(map_err)?;
-    Ok(())
-}
-
-#[tauri::command]
-fn reopen_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()> {
-    {
-        let mut persisted = state.persisted.write();
-        if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
-            project.is_active = true;
-            project.last_accessed_at = Some(worktree::chrono_lite_now());
         }
     }
     state.save().map_err(map_err)?;
@@ -93,6 +68,8 @@ fn touch_project(state: State<'_, Arc<AppState>>, project_id: &str) -> Result<()
         let mut persisted = state.persisted.write();
         if let Some(project) = persisted.projects.iter_mut().find(|p| p.id == project_id) {
             project.last_accessed_at = Some(worktree::chrono_lite_now());
+            // Reactivate project if it was closed
+            project.is_active = true;
         }
     }
     state.save().map_err(map_err)?;
@@ -1538,9 +1515,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             add_project,
             list_projects,
-            remove_project,
             close_project,
-            reopen_project,
             touch_project,
             create_worktree,
             list_worktrees,

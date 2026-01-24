@@ -9,8 +9,8 @@ import { Drawer, DrawerTab } from './components/Drawer/Drawer';
 import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
 import { TaskTerminal } from './components/Drawer/TaskTerminal';
 import { ActionTerminal } from './components/Drawer/ActionTerminal';
-import { ConfirmModal } from './components/ConfirmModal';
 import { DeleteWorktreeModal } from './components/DeleteWorktreeModal';
+import { ConfirmModal } from './components/ConfirmModal';
 import { MergeModal } from './components/MergeModal';
 import { StashModal } from './components/StashModal';
 import { ShutdownScreen } from './components/ShutdownScreen';
@@ -20,7 +20,7 @@ import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig } from './hooks/useConfig';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, closeProject, reopenProject, touchProject } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, touchProject } from './lib/tauri';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ActionContext, getMenuAvailability } from './lib/actions';
 import { useActions, ActionHandlers } from './hooks/useActions';
@@ -41,7 +41,7 @@ const MAX_ZOOM = 10; // maximum zoom level
 type FocusedPane = 'main' | 'drawer';
 
 function App() {
-  const { projects, addProject, removeProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
+  const { projects, addProject, closeProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
 
   // Guard to prevent dialog re-entry when escape key bubbles back from native dialog
   const isAddProjectDialogOpen = useRef(false);
@@ -171,6 +171,16 @@ function App() {
   // Get current entity's focus state (defaults to 'main')
   const activeFocusState = activeEntityId ? focusStates.get(activeEntityId) ?? 'main' : 'main';
 
+  // Close drawer and right panel when no entity is active (empty/welcome state)
+  useEffect(() => {
+    if (!activeEntityId) {
+      setIsDrawerOpen(false);
+      drawerPanelRef.current?.collapse();
+      setIsRightPanelOpen(false);
+      rightPanelRef.current?.collapse();
+    }
+  }, [activeEntityId]);
+
   // Create a drawer tab when drawer is open but current entity has no tabs
   useEffect(() => {
     if (!activeEntityId || !isDrawerOpen) return;
@@ -203,9 +213,9 @@ function App() {
 
   // Modal state
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [pendingRemoveProject, setPendingRemoveProject] = useState<Project | null>(null);
   const [pendingMergeId, setPendingMergeId] = useState<string | null>(null);
   const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
+  const [pendingCloseProject, setPendingCloseProject] = useState<Project | null>(null);
   const [isTaskSwitcherOpen, setIsTaskSwitcherOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isProjectSwitcherOpen, setIsProjectSwitcherOpen] = useState(false);
@@ -1337,14 +1347,8 @@ function App() {
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
 
-    // If project is closed (inactive), reopen it
-    if (!project.isActive) {
-      await reopenProject(projectId);
-      await refreshProjects();
-    } else {
-      // Just update last accessed time
-      await touchProject(projectId);
-    }
+    // Update last accessed time
+    await touchProject(projectId);
 
     // Navigate to the project
     setOpenProjectIds((prev) => {
@@ -1355,7 +1359,7 @@ function App() {
     setActiveScratchId(null);
     setActiveProjectId(projectId);
     setIsProjectSwitcherOpen(false);
-  }, [projects, refreshProjects]);
+  }, [projects]);
 
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
     setRunningTasks((prev) => {
@@ -1684,40 +1688,101 @@ function App() {
     });
   }, []);
 
-  const handleCloseProject = useCallback(async (projectId: string) => {
-    // Mark project as inactive (closes it from sidebar)
-    await closeProject(projectId);
-    await refreshProjects();
+  // Show confirmation modal before closing a project
+  const handleCloseProject = useCallback((projectOrId: Project | string) => {
+    const project = typeof projectOrId === 'string'
+      ? projects.find(p => p.id === projectOrId)
+      : projectOrId;
+    if (!project) return;
+    setPendingCloseProject(project);
+  }, [projects]);
 
-    // Also close the terminal
-    setOpenProjectIds((prev) => {
-      const next = new Set(prev);
-      next.delete(projectId);
-      return next;
-    });
+  // Actually close the project (called after confirmation)
+  const confirmCloseProject = useCallback(async () => {
+    const project = pendingCloseProject;
+    if (!project) return;
 
-    // If this was the active project, switch to another active project
-    if (activeProjectId === projectId && !activeWorktreeId) {
-      // Find another active project
-      const remainingActiveProjects = projects.filter(p => p.id !== projectId && p.isActive);
-      if (remainingActiveProjects.length > 0) {
-        setActiveProjectId(remainingActiveProjects[0].id);
-      } else if (openWorktreeIds.size > 0) {
-        // Switch to an open worktree
-        const firstWorktreeId = Array.from(openWorktreeIds)[0];
-        setActiveWorktreeId(firstWorktreeId);
-        // Find and set the project for this worktree
-        for (const project of projects) {
-          if (project.worktrees.some(w => w.id === firstWorktreeId)) {
-            setActiveProjectId(project.id);
-            break;
-          }
+    setPendingCloseProject(null);
+
+    try {
+      const projectWorktreeIds = new Set(project.worktrees.map((w) => w.id));
+
+      // Clean up UI state for project's worktrees
+      setOpenWorktreeIds((prev) => {
+        const next = new Set(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
         }
-      } else {
+        return next;
+      });
+      setDrawerTabs((prev) => {
+        const next = new Map(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
+        }
+        // Also clean up project-level drawer tabs
+        next.delete(project.id);
+        return next;
+      });
+      setDrawerActiveTabIds((prev) => {
+        const next = new Map(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
+        }
+        next.delete(project.id);
+        return next;
+      });
+      setDrawerTabCounters((prev) => {
+        const next = new Map(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
+        }
+        next.delete(project.id);
+        return next;
+      });
+      setFocusStates((prev) => {
+        const next = new Map(prev);
+        for (const id of projectWorktreeIds) {
+          next.delete(id);
+        }
+        next.delete(project.id);
+        return next;
+      });
+
+      // Close from open projects
+      setOpenProjectIds((prev) => {
+        const next = new Set(prev);
+        next.delete(project.id);
+        return next;
+      });
+
+      // Update active selection if needed
+      if (activeWorktreeId && projectWorktreeIds.has(activeWorktreeId)) {
+        setActiveWorktreeId(null);
+      }
+      if (activeProjectId === project.id) {
         setActiveProjectId(null);
       }
+
+      // Close drawer and right panel when no entities remain open
+      const remainingOpenWorktrees = Array.from(openWorktreeIds).filter(
+        id => !projectWorktreeIds.has(id)
+      );
+      const remainingOpenProjects = Array.from(openProjectIds).filter(
+        id => id !== project.id
+      );
+      if (remainingOpenWorktrees.length === 0 && remainingOpenProjects.length === 0 && scratchTerminals.length === 0) {
+        setIsDrawerOpen(false);
+        drawerPanelRef.current?.collapse();
+        setIsRightPanelOpen(false);
+        rightPanelRef.current?.collapse();
+      }
+
+      await closeProject(project.id);
+    } catch (err) {
+      console.error('Failed to close project:', err);
     }
-  }, [activeProjectId, activeWorktreeId, openWorktreeIds, projects, refreshProjects]);
+  }, [pendingCloseProject, activeWorktreeId, activeProjectId, openWorktreeIds, openProjectIds, scratchTerminals.length, closeProject]);
 
   const handleCloseWorktree = useCallback(
     (worktreeId: string) => {
@@ -1814,9 +1879,6 @@ function App() {
     [activeWorktreeId, openWorktreeIds, projects, refreshProjects]
   );
 
-  const handleRemoveProject = useCallback((project: Project) => {
-    setPendingRemoveProject(project);
-  }, []);
 
   const handleMergeWorktree = useCallback((worktreeId: string) => {
     setPendingMergeId(worktreeId);
@@ -1868,80 +1930,21 @@ function App() {
     };
   }, [handleMergeComplete, drawerTabs, handleCloseDrawerTab]);
 
-  const confirmRemoveProject = useCallback(async () => {
-    if (!pendingRemoveProject) return;
-    try {
-      const projectWorktreeIds = new Set(pendingRemoveProject.worktrees.map((w) => w.id));
-      setOpenWorktreeIds((prev) => {
-        const next = new Set(prev);
-        for (const id of projectWorktreeIds) {
-          next.delete(id);
-        }
-        return next;
-      });
-      // Clean up drawer tabs and focus states for project worktrees
-      setDrawerTabs((prev) => {
-        const next = new Map(prev);
-        for (const id of projectWorktreeIds) {
-          next.delete(id);
-        }
-        return next;
-      });
-      setDrawerActiveTabIds((prev) => {
-        const next = new Map(prev);
-        for (const id of projectWorktreeIds) {
-          next.delete(id);
-        }
-        return next;
-      });
-      setDrawerTabCounters((prev) => {
-        const next = new Map(prev);
-        for (const id of projectWorktreeIds) {
-          next.delete(id);
-        }
-        return next;
-      });
-      setFocusStates((prev) => {
-        const next = new Map(prev);
-        for (const id of projectWorktreeIds) {
-          next.delete(id);
-        }
-        return next;
-      });
-      if (activeWorktreeId && projectWorktreeIds.has(activeWorktreeId)) {
-        setActiveWorktreeId(null);
-      }
-      // Close drawer and right panel when no worktrees remain
-      const remainingOpenWorktrees = Array.from(openWorktreeIds).filter(
-        id => !projectWorktreeIds.has(id)
-      );
-      if (remainingOpenWorktrees.length === 0) {
-        setIsDrawerOpen(false);
-        drawerPanelRef.current?.collapse();
-        setIsRightPanelOpen(false);
-        rightPanelRef.current?.collapse();
-      }
-      await removeProject(pendingRemoveProject.id);
-    } catch (err) {
-      console.error('Failed to remove project:', err);
-    } finally {
-      setPendingRemoveProject(null);
-    }
-  }, [removeProject, pendingRemoveProject, activeWorktreeId, openWorktreeIds]);
-
   // === Action System ===
   // Build the context that determines action availability
   const actionContext: ActionContext = useMemo(() => ({
     activeProjectId,
     activeWorktreeId,
+    activeScratchId,
     activeEntityId,
     isDrawerOpen,
+    isDrawerFocused: activeFocusState === 'drawer',
     activeDrawerTabId,
     openWorktreeCount: openWorktreesInOrder.length,
     previousView,
     activeSelectedTask,
     taskCount: config.tasks.length,
-  }), [activeProjectId, activeWorktreeId, activeEntityId, isDrawerOpen, activeDrawerTabId, openWorktreesInOrder.length, previousView, activeSelectedTask, config.tasks.length]);
+  }), [activeProjectId, activeWorktreeId, activeScratchId, activeEntityId, isDrawerOpen, activeFocusState, activeDrawerTabId, openWorktreesInOrder.length, previousView, activeSelectedTask, config.tasks.length]);
 
   // Helper to get current entity index in openEntitiesInOrder
   const getCurrentEntityIndex = useCallback(() => {
@@ -1978,7 +1981,18 @@ function App() {
   const actionHandlers: ActionHandlers = useMemo(() => ({
     addProject: handleAddProject,
     newWorktree: () => activeProjectId && handleAddWorktree(activeProjectId),
-    closeTab: () => activeDrawerTabId && handleCloseDrawerTab(activeDrawerTabId),
+    closeTab: () => {
+      // Priority: drawer tab (if focused) > scratch terminal > worktree > project terminal
+      if (isDrawerOpen && activeFocusState === 'drawer' && activeDrawerTabId) {
+        handleCloseDrawerTab(activeDrawerTabId);
+      } else if (activeScratchId) {
+        handleCloseScratch(activeScratchId);
+      } else if (activeWorktreeId) {
+        handleCloseWorktree(activeWorktreeId);
+      } else if (activeProjectId) {
+        handleCloseProject(activeProjectId);
+      }
+    },
     openInFinder: () => {
       if (activeWorktreeId) {
         const worktree = projects.flatMap(p => p.worktrees).find(w => w.id === activeWorktreeId);
@@ -2006,11 +2020,9 @@ function App() {
         if (project) invoke('open_with_app', { path: project.path, app: config.apps.editor });
       }
     },
-    setInactive: () => activeProjectId && handleCloseProject(activeProjectId),
-    removeProject: () => {
+    closeProject: () => {
       if (activeProjectId && !activeWorktreeId) {
-        const project = projects.find(p => p.id === activeProjectId);
-        if (project) handleRemoveProject(project);
+        handleCloseProject(activeProjectId);
       }
     },
     commandPalette: handleToggleCommandPalette,
@@ -2057,10 +2069,11 @@ function App() {
     helpReportIssue: () => openUrl('https://github.com/shkm/One-Man-Band/issues/new'),
     helpReleaseNotes: () => openUrl('https://github.com/shkm/One-Man-Band/releases'),
   }), [
-    activeProjectId, activeWorktreeId, activeDrawerTabId, openWorktreesInOrder, projects,
-    config.apps.terminal, config.apps.editor,
+    activeProjectId, activeWorktreeId, activeScratchId, activeDrawerTabId, isDrawerOpen, activeFocusState,
+    openWorktreesInOrder, projects, config.apps.terminal, config.apps.editor,
     handleAddProject, handleAddWorktree, handleCloseDrawerTab, handleCloseProject,
-    handleRemoveProject, handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
+    handleCloseWorktree, handleCloseScratch,
+    handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
     handleRenameBranch, handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
     getCurrentEntityIndex, selectEntityAtIndex,
@@ -2231,20 +2244,6 @@ function App() {
         if ((e.metaKey || e.ctrlKey) && e.key === 't' && isDrawerOpen) {
           e.preventDefault();
           handleAddDrawerTab();
-        }
-
-        // Cmd+W to close active terminal tab (when drawer is open)
-        if ((e.metaKey || e.ctrlKey) && e.key === 'w' && isDrawerOpen && !e.shiftKey) {
-          e.preventDefault();
-          if (activeDrawerTabId) {
-            handleCloseDrawerTab(activeDrawerTabId);
-          }
-        }
-
-        // Cmd+Shift+W to close current scratch terminal
-        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'w' && activeScratchId) {
-          e.preventDefault();
-          handleCloseScratch(activeScratchId);
         }
 
         // Drawer tab cycling (Cmd+H/L on mac, Ctrl+H/L on other)
@@ -2476,17 +2475,13 @@ function App() {
         />
       )}
 
-      {pendingRemoveProject && (
+      {pendingCloseProject && (
         <ConfirmModal
-          title="Remove Project"
-          message={
-            pendingRemoveProject.worktrees.length > 0
-              ? `Are you sure you want to remove "${pendingRemoveProject.name}"? This will also delete ${pendingRemoveProject.worktrees.length} worktree${pendingRemoveProject.worktrees.length === 1 ? '' : 's'} and cannot be undone.`
-              : `Are you sure you want to remove "${pendingRemoveProject.name}"?`
-          }
-          confirmLabel="Remove"
-          onConfirm={confirmRemoveProject}
-          onCancel={() => setPendingRemoveProject(null)}
+          title="Close Project"
+          message={`Are you sure you want to close "${pendingCloseProject.name}"?`}
+          confirmLabel="Close"
+          onConfirm={confirmCloseProject}
+          onCancel={() => setPendingCloseProject(null)}
           onModalOpen={onModalOpen}
           onModalClose={onModalClose}
         />
@@ -2639,7 +2634,6 @@ function App() {
               onMergeWorktree={handleMergeWorktree}
               onToggleDrawer={handleToggleDrawer}
               onToggleRightPanel={handleToggleRightPanel}
-              onRemoveProject={handleRemoveProject}
               onSelectTask={handleSelectTask}
               onStartTask={handleStartTask}
               onStopTask={handleStopTask}

@@ -1,7 +1,7 @@
 import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check, ExternalLink, Hash, SquareTerminal, Code } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal } from '../../types';
 import { TaskConfig } from '../../hooks/useConfig';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getTaskUrls, NamedUrl } from '../../lib/tauri';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { DragRegion } from '../DragRegion';
@@ -70,11 +70,10 @@ interface SidebarProps {
   onAddWorktree: (projectId: string) => void;
   onDeleteWorktree: (worktreeId: string) => void;
   onCloseWorktree: (worktreeId: string) => void;
-  onCloseProject: (projectId: string) => void;
+  onCloseProject: (projectOrId: Project | string) => void;
   onMergeWorktree: (worktreeId: string) => void;
   onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
-  onRemoveProject: (project: Project) => void;
   onSelectTask: (taskName: string) => void;
   onStartTask: () => void;
   onStopTask: () => void;
@@ -134,7 +133,6 @@ export function Sidebar({
   onMergeWorktree,
   onToggleDrawer,
   onToggleRightPanel,
-  onRemoveProject,
   onSelectTask,
   onStartTask,
   onStopTask,
@@ -247,11 +245,11 @@ export function Sidebar({
     const activeType = active.data.current?.type;
 
     if (activeType === 'project') {
-      const oldIndex = filteredProjects.findIndex((p) => p.id === active.id);
-      const newIndex = filteredProjects.findIndex((p) => p.id === over.id);
+      const oldIndex = projects.findIndex((p) => p.id === active.id);
+      const newIndex = projects.findIndex((p) => p.id === over.id);
 
       if (oldIndex !== -1 && newIndex !== -1) {
-        const reordered = arrayMove(filteredProjects, oldIndex, newIndex);
+        const reordered = arrayMove(projects, oldIndex, newIndex);
         onReorderProjects(reordered.map((p) => p.id));
       }
     } else if (activeType === 'worktree') {
@@ -313,24 +311,12 @@ export function Sidebar({
     });
   };
 
-  const handleRemoveProject = () => {
-    if (contextMenu) {
-      onRemoveProject(contextMenu.project);
-      setContextMenu(null);
-    }
-  };
-
   const handleCloseProject = () => {
     if (contextMenu) {
-      onCloseProject(contextMenu.project.id);
+      onCloseProject(contextMenu.project);
       setContextMenu(null);
     }
   };
-
-  // Filter projects to show only active ones in the sidebar
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => project.isActive);
-  }, [projects]);
 
   return (
     <div className="flex flex-col h-full bg-zinc-900 select-none">
@@ -456,7 +442,7 @@ export function Sidebar({
               Add a project
             </button>
           </div>
-        ) : filteredProjects.length === 0 ? (
+        ) : projects.length === 0 ? (
           <div className="text-center py-6 text-zinc-500 text-xs">
             <p>No active projects</p>
           </div>
@@ -468,10 +454,10 @@ export function Sidebar({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={filteredProjects.map((p) => p.id)}
+              items={projects.filter((p) => p.isActive).map((p) => p.id)}
               strategy={verticalListSortingStrategy}
             >
-              {filteredProjects.map((project) => {
+              {projects.filter((p) => p.isActive).map((project) => {
                 const hasOpenWorktrees = project.worktrees.some((w) => openWorktreeIds.has(w.id));
                 const isProjectOpen = openProjectIds.has(project.id);
                 const isProjectSelected = activeProjectId === project.id && !activeWorktreeId && !activeScratchId;
@@ -527,19 +513,6 @@ export function Sidebar({
                         <span className="text-sm font-medium truncate">{project.name}</span>
                         {/* Action buttons - show on hover */}
                         <div className={`absolute right-1 hidden group-hover:flex items-center gap-0.5 rounded ${isProjectSelected ? 'bg-zinc-700' : 'bg-zinc-800'}`}>
-                          {isProjectOpen && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onCloseProject(project.id);
-                              }}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              className="p-0.5 rounded hover:bg-zinc-600 text-zinc-500 hover:text-zinc-300"
-                              title="Close project terminal"
-                            >
-                              <X size={14} />
-                            </button>
-                          )}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -704,7 +677,7 @@ export function Sidebar({
               {activeDragItem && (
                 <div className="bg-zinc-700 text-zinc-100 px-2 py-1 rounded shadow-lg border border-zinc-600 text-sm">
                   {activeDragItem.type === 'project'
-                    ? filteredProjects.find((p) => p.id === activeDragItem.id)?.name
+                    ? projects.find((p) => p.id === activeDragItem.id)?.name
                     : (() => {
                         const project = projects.find((p) => p.id === activeDragItem.projectId);
                         return project?.worktrees.find((w) => w.id === activeDragItem.id)?.name;
@@ -724,11 +697,6 @@ export function Sidebar({
             {
               label: 'Close Project',
               onClick: handleCloseProject,
-            },
-            {
-              label: 'Remove Project',
-              onClick: handleRemoveProject,
-              danger: true,
             },
           ]}
           onClose={() => setContextMenu(null)}

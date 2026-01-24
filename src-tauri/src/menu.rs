@@ -64,7 +64,7 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("new_worktree", new_worktree.clone());
 
-    let close_tab = MenuItemBuilder::with_id("close_tab", "Close Tab")
+    let close_tab = MenuItemBuilder::with_id("close_tab", "Close")
         .accelerator("CmdOrCtrl+W")
         .enabled(false)
         .build(app)?;
@@ -85,15 +85,10 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("open_in_editor", open_in_editor.clone());
 
-    let set_inactive = MenuItemBuilder::with_id("set_inactive", "Set Inactive")
+    let close_project = MenuItemBuilder::with_id("close_project", "Close Project…")
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("set_inactive", set_inactive.clone());
-
-    let remove_project = MenuItemBuilder::with_id("remove_project", "Remove Project…")
-        .enabled(false)
-        .build(app)?;
-    dynamic_items.insert("remove_project", remove_project.clone());
+    dynamic_items.insert("close_project", close_project.clone());
 
     let file_submenu = SubmenuBuilder::new(app, "File")
         .item(&add_project)
@@ -104,9 +99,8 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .item(&open_in_finder)
         .item(&open_in_terminal)
         .item(&open_in_editor)
-        .item(&set_inactive)
         .separator()
-        .item(&remove_project)
+        .item(&close_project)
         .build()?;
 
     // === Edit Menu ===

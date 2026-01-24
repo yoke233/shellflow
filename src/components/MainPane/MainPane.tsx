@@ -1,4 +1,4 @@
-import { Terminal } from 'lucide-react';
+import { GitBranch, FolderPlus, Terminal, Keyboard } from 'lucide-react';
 import { MainTerminal } from './MainTerminal';
 import { TerminalConfig, MappingsConfig, ConfigError } from '../../hooks/useConfig';
 import { ConfigErrorBanner } from '../ConfigErrorBanner';
@@ -57,10 +57,44 @@ export function MainPane({
 
   if (!hasOpenEntities || !activeEntityId) {
     return (
-      <div className="flex flex-col h-full bg-zinc-950 text-zinc-500 select-none items-center justify-center">
-        <Terminal size={48} className="mb-4 opacity-50" />
-        <p className="text-lg">No worktrees open</p>
-        <p className="text-sm mt-1">Select a worktree from the sidebar to start</p>
+      <div className="flex flex-col h-full bg-zinc-950 text-zinc-400 select-none items-center justify-center px-8">
+        <h1 className="text-2xl font-semibold text-zinc-200 mb-2">One Man Band</h1>
+        <p className="text-zinc-500 mb-8 text-center max-w-md">
+          The terminal wrapper with worktree orchestration.
+        </p>
+
+        <div className="flex flex-col gap-4 text-sm max-w-sm">
+          <div className="flex items-start gap-3">
+            <FolderPlus size={18} className="text-zinc-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-zinc-300">Add a project</span>
+              <span className="text-zinc-500"> — open any git repository to get started</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <GitBranch size={18} className="text-zinc-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-zinc-300">Create worktrees</span>
+              <span className="text-zinc-500"> — each worktree is an isolated branch with its own terminal</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Terminal size={18} className="text-zinc-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-zinc-300">Run commands in parallel</span>
+              <span className="text-zinc-500"> — switch between worktrees without losing context</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Keyboard size={18} className="text-zinc-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-zinc-300">Use keyboard shortcuts</span>
+              <span className="text-zinc-500"> — press </span>
+              <kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-400 text-xs font-mono">⌘⇧P</kbd>
+              <span className="text-zinc-500"> for the command palette</span>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

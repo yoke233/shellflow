@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 interface ConfirmModalProps {
   title: string;
@@ -19,7 +19,8 @@ export function ConfirmModal({
   onModalOpen,
   onModalClose,
 }: ConfirmModalProps) {
-  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const isMac = navigator.userAgent.includes('Mac');
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Register modal open/close for app-wide tracking
   useEffect(() => {
@@ -27,26 +28,36 @@ export function ConfirmModal({
     return () => onModalClose?.();
   }, [onModalOpen, onModalClose]);
 
-  // Keyboard shortcuts
+  // Auto-focus modal on mount
+  useEffect(() => {
+    modalRef.current?.focus();
+  }, []);
+
+  // Keyboard shortcuts (capture phase to intercept before terminal)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         onCancel();
       } else if (e.key === 'Enter' && (isMac ? e.metaKey : e.ctrlKey)) {
         e.preventDefault();
+        e.stopPropagation();
         onConfirm();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [onCancel, onConfirm, isMac]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div className="relative bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="relative bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 outline-none">
         <h2 className="text-lg font-semibold text-zinc-100 mb-2">{title}</h2>
         <p className="text-zinc-400 mb-6">{message}</p>
         <div className="flex justify-end gap-3">

@@ -115,13 +115,13 @@ export function useWorktrees() {
     [loadProjects]
   );
 
-  const removeProject = useCallback(
+  const closeProject = useCallback(
     async (projectId: string) => {
       try {
-        await invoke('remove_project', { projectId });
+        await invoke('close_project', { projectId });
         await loadProjects();
       } catch (err) {
-        console.error('Failed to remove project:', err);
+        console.error('Failed to close project:', err);
         throw err;
       }
     },
@@ -163,7 +163,7 @@ export function useWorktrees() {
     loading,
     error,
     addProject,
-    removeProject,
+    closeProject,
     createWorktree,
     deleteWorktree,
     renameWorktree,

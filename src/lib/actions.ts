@@ -23,8 +23,7 @@ export type ActionId =
   | 'openInFinder'
   | 'openInTerminal'
   | 'openInEditor'
-  | 'setInactive'
-  | 'removeProject'
+  | 'closeProject'
   // View menu
   | 'commandPalette'
   | 'toggleDrawer'
@@ -62,8 +61,10 @@ export type ActionId =
 export interface ActionContext {
   activeProjectId: string | null;
   activeWorktreeId: string | null;
+  activeScratchId: string | null;
   activeEntityId: string | null;
   isDrawerOpen: boolean;
+  isDrawerFocused: boolean;
   activeDrawerTabId: string | null;
   openWorktreeCount: number;
   previousView: unknown | null;
@@ -76,12 +77,11 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   // File menu
   addProject: () => true,
   newWorktree: (ctx) => !!ctx.activeProjectId,
-  closeTab: (ctx) => ctx.isDrawerOpen && !!ctx.activeDrawerTabId,
+  closeTab: (ctx) => (ctx.isDrawerOpen && !!ctx.activeDrawerTabId) || !!ctx.activeEntityId,
   openInFinder: (ctx) => !!ctx.activeEntityId,
   openInTerminal: (ctx) => !!ctx.activeEntityId,
   openInEditor: (ctx) => !!ctx.activeEntityId,
-  setInactive: (ctx) => !!ctx.activeEntityId,
-  removeProject: (ctx) => !!ctx.activeProjectId && !ctx.activeWorktreeId,
+  closeProject: (ctx) => !!ctx.activeProjectId && !ctx.activeWorktreeId,
 
   // View menu
   commandPalette: () => true,
@@ -128,8 +128,7 @@ const ACTION_TO_MENU_ID: Record<ActionId, string> = {
   openInFinder: 'open_in_finder',
   openInTerminal: 'open_in_terminal',
   openInEditor: 'open_in_editor',
-  setInactive: 'set_inactive',
-  removeProject: 'remove_project',
+  closeProject: 'close_project',
   commandPalette: 'command_palette',
   toggleDrawer: 'toggle_drawer',
   expandDrawer: 'expand_drawer',
@@ -223,12 +222,11 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   // File menu
   addProject: { label: 'Add Project', category: 'File', showInPalette: true },
   newWorktree: { label: 'New Worktree', category: 'File', shortcutKey: 'newWorkspace', showInPalette: true },
-  closeTab: { label: 'Close Tab', category: 'File', showInPalette: true },
+  closeTab: { label: 'Close', category: 'File', showInPalette: true },
   openInFinder: { label: 'Open in Finder', category: 'File', showInPalette: true },
   openInTerminal: { label: 'Open in Terminal', category: 'File', showInPalette: true },
   openInEditor: { label: 'Open in Editor', category: 'File', showInPalette: true },
-  setInactive: { label: 'Set Inactive', category: 'File', showInPalette: true },
-  removeProject: { label: 'Remove Project', category: 'File', showInPalette: true },
+  closeProject: { label: 'Close Project', category: 'File', showInPalette: true },
 
   // View menu
   commandPalette: { label: 'Command Palette', category: 'View', shortcutKey: 'commandPalette', showInPalette: false },

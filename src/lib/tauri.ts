@@ -22,10 +22,6 @@ export async function closeProject(projectId: string): Promise<void> {
   return invoke('close_project', { projectId });
 }
 
-export async function reopenProject(projectId: string): Promise<void> {
-  return invoke('reopen_project', { projectId });
-}
-
 export async function touchProject(projectId: string): Promise<void> {
   return invoke('touch_project', { projectId });
 }
