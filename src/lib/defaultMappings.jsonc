@@ -1,0 +1,151 @@
+{
+  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/mappings.schema.json",
+  // Shellflow Default Key Mappings
+  // https://github.com/shkm/shellflow/blob/main/src/lib/defaultMappings.jsonc
+  //
+  // Key syntax: modifier-key (e.g., cmd-w, ctrl-shift-p)
+  // Modifiers: cmd, ctrl, alt, shift
+  // "cmd" = Cmd on macOS, Ctrl on other platforms
+  //
+  // Context expressions support: && (and), || (or), ! (not), () (grouping)
+  // Example: "worktreeFocused && !drawerFocused"
+
+  "bindings": [
+    // ============================================================
+    // Global bindings (no context = always active)
+    // ============================================================
+    {
+      "bindings": {
+        "cmd-shift-p": "palette::toggle",
+        "cmd-shift-o": "palette::projectSwitcher"
+      }
+    },
+
+    // ============================================================
+    // Pickers open - escape to close
+    // ============================================================
+    {
+      "context": "pickerOpen",
+      "bindings": {
+        "Escape": "palette::close"
+      }
+    },
+
+    // ============================================================
+    // Modal open - escape to close
+    // ============================================================
+    {
+      "context": "modalOpen",
+      "bindings": {
+        "Escape": "modal::close"
+      }
+    },
+
+    // ============================================================
+    // Normal state (no picker or modal)
+    // ============================================================
+    {
+      "context": "!pickerOpen && !modalOpen",
+      "bindings": {
+        // View controls
+        "ctrl-`": "drawer::toggle",
+        "cmd-b": "rightPanel::toggle",
+        "shift-Escape": "drawer::expand",
+
+        // Zoom
+        "cmd-=": "view::zoomIn",
+        "cmd--": "view::zoomOut",
+        "cmd-shift-0": "view::zoomReset",
+
+        // Focus
+        "ctrl-\\": "focus::switch",
+        "cmd-'": "navigate::back",
+
+        // Navigation
+        "cmd-k": "navigate::prev",
+        "cmd-j": "navigate::next",
+        "cmd-1": "navigate::toEntity1",
+        "cmd-2": "navigate::toEntity2",
+        "cmd-3": "navigate::toEntity3",
+        "cmd-4": "navigate::toEntity4",
+        "cmd-5": "navigate::toEntity5",
+        "cmd-6": "navigate::toEntity6",
+        "cmd-7": "navigate::toEntity7",
+        "cmd-8": "navigate::toEntity8",
+        "cmd-9": "navigate::toEntity9",
+
+        // Tasks
+        "cmd-;": "task::switcher",
+        "cmd-r": "task::run"
+      }
+    },
+
+    // ============================================================
+    // Drawer focused
+    // ============================================================
+    {
+      "context": "drawerFocused",
+      "bindings": {
+        "cmd-w": "drawer::closeTab",
+        "cmd-h": "drawer::prevTab",
+        "cmd-l": "drawer::nextTab"
+      }
+    },
+
+    // ============================================================
+    // Scratch terminal (not drawer focused)
+    // ============================================================
+    {
+      "context": "scratchFocused && !drawerFocused",
+      "bindings": {
+        "cmd-w": "scratch::close",
+        "cmd-n": "scratch::new",
+        "cmd-shift-n": "scratch::new"
+      }
+    },
+
+    // ============================================================
+    // Worktree (not drawer focused)
+    // ============================================================
+    {
+      "context": "worktreeFocused && !drawerFocused",
+      "bindings": {
+        "cmd-w": "worktree::close",
+        "cmd-n": "worktree::new",
+        "cmd-shift-n": "scratch::new",
+        "F2": "worktree::renameBranch"
+      }
+    },
+
+    // ============================================================
+    // Project (no worktree selected, not drawer focused)
+    // ============================================================
+    {
+      "context": "projectFocused && !drawerFocused",
+      "bindings": {
+        "cmd-w": "project::close",
+        "cmd-n": "worktree::new",
+        "cmd-shift-n": "scratch::new"
+      }
+    },
+
+    // ============================================================
+    // Terminal copy/paste (when in any terminal context)
+    // These work in both main and drawer terminals
+    // ============================================================
+    {
+      "context": "mainFocused",
+      "bindings": {
+        "cmd-c": "terminal::copy",
+        "cmd-v": "terminal::paste"
+      }
+    },
+    {
+      "context": "drawerFocused",
+      "bindings": {
+        "cmd-c": "terminal::copy",
+        "cmd-v": "terminal::paste"
+      }
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/mappings.schema.json",
+  "title": "Shellflow Key Mappings",
+  "description": "Context-aware keyboard mappings for Shellflow",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference"
+    },
+    "bindings": {
+      "type": "array",
+      "description": "Array of binding groups, each optionally scoped to a context",
+      "items": {
+        "$ref": "#/definitions/bindingGroup"
+      }
+    }
+  },
+  "required": ["bindings"],
+  "definitions": {
+    "bindingGroup": {
+      "type": "object",
+      "description": "A group of key bindings, optionally scoped to a context",
+      "properties": {
+        "context": {
+          "type": "string",
+          "description": "Context expression that must match for these bindings to be active. Supports: && (and), || (or), ! (not), () (grouping). Example: \"worktreeFocused && !drawerFocused\"",
+          "examples": [
+            "drawerFocused",
+            "scratchFocused && !drawerFocused",
+            "worktreeFocused && !drawerFocused",
+            "!(pickerOpen || modalOpen)"
+          ]
+        },
+        "bindings": {
+          "type": "object",
+          "description": "Map of key sequences to actions",
+          "additionalProperties": {
+            "$ref": "#/definitions/action"
+          }
+        }
+      },
+      "required": ["bindings"]
+    },
+    "action": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Action name in namespace::action format",
+          "pattern": "^[a-z]+::[a-zA-Z0-9]+$",
+          "examples": [
+            "drawer::closeTab",
+            "scratch::close",
+            "worktree::new",
+            "navigate::prev"
+          ]
+        },
+        {
+          "type": "array",
+          "description": "Action with arguments: [actionName, arg1, arg2, ...]",
+          "items": [
+            {
+              "type": "string",
+              "description": "Action name",
+              "pattern": "^[a-z]+::[a-zA-Z0-9]+$"
+            }
+          ],
+          "additionalItems": true,
+          "minItems": 1
+        }
+      ]
+    },
+    "contextFlag": {
+      "type": "string",
+      "description": "A context flag that can be used in context expressions",
+      "enum": [
+        "scratchFocused",
+        "worktreeFocused",
+        "projectFocused",
+        "drawerFocused",
+        "mainFocused",
+        "drawerOpen",
+        "rightPanelOpen",
+        "pickerOpen",
+        "commandPaletteOpen",
+        "taskSwitcherOpen",
+        "projectSwitcherOpen",
+        "modalOpen",
+        "hasMultipleEntities",
+        "hasPreviousView"
+      ]
+    },
+    "actionNamespace": {
+      "type": "string",
+      "description": "Action namespace",
+      "enum": [
+        "app",
+        "drawer",
+        "scratch",
+        "worktree",
+        "project",
+        "navigate",
+        "focus",
+        "view",
+        "palette",
+        "task",
+        "terminal",
+        "modal",
+        "rightPanel"
+      ]
+    }
+  }
+}
