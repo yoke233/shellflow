@@ -2,18 +2,14 @@ import { GitBranch, FolderPlus, Terminal, Keyboard } from 'lucide-react';
 import { MainTerminal } from './MainTerminal';
 import { TerminalConfig, ConfigError } from '../../hooks/useConfig';
 import { ConfigErrorBanner } from '../ConfigErrorBanner';
-import { ScratchTerminal } from '../../types';
+import { Session, SessionKind } from '../../types';
 
 interface MainPaneProps {
-  // Worktree terminals
-  openWorktreeIds: Set<string>;
-  activeWorktreeId: string | null;
-  // Project terminals
-  openProjectIds: Set<string>;
-  activeProjectId: string | null;
-  // Scratch terminals
-  scratchTerminals: ScratchTerminal[];
-  activeScratchId: string | null;
+  // Unified session props
+  sessions: Session[];
+  openSessionIds: Set<string>;
+  activeSessionId: string | null;
+
   // Common props
   terminalConfig: TerminalConfig;
   activityTimeout: number;
@@ -21,7 +17,17 @@ interface MainPaneProps {
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
   configErrors: ConfigError[];
-  onFocus: (entityId: string) => void;
+  onFocus: (sessionId: string) => void;
+  onNotification?: (sessionId: string, title: string, body: string) => void;
+  onThinkingChange?: (sessionId: string, isThinking: boolean) => void;
+  onCwdChange?: (sessionId: string, cwd: string) => void;
+
+  // Legacy props for backward compatibility during migration
+  openWorktreeIds?: Set<string>;
+  activeWorktreeId?: string | null;
+  openProjectIds?: Set<string>;
+  activeProjectId?: string | null;
+  activeScratchId?: string | null;
   onWorktreeNotification?: (worktreeId: string, title: string, body: string) => void;
   onWorktreeThinkingChange?: (worktreeId: string, isThinking: boolean) => void;
   onProjectNotification?: (projectId: string, title: string, body: string) => void;
@@ -31,19 +37,32 @@ interface MainPaneProps {
   onScratchCwdChange?: (scratchId: string, cwd: string) => void;
 }
 
+// Map session kind to terminal type
+function getTerminalType(kind: SessionKind): 'main' | 'project' | 'scratch' {
+  switch (kind) {
+    case 'worktree':
+      return 'main';
+    case 'project':
+      return 'project';
+    case 'scratch':
+      return 'scratch';
+  }
+}
+
 export function MainPane({
-  openWorktreeIds,
-  activeWorktreeId,
-  openProjectIds,
-  activeProjectId,
-  scratchTerminals,
-  activeScratchId,
+  sessions,
+  openSessionIds,
+  activeSessionId,
   terminalConfig,
   activityTimeout,
   shouldAutoFocus,
   focusTrigger,
   configErrors,
   onFocus,
+  onNotification,
+  onThinkingChange,
+  onCwdChange,
+  // Legacy props
   onWorktreeNotification,
   onWorktreeThinkingChange,
   onProjectNotification,
@@ -52,11 +71,9 @@ export function MainPane({
   onScratchThinkingChange,
   onScratchCwdChange,
 }: MainPaneProps) {
-  // Determine the active entity (worktree takes precedence, then scratch, then project)
-  const activeEntityId = activeWorktreeId ?? activeScratchId ?? activeProjectId;
-  const hasOpenEntities = openWorktreeIds.size > 0 || openProjectIds.size > 0 || scratchTerminals.length > 0;
+  const hasOpenSessions = openSessionIds.size > 0;
 
-  if (!hasOpenEntities || !activeEntityId) {
+  if (!hasOpenSessions || !activeSessionId) {
     return (
       <div className="flex flex-col h-full bg-zinc-950 text-zinc-400 select-none items-center justify-center px-8">
         <h1 className="text-2xl font-semibold text-zinc-200 mb-2">Shellflow</h1>
@@ -100,6 +117,9 @@ export function MainPane({
     );
   }
 
+  // Get open sessions in their defined order
+  const openSessions = sessions.filter(s => openSessionIds.has(s.id));
+
   return (
     <div className="h-full bg-zinc-950 flex flex-col">
       {/* Config error banner */}
@@ -107,79 +127,78 @@ export function MainPane({
 
       {/* Terminal container */}
       <div className="flex-1 relative">
-      {/* Render worktree terminals */}
-      {Array.from(openWorktreeIds).map((worktreeId) => (
-        <div
-          key={worktreeId}
-          className={`absolute inset-0 ${
-            worktreeId === activeEntityId
-              ? 'visible z-10'
-              : 'invisible z-0 pointer-events-none'
-          }`}
-        >
-          <MainTerminal
-            entityId={worktreeId}
-            type="main"
-            isActive={worktreeId === activeEntityId}
-            shouldAutoFocus={worktreeId === activeEntityId && shouldAutoFocus}
-            focusTrigger={worktreeId === activeEntityId ? focusTrigger : undefined}
-            terminalConfig={terminalConfig}
-            activityTimeout={activityTimeout}
-            onFocus={() => onFocus(worktreeId)}
-            onNotification={(title, body) => onWorktreeNotification?.(worktreeId, title, body)}
-            onThinkingChange={(isThinking) => onWorktreeThinkingChange?.(worktreeId, isThinking)}
-          />
-        </div>
-      ))}
-      {/* Render project terminals */}
-      {Array.from(openProjectIds).map((projectId) => (
-        <div
-          key={`project-${projectId}`}
-          className={`absolute inset-0 ${
-            !activeWorktreeId && !activeScratchId && projectId === activeEntityId
-              ? 'visible z-10'
-              : 'invisible z-0 pointer-events-none'
-          }`}
-        >
-          <MainTerminal
-            entityId={projectId}
-            type="project"
-            isActive={!activeWorktreeId && !activeScratchId && projectId === activeEntityId}
-            shouldAutoFocus={!activeWorktreeId && !activeScratchId && projectId === activeEntityId && shouldAutoFocus}
-            focusTrigger={!activeWorktreeId && !activeScratchId && projectId === activeEntityId ? focusTrigger : undefined}
-            terminalConfig={terminalConfig}
-            activityTimeout={activityTimeout}
-            onFocus={() => onFocus(projectId)}
-            onNotification={(title, body) => onProjectNotification?.(projectId, title, body)}
-            onThinkingChange={(isThinking) => onProjectThinkingChange?.(projectId, isThinking)}
-          />
-        </div>
-      ))}
-      {/* Render scratch terminals */}
-      {scratchTerminals.map((scratch) => (
-        <div
-          key={`scratch-${scratch.id}`}
-          className={`absolute inset-0 ${
-            scratch.id === activeScratchId
-              ? 'visible z-10'
-              : 'invisible z-0 pointer-events-none'
-          }`}
-        >
-          <MainTerminal
-            entityId={scratch.id}
-            type="scratch"
-            isActive={scratch.id === activeScratchId}
-            shouldAutoFocus={scratch.id === activeScratchId && shouldAutoFocus}
-            focusTrigger={scratch.id === activeScratchId ? focusTrigger : undefined}
-            terminalConfig={terminalConfig}
-            activityTimeout={activityTimeout}
-            onFocus={() => onFocus(scratch.id)}
-            onNotification={(title, body) => onScratchNotification?.(scratch.id, title, body)}
-            onThinkingChange={(isThinking) => onScratchThinkingChange?.(scratch.id, isThinking)}
-            onCwdChange={(cwd) => onScratchCwdChange?.(scratch.id, cwd)}
-          />
-        </div>
-      ))}
+        {openSessions.map((session) => {
+          const isActive = session.id === activeSessionId;
+          const terminalType = getTerminalType(session.kind);
+
+          // Handle notifications - use unified handler or fall back to legacy
+          const handleNotification = (title: string, body: string) => {
+            if (onNotification) {
+              onNotification(session.id, title, body);
+            } else {
+              // Legacy handlers
+              if (session.kind === 'worktree') {
+                onWorktreeNotification?.(session.id, title, body);
+              } else if (session.kind === 'project') {
+                onProjectNotification?.(session.id, title, body);
+              } else {
+                onScratchNotification?.(session.id, title, body);
+              }
+            }
+          };
+
+          // Handle thinking changes - use unified handler or fall back to legacy
+          const handleThinkingChange = (isThinking: boolean) => {
+            if (onThinkingChange) {
+              onThinkingChange(session.id, isThinking);
+            } else {
+              // Legacy handlers
+              if (session.kind === 'worktree') {
+                onWorktreeThinkingChange?.(session.id, isThinking);
+              } else if (session.kind === 'project') {
+                onProjectThinkingChange?.(session.id, isThinking);
+              } else {
+                onScratchThinkingChange?.(session.id, isThinking);
+              }
+            }
+          };
+
+          // Handle cwd changes - only for scratch terminals
+          const handleCwdChange = session.kind === 'scratch'
+            ? (cwd: string) => {
+                if (onCwdChange) {
+                  onCwdChange(session.id, cwd);
+                } else {
+                  onScratchCwdChange?.(session.id, cwd);
+                }
+              }
+            : undefined;
+
+          return (
+            <div
+              key={session.id}
+              className={`absolute inset-0 ${
+                isActive
+                  ? 'visible z-10'
+                  : 'invisible z-0 pointer-events-none'
+              }`}
+            >
+              <MainTerminal
+                entityId={session.id}
+                type={terminalType}
+                isActive={isActive}
+                shouldAutoFocus={isActive && shouldAutoFocus}
+                focusTrigger={isActive ? focusTrigger : undefined}
+                terminalConfig={terminalConfig}
+                activityTimeout={activityTimeout}
+                onFocus={() => onFocus(session.id)}
+                onNotification={handleNotification}
+                onThinkingChange={handleThinkingChange}
+                onCwdChange={handleCwdChange}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useIndicators } from './useIndicators';
 import { resetMocks, createTestProject, createTestWorktree } from '../test/setup';
-import { Project } from '../types';
+import { Session } from '../types';
 
 // Mock the notifications module
 vi.mock('../lib/notifications', () => ({
@@ -12,10 +12,36 @@ vi.mock('../lib/notifications', () => ({
 import { sendOsNotification } from '../lib/notifications';
 
 describe('useIndicators', () => {
+  // Helper to create sessions from projects/worktrees
+  const createSessions = (projects: ReturnType<typeof createTestProject>[]): Session[] => {
+    const sessions: Session[] = [];
+    let order = 0;
+    for (const project of projects) {
+      sessions.push({
+        id: project.id,
+        kind: 'project',
+        name: project.name,
+        path: project.path,
+        order: order++,
+      });
+      for (const worktree of project.worktrees) {
+        sessions.push({
+          id: worktree.id,
+          kind: 'worktree',
+          name: worktree.name,
+          path: worktree.path,
+          order: order++,
+          projectId: project.id,
+          branch: worktree.branch,
+        });
+      }
+    }
+    return sessions;
+  };
+
   const defaultOptions = {
-    activeWorktreeId: null,
-    activeProjectId: null,
-    projects: [] as Project[],
+    activeSessionId: null,
+    sessions: [] as Session[],
   };
 
   beforeEach(() => {
@@ -34,11 +60,181 @@ describe('useIndicators', () => {
       expect(result.current.thinkingProjectIds.size).toBe(0);
       expect(result.current.idleProjectIds.size).toBe(0);
     });
+
+    it('starts with empty unified indicators map', () => {
+      const { result } = renderHook(() => useIndicators(defaultOptions));
+
+      expect(result.current.indicators.size).toBe(0);
+    });
   });
 
-  describe('worktree notifications', () => {
+  describe('unified handleNotification', () => {
+    it('adds session to indicators on notification', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
+
+      act(() => {
+        result.current.handleNotification('session-1', 'Title', 'Body');
+      });
+
+      expect(result.current.getIndicators('session-1').notified).toBe(true);
+    });
+
+    it('sends OS notification for inactive session', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+        { id: 'session-2', kind: 'scratch', name: 'Terminal 2', path: '/home', order: 1 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: 'session-2', sessions })
+      );
+
+      act(() => {
+        result.current.handleNotification('session-1', 'Test Title', 'Test Body');
+      });
+
+      expect(sendOsNotification).toHaveBeenCalledWith('Test Title', 'Test Body');
+    });
+
+    it('does not send OS notification for active session', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: 'session-1', sessions })
+      );
+
+      act(() => {
+        result.current.handleNotification('session-1', 'Title', 'Body');
+      });
+
+      expect(sendOsNotification).not.toHaveBeenCalled();
+    });
+
+    it('uses session name as title if not provided', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'My Terminal', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
+
+      act(() => {
+        result.current.handleNotification('session-1', '', 'Body');
+      });
+
+      expect(sendOsNotification).toHaveBeenCalledWith('My Terminal', 'Body');
+    });
+
+    it('clears notification when session becomes active', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result, rerender } = renderHook(
+        (props) => useIndicators(props),
+        { initialProps: { activeSessionId: null, sessions } }
+      );
+
+      act(() => {
+        result.current.handleNotification('session-1', 'Title', 'Body');
+      });
+
+      expect(result.current.getIndicators('session-1').notified).toBe(true);
+
+      rerender({ activeSessionId: 'session-1', sessions });
+
+      expect(result.current.getIndicators('session-1').notified).toBe(false);
+    });
+  });
+
+  describe('unified handleThinkingChange', () => {
+    it('sets thinking state', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
+
+      act(() => {
+        result.current.handleThinkingChange('session-1', true);
+      });
+
+      expect(result.current.getIndicators('session-1').thinking).toBe(true);
+      expect(result.current.getIndicators('session-1').idle).toBe(false);
+    });
+
+    it('clears thinking and sets idle when thinking stops', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
+
+      act(() => {
+        result.current.handleThinkingChange('session-1', true);
+      });
+      act(() => {
+        result.current.handleThinkingChange('session-1', false);
+      });
+
+      expect(result.current.getIndicators('session-1').thinking).toBe(false);
+      expect(result.current.getIndicators('session-1').idle).toBe(true);
+    });
+
+    it('does not set idle if was not thinking', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
+
+      act(() => {
+        result.current.handleThinkingChange('session-1', false);
+      });
+
+      expect(result.current.getIndicators('session-1').idle).toBe(false);
+    });
+
+    it('clears idle when session becomes active', () => {
+      const sessions: Session[] = [
+        { id: 'session-1', kind: 'scratch', name: 'Terminal 1', path: '/home', order: 0 },
+      ];
+      const { result, rerender } = renderHook(
+        (props) => useIndicators(props),
+        { initialProps: { activeSessionId: null, sessions } }
+      );
+
+      act(() => {
+        result.current.handleThinkingChange('session-1', true);
+      });
+      act(() => {
+        result.current.handleThinkingChange('session-1', false);
+      });
+
+      expect(result.current.getIndicators('session-1').idle).toBe(true);
+
+      rerender({ activeSessionId: 'session-1', sessions });
+
+      expect(result.current.getIndicators('session-1').idle).toBe(false);
+    });
+  });
+
+  describe('legacy worktree compatibility', () => {
     it('adds worktree to notified set on notification', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleWorktreeNotification('wt-1', 'Title', 'Body');
@@ -48,8 +244,13 @@ describe('useIndicators', () => {
     });
 
     it('sends OS notification for inactive worktree', () => {
+      const worktree1 = createTestWorktree({ id: 'wt-1', name: 'feature-1' });
+      const worktree2 = createTestWorktree({ id: 'wt-2', name: 'feature-2' });
+      const project = createTestProject({ worktrees: [worktree1, worktree2] });
+      const sessions = createSessions([project]);
+
       const { result } = renderHook(() =>
-        useIndicators({ ...defaultOptions, activeWorktreeId: 'wt-2' })
+        useIndicators({ activeSessionId: 'wt-2', sessions })
       );
 
       act(() => {
@@ -60,8 +261,12 @@ describe('useIndicators', () => {
     });
 
     it('does not send OS notification for active worktree', () => {
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
       const { result } = renderHook(() =>
-        useIndicators({ ...defaultOptions, activeWorktreeId: 'wt-1' })
+        useIndicators({ activeSessionId: 'wt-1', sessions })
       );
 
       act(() => {
@@ -74,12 +279,10 @@ describe('useIndicators', () => {
     it('uses worktree name as title if not provided', () => {
       const worktree = createTestWorktree({ id: 'wt-1', name: 'feature-branch' });
       const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
 
       const { result } = renderHook(() =>
-        useIndicators({
-          ...defaultOptions,
-          projects: [project],
-        })
+        useIndicators({ activeSessionId: null, sessions })
       );
 
       act(() => {
@@ -90,9 +293,13 @@ describe('useIndicators', () => {
     });
 
     it('clears notification when worktree becomes active', () => {
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
       const { result, rerender } = renderHook(
         (props) => useIndicators(props),
-        { initialProps: defaultOptions }
+        { initialProps: { activeSessionId: null, sessions } }
       );
 
       act(() => {
@@ -101,15 +308,21 @@ describe('useIndicators', () => {
 
       expect(result.current.notifiedWorktreeIds.has('wt-1')).toBe(true);
 
-      rerender({ ...defaultOptions, activeWorktreeId: 'wt-1' });
+      rerender({ activeSessionId: 'wt-1', sessions });
 
       expect(result.current.notifiedWorktreeIds.has('wt-1')).toBe(false);
     });
   });
 
-  describe('worktree thinking state', () => {
+  describe('legacy worktree thinking state', () => {
     it('adds worktree to thinking set when thinking starts', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleWorktreeThinkingChange('wt-1', true);
@@ -119,7 +332,13 @@ describe('useIndicators', () => {
     });
 
     it('removes worktree from thinking set when thinking stops', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleWorktreeThinkingChange('wt-1', true);
@@ -132,7 +351,13 @@ describe('useIndicators', () => {
     });
 
     it('clears idle state when thinking starts', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       // First, make worktree idle by completing a thinking cycle
       act(() => {
@@ -153,7 +378,13 @@ describe('useIndicators', () => {
     });
 
     it('sets idle state when thinking stops', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleWorktreeThinkingChange('wt-1', true);
@@ -166,7 +397,13 @@ describe('useIndicators', () => {
     });
 
     it('does not set idle if was not thinking', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleWorktreeThinkingChange('wt-1', false);
@@ -176,9 +413,13 @@ describe('useIndicators', () => {
     });
 
     it('clears idle state when worktree becomes active', () => {
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'feature' });
+      const project = createTestProject({ worktrees: [worktree] });
+      const sessions = createSessions([project]);
+
       const { result, rerender } = renderHook(
         (props) => useIndicators(props),
-        { initialProps: defaultOptions }
+        { initialProps: { activeSessionId: null, sessions } }
       );
 
       // Create idle state
@@ -191,15 +432,20 @@ describe('useIndicators', () => {
 
       expect(result.current.idleWorktreeIds.has('wt-1')).toBe(true);
 
-      rerender({ ...defaultOptions, activeWorktreeId: 'wt-1' });
+      rerender({ activeSessionId: 'wt-1', sessions });
 
       expect(result.current.idleWorktreeIds.has('wt-1')).toBe(false);
     });
   });
 
-  describe('project notifications', () => {
+  describe('legacy project compatibility', () => {
     it('adds project to notified set on notification', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleProjectNotification('proj-1', 'Title', 'Body');
@@ -209,8 +455,12 @@ describe('useIndicators', () => {
     });
 
     it('sends OS notification for inactive project', () => {
+      const project1 = createTestProject({ id: 'proj-1', name: 'project-1' });
+      const project2 = createTestProject({ id: 'proj-2', name: 'project-2' });
+      const sessions = createSessions([project1, project2]);
+
       const { result } = renderHook(() =>
-        useIndicators({ ...defaultOptions, activeProjectId: 'proj-2' })
+        useIndicators({ activeSessionId: 'proj-2', sessions })
       );
 
       act(() => {
@@ -220,9 +470,12 @@ describe('useIndicators', () => {
       expect(sendOsNotification).toHaveBeenCalledWith('Test Title', 'Test Body');
     });
 
-    it('does not send OS notification for active project when no worktree active', () => {
+    it('does not send OS notification for active project', () => {
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
       const { result } = renderHook(() =>
-        useIndicators({ ...defaultOptions, activeProjectId: 'proj-1' })
+        useIndicators({ activeSessionId: 'proj-1', sessions })
       );
 
       act(() => {
@@ -232,30 +485,12 @@ describe('useIndicators', () => {
       expect(sendOsNotification).not.toHaveBeenCalled();
     });
 
-    it('sends OS notification for active project when a worktree is active', () => {
-      const { result } = renderHook(() =>
-        useIndicators({
-          ...defaultOptions,
-          activeWorktreeId: 'wt-1',
-          activeProjectId: 'proj-1',
-        })
-      );
-
-      act(() => {
-        result.current.handleProjectNotification('proj-1', 'Title', 'Body');
-      });
-
-      expect(sendOsNotification).toHaveBeenCalledWith('Title', 'Body');
-    });
-
     it('uses project name as title if not provided', () => {
       const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
 
       const { result } = renderHook(() =>
-        useIndicators({
-          ...defaultOptions,
-          projects: [project],
-        })
+        useIndicators({ activeSessionId: null, sessions })
       );
 
       act(() => {
@@ -266,9 +501,12 @@ describe('useIndicators', () => {
     });
 
     it('clears notification when project becomes active', () => {
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
       const { result, rerender } = renderHook(
         (props) => useIndicators(props),
-        { initialProps: defaultOptions }
+        { initialProps: { activeSessionId: null, sessions } }
       );
 
       act(() => {
@@ -277,38 +515,20 @@ describe('useIndicators', () => {
 
       expect(result.current.notifiedProjectIds.has('proj-1')).toBe(true);
 
-      // Project becomes active (no worktree active)
-      rerender({ ...defaultOptions, activeProjectId: 'proj-1' });
+      rerender({ activeSessionId: 'proj-1', sessions });
 
       expect(result.current.notifiedProjectIds.has('proj-1')).toBe(false);
     });
-
-    it('does not clear notification when project active but worktree also active', () => {
-      const { result, rerender } = renderHook(
-        (props) => useIndicators(props),
-        { initialProps: defaultOptions }
-      );
-
-      act(() => {
-        result.current.handleProjectNotification('proj-1', 'Title', 'Body');
-      });
-
-      expect(result.current.notifiedProjectIds.has('proj-1')).toBe(true);
-
-      // Worktree is active, so project notification shouldn't clear
-      rerender({
-        ...defaultOptions,
-        activeWorktreeId: 'wt-1',
-        activeProjectId: 'proj-1',
-      });
-
-      expect(result.current.notifiedProjectIds.has('proj-1')).toBe(true);
-    });
   });
 
-  describe('project thinking state', () => {
+  describe('legacy project thinking state', () => {
     it('adds project to thinking set when thinking starts', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleProjectThinkingChange('proj-1', true);
@@ -318,7 +538,12 @@ describe('useIndicators', () => {
     });
 
     it('removes project from thinking set when thinking stops', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleProjectThinkingChange('proj-1', true);
@@ -331,7 +556,12 @@ describe('useIndicators', () => {
     });
 
     it('sets idle state when thinking stops', () => {
-      const { result } = renderHook(() => useIndicators(defaultOptions));
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
+      const { result } = renderHook(() =>
+        useIndicators({ activeSessionId: null, sessions })
+      );
 
       act(() => {
         result.current.handleProjectThinkingChange('proj-1', true);
@@ -344,9 +574,12 @@ describe('useIndicators', () => {
     });
 
     it('clears idle state when project becomes active', () => {
+      const project = createTestProject({ id: 'proj-1', name: 'my-project' });
+      const sessions = createSessions([project]);
+
       const { result, rerender } = renderHook(
         (props) => useIndicators(props),
-        { initialProps: defaultOptions }
+        { initialProps: { activeSessionId: null, sessions } }
       );
 
       // Create idle state
@@ -359,8 +592,7 @@ describe('useIndicators', () => {
 
       expect(result.current.idleProjectIds.has('proj-1')).toBe(true);
 
-      // Project becomes active (no worktree active)
-      rerender({ ...defaultOptions, activeProjectId: 'proj-1' });
+      rerender({ activeSessionId: 'proj-1', sessions });
 
       expect(result.current.idleProjectIds.has('proj-1')).toBe(false);
     });

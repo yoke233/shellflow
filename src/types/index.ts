@@ -22,6 +22,26 @@ export type ActiveSelection =
   | { type: 'scratch'; scratchId: string }
   | null;
 
+// Unified session concept - consolidates scratch, project, and worktree terminals
+export type SessionKind = 'scratch' | 'project' | 'worktree';
+
+export interface Session {
+  id: string;
+  kind: SessionKind;
+  name: string;
+  path: string;           // cwd for scratch, repo path for project, worktree path for worktree
+  order: number;
+  projectId?: string;     // only for worktrees (parent reference)
+  branch?: string;        // only for worktrees
+}
+
+// Indicator state for sessions
+export interface SessionIndicators {
+  notified: boolean;
+  thinking: boolean;
+  idle: boolean;
+}
+
 export interface Worktree {
   id: string;
   name: string;

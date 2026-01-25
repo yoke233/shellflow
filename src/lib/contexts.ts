@@ -5,6 +5,8 @@
  * Keybindings can be conditionally active based on context expressions.
  */
 
+import { SessionKind } from '../types';
+
 /**
  * All possible context flags.
  *
@@ -44,10 +46,14 @@ export type ActiveContexts = Set<ContextFlag>;
  * This mirrors the relevant parts of App state.
  */
 export interface ContextState {
-  // Active entity IDs
-  activeScratchId: string | null;
-  activeWorktreeId: string | null;
-  activeProjectId: string | null;
+  // Active session (unified)
+  activeSessionId: string | null;
+  activeSessionKind: SessionKind | null;
+
+  // Legacy: Active entity IDs (for backward compatibility)
+  activeScratchId?: string | null;
+  activeWorktreeId?: string | null;
+  activeProjectId?: string | null;
 
   // Focus state
   focusState: 'main' | 'drawer';
@@ -81,13 +87,28 @@ export function getActiveContexts(state: ContextState): ActiveContexts {
   const contexts = new Set<ContextFlag>();
 
   // View focus (mutually exclusive)
-  // Priority: scratch > worktree > project
-  if (state.activeScratchId) {
-    contexts.add('scratchFocused');
-  } else if (state.activeWorktreeId) {
-    contexts.add('worktreeFocused');
-  } else if (state.activeProjectId) {
-    contexts.add('projectFocused');
+  // Use activeSessionKind if available, otherwise fall back to legacy IDs
+  if (state.activeSessionKind) {
+    switch (state.activeSessionKind) {
+      case 'scratch':
+        contexts.add('scratchFocused');
+        break;
+      case 'worktree':
+        contexts.add('worktreeFocused');
+        break;
+      case 'project':
+        contexts.add('projectFocused');
+        break;
+    }
+  } else {
+    // Legacy fallback: Priority: scratch > worktree > project
+    if (state.activeScratchId) {
+      contexts.add('scratchFocused');
+    } else if (state.activeWorktreeId) {
+      contexts.add('worktreeFocused');
+    } else if (state.activeProjectId) {
+      contexts.add('projectFocused');
+    }
   }
 
   // Panel focus

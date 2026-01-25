@@ -8,6 +8,8 @@ import {
 
 // Default state with nothing active
 const emptyState: ContextState = {
+  activeSessionId: null,
+  activeSessionKind: null,
   activeScratchId: null,
   activeWorktreeId: null,
   activeProjectId: null,
@@ -23,7 +25,42 @@ const emptyState: ContextState = {
 };
 
 describe('getActiveContexts', () => {
-  describe('view focus (mutually exclusive)', () => {
+  describe('view focus (mutually exclusive) - unified session', () => {
+    it('includes scratchFocused when scratch session is active', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        activeSessionId: 'scratch-1',
+        activeSessionKind: 'scratch',
+      });
+      expect(contexts.has('scratchFocused')).toBe(true);
+      expect(contexts.has('worktreeFocused')).toBe(false);
+      expect(contexts.has('projectFocused')).toBe(false);
+    });
+
+    it('includes worktreeFocused when worktree session is active', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        activeSessionId: 'wt-1',
+        activeSessionKind: 'worktree',
+      });
+      expect(contexts.has('worktreeFocused')).toBe(true);
+      expect(contexts.has('scratchFocused')).toBe(false);
+      expect(contexts.has('projectFocused')).toBe(false);
+    });
+
+    it('includes projectFocused when project session is active', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        activeSessionId: 'proj-1',
+        activeSessionKind: 'project',
+      });
+      expect(contexts.has('projectFocused')).toBe(true);
+      expect(contexts.has('scratchFocused')).toBe(false);
+      expect(contexts.has('worktreeFocused')).toBe(false);
+    });
+  });
+
+  describe('view focus (mutually exclusive) - legacy fallback', () => {
     it('includes scratchFocused when scratch is active', () => {
       const contexts = getActiveContexts({
         ...emptyState,
@@ -75,6 +112,19 @@ describe('getActiveContexts', () => {
     });
   });
 
+  describe('unified session takes precedence over legacy', () => {
+    it('activeSessionKind overrides legacy activeScratchId', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        activeSessionId: 'proj-1',
+        activeSessionKind: 'project',
+        activeScratchId: 'scratch-1', // This should be ignored
+      });
+      expect(contexts.has('projectFocused')).toBe(true);
+      expect(contexts.has('scratchFocused')).toBe(false);
+    });
+  });
+
   describe('panel focus', () => {
     it('includes drawerFocused when drawer is open and focused', () => {
       const contexts = getActiveContexts({
@@ -107,7 +157,8 @@ describe('getActiveContexts', () => {
     it('drawerFocused and view focus can coexist', () => {
       const contexts = getActiveContexts({
         ...emptyState,
-        activeWorktreeId: 'wt-1',
+        activeSessionId: 'wt-1',
+        activeSessionKind: 'worktree',
         isDrawerOpen: true,
         focusState: 'drawer',
       });
@@ -218,7 +269,8 @@ describe('formatContexts', () => {
   it('formats contexts as sorted comma-separated string', () => {
     const contexts = getActiveContexts({
       ...emptyState,
-      activeWorktreeId: 'wt-1',
+      activeSessionId: 'wt-1',
+      activeSessionKind: 'worktree',
       isDrawerOpen: true,
       focusState: 'drawer',
     });

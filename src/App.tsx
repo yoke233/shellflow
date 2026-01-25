@@ -32,7 +32,7 @@ import { useMappings } from './hooks/useMappings';
 import { getActiveContexts, type ContextState } from './lib/contexts';
 import { createActionHandlers, executeAction } from './lib/actionHandlers';
 import { copyFromActiveTerminal, pasteToActiveTerminal } from './lib/terminalRegistry';
-import { Project, Worktree, RunningTask, MergeCompleted } from './types';
+import { Project, Worktree, RunningTask, MergeCompleted, Session, SessionKind } from './types';
 import { ToastContainer } from './components/Toast';
 import { useToast } from './hooks/useToast';
 
@@ -247,6 +247,68 @@ function App() {
   const [stashError, setStashError] = useState<string | null>(null);
   const [loadingWorktrees, setLoadingWorktrees] = useState<Set<string>>(new Set());
 
+  // Derive unified sessions from scratch terminals, projects, and worktrees
+  const sessions = useMemo((): Session[] => {
+    const result: Session[] = [];
+    let order = 0;
+
+    // Scratch terminals first
+    for (const scratch of scratchTerminals) {
+      result.push({
+        id: scratch.id,
+        kind: 'scratch',
+        name: scratch.name,
+        path: scratchCwds.get(scratch.id) ?? homeDir ?? '',
+        order: order++,
+      });
+    }
+
+    // Projects and their worktrees (interleaved in sidebar visual order)
+    for (const project of projects) {
+      if (!project.isActive) continue;
+
+      result.push({
+        id: project.id,
+        kind: 'project',
+        name: project.name,
+        path: project.path,
+        order: order++,
+      });
+
+      for (const worktree of project.worktrees) {
+        result.push({
+          id: worktree.id,
+          kind: 'worktree',
+          name: worktree.name,
+          path: worktree.path,
+          order: order++,
+          projectId: project.id,
+          branch: worktree.branch,
+        });
+      }
+    }
+
+    return result;
+  }, [scratchTerminals, scratchCwds, projects, homeDir]);
+
+  // Derive active session ID and kind (for unified session management)
+  const activeSessionId = activeWorktreeId ?? activeScratchId ?? activeProjectId;
+  const activeSessionKind: SessionKind | null = useMemo(() => {
+    if (activeScratchId) return 'scratch';
+    if (activeWorktreeId) return 'worktree';
+    if (activeProjectId) return 'project';
+    return null;
+  }, [activeScratchId, activeWorktreeId, activeProjectId]);
+
+  // Derive open session IDs from open worktrees, projects, and scratch terminals
+  const openSessionIds = useMemo((): Set<string> => {
+    const result = new Set<string>();
+    for (const wid of openWorktreeIds) result.add(wid);
+    for (const pid of openProjectIds) result.add(pid);
+    for (const scratch of scratchTerminals) result.add(scratch.id);
+    return result;
+  }, [openWorktreeIds, openProjectIds, scratchTerminals]);
+
   // Indicator states for worktrees and projects
   const {
     notifiedWorktreeIds,
@@ -259,10 +321,11 @@ function App() {
     handleWorktreeThinkingChange,
     handleProjectNotification,
     handleProjectThinkingChange,
+    handleScratchNotification,
+    handleScratchThinkingChange,
   } = useIndicators({
-    activeWorktreeId,
-    activeProjectId,
-    projects,
+    activeSessionId,
+    sessions,
   });
   const [isShuttingDown, setIsShuttingDown] = useState(false);
   const [isModifierKeyHeld, setIsModifierKeyHeld] = useState(false);
@@ -2109,6 +2172,8 @@ function App() {
     const handleContextKeyDown = (e: KeyboardEvent) => {
       // Build context state from current app state
       const contextState: ContextState = {
+        activeSessionId,
+        activeSessionKind,
         activeScratchId,
         activeWorktreeId,
         activeProjectId,
@@ -2442,12 +2507,9 @@ function App() {
                 style={{ opacity: activeFocusState === 'drawer' ? config.unfocusedOpacity : 1 }}
               >
                 <MainPane
-                  openWorktreeIds={openWorktreeIds}
-                  activeWorktreeId={activeWorktreeId}
-                  openProjectIds={openProjectIds}
-                  activeProjectId={activeProjectId}
-                  scratchTerminals={scratchTerminals}
-                  activeScratchId={activeScratchId}
+                  sessions={sessions}
+                  openSessionIds={openSessionIds}
+                  activeSessionId={activeSessionId}
                   terminalConfig={mainTerminalConfig}
                   activityTimeout={config.indicators.activityTimeout}
                   shouldAutoFocus={activeFocusState === 'main'}
@@ -2458,6 +2520,8 @@ function App() {
                   onWorktreeThinkingChange={handleWorktreeThinkingChange}
                   onProjectNotification={handleProjectNotification}
                   onProjectThinkingChange={handleProjectThinkingChange}
+                  onScratchNotification={handleScratchNotification}
+                  onScratchThinkingChange={handleScratchThinkingChange}
                   onScratchCwdChange={handleScratchCwdChange}
                 />
               </div>
