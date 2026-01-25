@@ -20,6 +20,29 @@ export function ModalContainer({
   const [isClosing, setIsClosing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Capture focus during initial render (before any effects run)
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const didCaptureFocus = useRef(false);
+  if (!didCaptureFocus.current) {
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    didCaptureFocus.current = true;
+  }
+
+  // Restore focus on unmount
+  useEffect(() => {
+    const el = previousFocusRef.current;
+    return () => {
+      if (el && el.isConnected) {
+        // Use setTimeout to ensure focus restoration happens after React cleanup
+        setTimeout(() => {
+          if (el.isConnected) {
+            el.focus();
+          }
+        }, 0);
+      }
+    };
+  }, []);
+
   // Animate in on mount
   useEffect(() => {
     const timer = requestAnimationFrame(() => setIsVisible(true));
