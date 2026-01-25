@@ -37,22 +37,6 @@ export interface TaskConfig {
   urls?: Record<string, string>;
 }
 
-/** Platform-specific shortcut mapping */
-export interface PlatformShortcut {
-  mac?: string;
-  other?: string;
-}
-
-/** A shortcut entry: either a universal string or platform-specific object */
-export type ShortcutEntry = string | PlatformShortcut;
-
-/**
- * A shortcut configuration that can be:
- * - A simple string (universal)
- * - A platform-specific object { mac?: string, other?: string }
- * - An array of strings and/or platform-specific objects
- */
-export type Shortcut = string | PlatformShortcut | ShortcutEntry[];
 
 export interface IndicatorsConfig {
   activityTimeout: number;
@@ -76,38 +60,6 @@ export interface WorktreeConfig {
   focusNewBranchNames: boolean;
 }
 
-export interface MappingsConfig {
-  toggleDrawer: Shortcut;
-  toggleRightPanel: Shortcut;
-  terminalCopy: Shortcut;
-  terminalPaste: Shortcut;
-  worktreePrev: Shortcut;
-  worktreeNext: Shortcut;
-  drawerTabPrev: Shortcut;
-  drawerTabNext: Shortcut;
-  worktree1: Shortcut;
-  worktree2: Shortcut;
-  worktree3: Shortcut;
-  worktree4: Shortcut;
-  worktree5: Shortcut;
-  worktree6: Shortcut;
-  worktree7: Shortcut;
-  worktree8: Shortcut;
-  worktree9: Shortcut;
-  renameBranch: Shortcut;
-  runTask: Shortcut;
-  newWorkspace: Shortcut;
-  newScratchTerminal: Shortcut;
-  switchFocus: Shortcut;
-  taskSwitcher: Shortcut;
-  expandDrawer: Shortcut;
-  previousView: Shortcut;
-  zoomIn: Shortcut;
-  zoomOut: Shortcut;
-  zoomReset: Shortcut;
-  commandPalette: Shortcut;
-  projectSwitcher: Shortcut;
-}
 
 export interface Config {
   main: MainConfig;
@@ -115,7 +67,6 @@ export interface Config {
   apps: AppsConfig;
   merge: MergeConfig;
   navigation: NavigationConfig;
-  mappings: MappingsConfig;
   indicators: IndicatorsConfig;
   tasks: TaskConfig[];
   actions: ActionsConfig;
@@ -167,40 +118,6 @@ const defaultConfig: Config = {
   indicators: {
     activityTimeout: 250,
     showIdleCheck: true,
-  },
-  // Mappings are loaded from backend (default_config.jsonc is single source of truth)
-  // These are placeholder values used only until backend config loads
-  mappings: {
-    toggleDrawer: '',
-    toggleRightPanel: '',
-    terminalCopy: '',
-    terminalPaste: '',
-    worktreePrev: '',
-    worktreeNext: '',
-    drawerTabPrev: '',
-    drawerTabNext: '',
-    worktree1: '',
-    worktree2: '',
-    worktree3: '',
-    worktree4: '',
-    worktree5: '',
-    worktree6: '',
-    worktree7: '',
-    worktree8: '',
-    worktree9: '',
-    renameBranch: '',
-    runTask: '',
-    newWorkspace: '',
-    newScratchTerminal: '',
-    switchFocus: '',
-    taskSwitcher: '',
-    expandDrawer: '',
-    previousView: '',
-    zoomIn: '',
-    zoomOut: '',
-    zoomReset: '',
-    commandPalette: '',
-    projectSwitcher: '',
   },
   tasks: [],
   actions: {

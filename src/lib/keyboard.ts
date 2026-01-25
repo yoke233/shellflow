@@ -1,6 +1,21 @@
-import type { Shortcut, PlatformShortcut, ShortcutEntry } from '../hooks/useConfig';
-
 const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().includes('MAC');
+
+/** Platform-specific shortcut mapping */
+export interface PlatformShortcut {
+  mac?: string;
+  other?: string;
+}
+
+/** A shortcut entry: either a universal string or platform-specific object */
+export type ShortcutEntry = string | PlatformShortcut;
+
+/**
+ * A shortcut configuration that can be:
+ * - A simple string (universal)
+ * - A platform-specific object { mac?: string, other?: string }
+ * - An array of strings and/or platform-specific objects
+ */
+export type Shortcut = string | PlatformShortcut | ShortcutEntry[];
 
 /**
  * Check if a keyboard event matches a single shortcut string.

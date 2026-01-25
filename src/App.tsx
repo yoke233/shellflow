@@ -26,7 +26,6 @@ import { ActionContext, getMenuAvailability } from './lib/actions';
 import { useActions, ActionHandlers } from './hooks/useActions';
 import { arrayMove } from '@dnd-kit/sortable';
 import { sendOsNotification } from './lib/notifications';
-import { matchesShortcut } from './lib/keyboard';
 import { useMappings } from './hooks/useMappings';
 import { getActiveContexts, type ContextState } from './lib/contexts';
 import { createActionHandlers, executeAction } from './lib/actionHandlers';
@@ -2262,9 +2261,9 @@ function App() {
     resolveKeyEvent, contextActionHandlers,
   ]);
 
-  // Keyboard shortcuts
+  // Modifier key tracking and hardcoded shortcuts
+  // (Most shortcuts are handled by the context-aware system in useMappings)
   useEffect(() => {
-    const { mappings } = config;
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -2278,33 +2277,10 @@ function App() {
         setIsCtrlKeyHeld(true);
       }
 
-      // When a picker is open, we're in "picker" context.
-      // Only handle picker-specific shortcuts here; everything else passes through
-      // to the browser/picker naturally (text editing, navigation, etc.)
+      // When a picker is open, don't process hardcoded shortcuts
       if (isPickerOpenRef.current) {
-        // Picker context: only handle picker toggle shortcuts (to switch/close pickers)
-        if (matchesShortcut(e, mappings.taskSwitcher)) {
-          e.preventDefault();
-          handleToggleTaskSwitcher();
-          return;
-        }
-        if (matchesShortcut(e, mappings.commandPalette)) {
-          e.preventDefault();
-          handleToggleCommandPalette();
-          return;
-        }
-        if (matchesShortcut(e, mappings.projectSwitcher)) {
-          e.preventDefault();
-          handleToggleProjectSwitcher();
-          return;
-        }
-
-        // Don't process any other shortcuts in picker context - just exit early
-        // This lets the picker and browser handle everything else naturally
         return;
       }
-
-      // Normal context: handle all app shortcuts below
 
       // Ctrl+1-9 to select drawer tabs (when drawer is open)
       if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && isDrawerOpen && activeDrawerTabs.length > 0) {
@@ -2319,72 +2295,8 @@ function App() {
         }
       }
 
-      // Rename branch shortcut (F2 by default)
-      if (matchesShortcut(e, mappings.renameBranch) && activeWorktreeId) {
-        e.preventDefault();
-        focusToRestoreRef.current = document.activeElement as HTMLElement | null;
-        setAutoEditWorktreeId(activeWorktreeId);
-        return;
-      }
-
-      // Entity selection by index (1-9) - includes scratch terminals and worktrees
-      const entityShortcuts = [
-        mappings.worktree1,
-        mappings.worktree2,
-        mappings.worktree3,
-        mappings.worktree4,
-        mappings.worktree5,
-        mappings.worktree6,
-        mappings.worktree7,
-        mappings.worktree8,
-        mappings.worktree9,
-      ];
-      for (let i = 0; i < entityShortcuts.length; i++) {
-        if (matchesShortcut(e, entityShortcuts[i]) && i < openEntitiesInOrder.length) {
-          e.preventDefault();
-          const entity = openEntitiesInOrder[i];
-          if (entity.type === 'scratch') {
-            setActiveWorktreeId(null);
-            setActiveProjectId(null);
-            setActiveScratchId(entity.id);
-          } else if (entity.type === 'project') {
-            setActiveWorktreeId(null);
-            setActiveScratchId(null);
-            setActiveProjectId(entity.id);
-          } else {
-            // For worktrees, also set the project context
-            const project = projects.find(p => p.worktrees.some(w => w.id === entity.id));
-            if (project) {
-              setActiveProjectId(project.id);
-            }
-            setActiveWorktreeId(entity.id);
-            setActiveScratchId(null);
-          }
-          break;
-        }
-      }
-
-      // Zoom shortcuts (must come before Cmd+0 check since zoomReset uses Cmd+Shift+0)
-      if (matchesShortcut(e, mappings.zoomIn)) {
-        e.preventDefault();
-        handleZoomIn();
-        return;
-      }
-
-      if (matchesShortcut(e, mappings.zoomOut)) {
-        e.preventDefault();
-        handleZoomOut();
-        return;
-      }
-
-      if (matchesShortcut(e, mappings.zoomReset)) {
-        e.preventDefault();
-        handleZoomReset();
-        return;
-      }
-
       // Cmd+0: Switch from worktree/scratch to project view (hardcoded, not configurable)
-      if ((e.metaKey || e.ctrlKey) && e.key === '0' && (activeWorktreeId || activeScratchId) && activeProjectId) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '0' && (activeWorktreeId || activeScratchId) && activeProjectId) {
         e.preventDefault();
         // Save current view as previous before switching
         setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId, scratchId: activeScratchId });
@@ -2393,192 +2305,30 @@ function App() {
         return;
       }
 
-      // Switch focus between main and drawer (works even without active worktree selection)
-      if (matchesShortcut(e, mappings.switchFocus)) {
+      // Cmd+T to add new terminal tab (when drawer is open)
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === 't' && isDrawerOpen && activeEntityId) {
         e.preventDefault();
-        handleSwitchFocus();
+        handleAddDrawerTab();
         return;
       }
 
-      // Switch to previous view (cmd+' toggle)
-      if (matchesShortcut(e, mappings.previousView)) {
+      // Ctrl+Tab / Ctrl+Shift+Tab to cycle through drawer tabs (when drawer is open and focused)
+      if (e.ctrlKey && e.key === 'Tab' && isDrawerOpen && activeFocusState === 'drawer' && activeDrawerTabs.length > 1) {
         e.preventDefault();
-        handleSwitchToPreviousView();
-        return;
-      }
-
-      // Drawer/panel shortcuts work for both project and worktree views
-      if (activeEntityId) {
-        if (matchesShortcut(e, mappings.toggleDrawer)) {
-          e.preventDefault();
-          handleToggleDrawer();
-        }
-
-        // Expand/collapse drawer (only when drawer is open)
-        if (isDrawerOpen && matchesShortcut(e, mappings.expandDrawer)) {
-          e.preventDefault();
-          e.stopPropagation();
-          handleToggleDrawerExpand();
-          return;
-        }
-
-        // Cmd+T to add new terminal tab (when drawer is open)
-        if ((e.metaKey || e.ctrlKey) && e.key === 't' && isDrawerOpen) {
-          e.preventDefault();
-          handleAddDrawerTab();
-        }
-
-        // Drawer tab cycling (Cmd+H/L on mac, Ctrl+H/L on other)
-        // Always capture these shortcuts to prevent system actions (e.g., Cmd+H hides app on macOS)
-        if (matchesShortcut(e, mappings.drawerTabPrev)) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (isDrawerOpen && activeDrawerTabs.length > 1) {
-            const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
-            if (currentIndex !== -1) {
-              const prevIndex = currentIndex === 0 ? activeDrawerTabs.length - 1 : currentIndex - 1;
-              handleSelectDrawerTab(activeDrawerTabs[prevIndex].id);
-            }
-          }
-          return;
-        }
-        if (matchesShortcut(e, mappings.drawerTabNext)) {
-          e.preventDefault();
-          e.stopPropagation();
-          if (isDrawerOpen && activeDrawerTabs.length > 1) {
-            const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
-            if (currentIndex !== -1) {
-              const nextIndex = currentIndex === activeDrawerTabs.length - 1 ? 0 : currentIndex + 1;
-              handleSelectDrawerTab(activeDrawerTabs[nextIndex].id);
-            }
-          }
-          return;
-        }
-
-        // Ctrl+Tab / Ctrl+Shift+Tab to cycle through drawer tabs (when drawer is open and focused)
-        if (e.ctrlKey && e.key === 'Tab' && isDrawerOpen && activeFocusState === 'drawer' && activeDrawerTabs.length > 1) {
-          e.preventDefault();
-          e.stopPropagation();
-          const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
-          if (currentIndex !== -1) {
-            let nextIndex: number;
-            if (e.shiftKey) {
-              // Ctrl+Shift+Tab: previous tab
-              nextIndex = currentIndex === 0 ? activeDrawerTabs.length - 1 : currentIndex - 1;
-            } else {
-              // Ctrl+Tab: next tab
-              nextIndex = currentIndex === activeDrawerTabs.length - 1 ? 0 : currentIndex + 1;
-            }
-            handleSelectDrawerTab(activeDrawerTabs[nextIndex].id);
-          }
-          return;
-        }
-
-        if (matchesShortcut(e, mappings.toggleRightPanel)) {
-          e.preventDefault();
-          handleToggleRightPanel();
-        }
-      }
-
-      // Entity navigation - cycle through all entities (scratch terminals + projects + worktrees) in sidebar order
-      // Works from worktree, scratch, or project view
-      if (openEntitiesInOrder.length > 0) {
-        // Find current entity index - check worktree, scratch, or project
-        const currentEntityId = activeWorktreeId ?? activeScratchId ?? (activeProjectId && !activeWorktreeId ? activeProjectId : null);
-        const currentEntityType = activeWorktreeId ? 'worktree' : activeScratchId ? 'scratch' : activeProjectId ? 'project' : null;
-        const currentIndex = currentEntityId && currentEntityType
-          ? openEntitiesInOrder.findIndex(e => e.id === currentEntityId && e.type === currentEntityType)
-          : -1;
-
-        const selectEntity = (entity: { type: 'scratch' | 'worktree' | 'project'; id: string }) => {
-          if (entity.type === 'scratch') {
-            setActiveWorktreeId(null);
-            setActiveProjectId(null);
-            setActiveScratchId(entity.id);
-          } else if (entity.type === 'project') {
-            setActiveWorktreeId(null);
-            setActiveScratchId(null);
-            setActiveProjectId(entity.id);
-          } else {
-            // For worktrees, also set the project context
-            const project = projects.find(p => p.worktrees.some(w => w.id === entity.id));
-            if (project) {
-              setActiveProjectId(project.id);
-            }
-            setActiveWorktreeId(entity.id);
-            setActiveScratchId(null);
-          }
-        };
-
+        e.stopPropagation();
+        const currentIndex = activeDrawerTabs.findIndex(tab => tab.id === activeDrawerTabId);
         if (currentIndex !== -1) {
-          // Currently viewing an entity - cycle through them
-          if (matchesShortcut(e, mappings.worktreePrev)) {
-            e.preventDefault();
-            const prevIndex = currentIndex === 0 ? openEntitiesInOrder.length - 1 : currentIndex - 1;
-            selectEntity(openEntitiesInOrder[prevIndex]);
+          let nextIndex: number;
+          if (e.shiftKey) {
+            // Ctrl+Shift+Tab: previous tab
+            nextIndex = currentIndex === 0 ? activeDrawerTabs.length - 1 : currentIndex - 1;
+          } else {
+            // Ctrl+Tab: next tab
+            nextIndex = currentIndex === activeDrawerTabs.length - 1 ? 0 : currentIndex + 1;
           }
-          if (matchesShortcut(e, mappings.worktreeNext)) {
-            e.preventDefault();
-            const nextIndex = currentIndex === openEntitiesInOrder.length - 1 ? 0 : currentIndex + 1;
-            selectEntity(openEntitiesInOrder[nextIndex]);
-          }
-        } else if (openEntitiesInOrder.length > 0) {
-          // Not viewing any entity in the list - select first/last entity
-          if (matchesShortcut(e, mappings.worktreePrev)) {
-            e.preventDefault();
-            selectEntity(openEntitiesInOrder[openEntitiesInOrder.length - 1]);
-          }
-          if (matchesShortcut(e, mappings.worktreeNext)) {
-            e.preventDefault();
-            selectEntity(openEntitiesInOrder[0]);
-          }
+          handleSelectDrawerTab(activeDrawerTabs[nextIndex].id);
         }
-      }
-
-      // Task shortcuts - work for both project and worktree views
-      if (activeEntityId) {
-        // Run/stop task toggle
-        if (matchesShortcut(e, mappings.runTask)) {
-          e.preventDefault();
-          handleToggleTask();
-        }
-      }
-
-      // Task switcher
-      if (matchesShortcut(e, mappings.taskSwitcher)) {
-        e.preventDefault();
-        handleToggleTaskSwitcher();
         return;
-      }
-
-      // Command palette
-      if (matchesShortcut(e, mappings.commandPalette)) {
-        e.preventDefault();
-        handleToggleCommandPalette();
-        return;
-      }
-
-      // Project switcher
-      if (matchesShortcut(e, mappings.projectSwitcher)) {
-        e.preventDefault();
-        handleToggleProjectSwitcher();
-        return;
-      }
-
-      // New workspace - creates worktree when in project/worktree, scratch terminal otherwise
-      if (matchesShortcut(e, mappings.newWorkspace)) {
-        e.preventDefault();
-        if (activeProjectId && !activeScratchId) {
-          handleAddWorktree(activeProjectId);
-        } else {
-          handleAddScratchTerminal();
-        }
-      }
-
-      // New scratch terminal - always creates a scratch terminal
-      if (matchesShortcut(e, mappings.newScratchTerminal)) {
-        e.preventDefault();
-        handleAddScratchTerminal();
       }
     };
 
@@ -2608,7 +2358,7 @@ function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
-  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabId, config, openEntitiesInOrder, handleToggleDrawer, handleToggleDrawerExpand, handleAddDrawerTab, handleCloseDrawerTab, handleToggleRightPanel, handleToggleTask, handleSwitchFocus, handleSwitchToPreviousView, handleAddWorktree, handleAddScratchTerminal, handleCloseScratch, handleToggleTaskSwitcher, handleToggleCommandPalette, handleToggleProjectSwitcher, handleZoomIn, handleZoomOut, handleZoomReset]);
+  }, [activeWorktreeId, activeProjectId, activeScratchId, activeEntityId, isDrawerOpen, activeDrawerTabs, activeDrawerTabId, activeFocusState, handleSelectDrawerTab, handleAddDrawerTab]);
 
   // Listen for menu bar actions from the backend
   useEffect(() => {
