@@ -58,6 +58,11 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     // add_project is always enabled, no need to track it
 
+    let switch_project = MenuItemBuilder::with_id("switch_project", "Switch Project…")
+        .accelerator("CmdOrCtrl+Shift+O")
+        .build(app)?;
+    // switch_project is always enabled, no need to track it
+
     let new_worktree = MenuItemBuilder::with_id("new_worktree", "New Worktree")
         .accelerator("CmdOrCtrl+N")
         .enabled(false)
@@ -99,6 +104,8 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     let file_submenu = SubmenuBuilder::new(app, "File")
         .item(&add_project)
+        .item(&switch_project)
+        .separator()
         .item(&new_worktree)
         .item(&new_scratch_terminal)
         .separator()

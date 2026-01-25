@@ -16,6 +16,7 @@
 export type ActionId =
   // File menu
   | 'addProject'
+  | 'switchProject'
   | 'newWorktree'
   | 'newScratchTerminal'
   | 'closeTab'
@@ -75,6 +76,7 @@ export interface ActionContext {
 const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   // File menu
   addProject: () => true,
+  switchProject: () => true,
   // newWorktree: available when Cmd+N creates a worktree (in project, not viewing scratch)
   newWorktree: (ctx) => !!ctx.activeProjectId && !ctx.activeScratchId,
   // newScratchTerminal: always available (has dedicated Cmd+Shift+N shortcut)
@@ -125,6 +127,7 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
 // Map from ActionId to menu item ID (they're mostly the same, but with different casing)
 const ACTION_TO_MENU_ID: Record<ActionId, string> = {
   addProject: 'add_project',
+  switchProject: 'switch_project',
   newWorktree: 'new_worktree',
   newScratchTerminal: 'new_scratch_terminal',
   closeTab: 'close_tab',
@@ -222,6 +225,7 @@ export interface ActionMetadata {
 export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   // File menu
   addProject: { label: 'Add Project', category: 'File', showInPalette: true },
+  switchProject: { label: 'Switch Project', category: 'File', showInPalette: true },
   newWorktree: { label: 'New Worktree', category: 'File', showInPalette: true },
   newScratchTerminal: { label: 'New Scratch Terminal', category: 'File', showInPalette: true },
   closeTab: { label: 'Close', category: 'File', showInPalette: true },

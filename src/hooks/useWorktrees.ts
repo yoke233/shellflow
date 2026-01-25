@@ -128,6 +128,15 @@ export function useWorktrees() {
     [loadProjects]
   );
 
+  // Optimistic activate: mirrors what touch_project does on backend (sets isActive = true)
+  const activateProject = useCallback((projectId: string) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId ? { ...project, isActive: true } : project
+      )
+    );
+  }, []);
+
   // Optimistic reorder: update local state immediately for smooth DnD
   // Takes an array of project IDs in the new order
   const reorderProjectsOptimistic = useCallback((newOrder: string[]) => {
@@ -164,6 +173,7 @@ export function useWorktrees() {
     error,
     addProject,
     closeProject,
+    activateProject,
     createWorktree,
     deleteWorktree,
     renameWorktree,

@@ -203,6 +203,9 @@ class ResizeObserverMock {
 }
 globalThis.ResizeObserver = ResizeObserverMock;
 
+// Mock scrollIntoView (not implemented in jsdom)
+Element.prototype.scrollIntoView = vi.fn();
+
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

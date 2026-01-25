@@ -176,6 +176,62 @@ describe('App', () => {
         expect(invokeHistory.some((h) => h.command === 'touch_project')).toBe(true);
       });
     });
+
+    it('reactivates closed project when selected from project switcher', async () => {
+      // Set up a closed project that won't show in sidebar initially
+      const closedProject = createTestProject({
+        id: 'proj-closed',
+        name: 'closed-project',
+        isActive: false,
+      });
+      mockInvokeResponses.set('list_projects', [closedProject]);
+      mockInvokeResponses.set('touch_project', null);
+
+      const user = userEvent.setup();
+      render(<App />);
+
+      // Wait for initial render - closed project should NOT be in sidebar
+      await waitFor(
+        () => {
+          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Verify closed project is not visible in sidebar
+      expect(screen.queryByText('closed-project')).not.toBeInTheDocument();
+
+      // Open project switcher via menu action
+      await act(async () => {
+        emitEvent('menu-action', 'switch_project');
+      });
+
+      // Wait for project switcher to open and show the closed project
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
+      });
+
+      // The closed project should appear in the switcher (it shows all projects)
+      await waitFor(() => {
+        expect(screen.getByText('closed-project')).toBeInTheDocument();
+      });
+
+      // Select the closed project
+      await user.click(screen.getByText('closed-project'));
+
+      // Project should now appear in the sidebar (reactivated)
+      await waitFor(
+        () => {
+          // The project switcher should close and project should be in sidebar
+          expect(screen.queryByPlaceholderText('Search projects...')).not.toBeInTheDocument();
+          expect(screen.getByText('closed-project')).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Verify touch_project was called to reactivate it
+      expect(invokeHistory.some((h) => h.command === 'touch_project')).toBe(true);
+    });
   });
 
   describe('Worktree Selection', () => {

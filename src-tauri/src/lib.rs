@@ -30,6 +30,27 @@ fn map_err<E: std::fmt::Display>(e: E) -> String {
 #[tauri::command]
 fn add_project(state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
     let path = Path::new(path);
+    let canonical_path = path.canonicalize().map_err(map_err)?;
+
+    {
+        let mut persisted = state.persisted.write();
+
+        // Check if project with this path already exists
+        if let Some(existing) = persisted
+            .projects
+            .iter_mut()
+            .find(|p| Path::new(&p.path).canonicalize().ok() == Some(canonical_path.clone()))
+        {
+            // Reactivate existing project instead of creating duplicate
+            existing.is_active = true;
+            existing.last_accessed_at = Some(worktree::chrono_lite_now());
+            let project = existing.clone();
+            drop(persisted);
+            state.save().map_err(map_err)?;
+            return Ok(project);
+        }
+    }
+
     let project = worktree::create_project(path).map_err(map_err)?;
 
     {

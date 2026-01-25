@@ -46,7 +46,7 @@ const MAX_ZOOM = 10; // maximum zoom level
 type FocusedPane = 'main' | 'drawer';
 
 function App() {
-  const { projects, addProject, closeProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
+  const { projects, addProject, closeProject, activateProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
 
   // Guard to prevent dialog re-entry when escape key bubbles back from native dialog
   const isAddProjectDialogOpen = useRef(false);
@@ -1379,8 +1379,11 @@ function App() {
     const project = projects.find(p => p.id === projectId);
     if (!project) return;
 
-    // Update last accessed time
+    // Update last accessed time (also reactivates closed projects on backend)
     await touchProject(projectId);
+
+    // Optimistically update local state to mirror backend (sets isActive = true)
+    activateProject(projectId);
 
     // Navigate to the project
     setOpenProjectIds((prev) => {
@@ -1391,7 +1394,7 @@ function App() {
     setActiveScratchId(null);
     setActiveProjectId(projectId);
     setIsProjectSwitcherOpen(false);
-  }, [projects]);
+  }, [projects, activateProject]);
 
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
     setRunningTasks((prev) => {
@@ -2008,6 +2011,7 @@ function App() {
   // Build the handlers for each action
   const actionHandlers: ActionHandlers = useMemo(() => ({
     addProject: handleAddProject,
+    switchProject: handleToggleProjectSwitcher,
     newWorktree: () => activeProjectId && handleAddWorktree(activeProjectId),
     newScratchTerminal: handleAddScratchTerminal,
     closeTab: () => {
@@ -2102,7 +2106,7 @@ function App() {
     openWorktreesInOrder, projects, config.apps.terminal, config.apps.editor,
     handleAddProject, handleAddWorktree, handleAddScratchTerminal, handleCloseDrawerTab, handleCloseProject,
     handleCloseWorktree, handleCloseScratch,
-    handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel,
+    handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel, handleToggleProjectSwitcher,
     handleZoomIn, handleZoomOut, handleZoomReset, handleSwitchToPreviousView, handleSwitchFocus,
     handleRenameBranch, handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
     getCurrentEntityIndex, selectEntityAtIndex,
