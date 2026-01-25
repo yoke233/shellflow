@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/shkm/shellflow/compare/v0.7.0...v0.8.0) (2026-01-25)
+
+
+### Features
+
+* add context-aware keybindings system (Phase 1 & 2) ([c5f9f55](https://github.com/shkm/shellflow/commit/c5f9f55ab9a106631e07d1ad0add1251637f5503))
+* add key lookup for UI display and fix terminal copy/paste ([658f6b2](https://github.com/shkm/shellflow/commit/658f6b2801ae970cd47ef66a1247a310e8405015))
+* add Rust backend for mappings (Phase 2b) ([3d2f38e](https://github.com/shkm/shellflow/commit/3d2f38ebd408712e882ca504f8638aacf6037182))
+* integrate context-aware keybindings (Phase 3) ([f69d4d2](https://github.com/shkm/shellflow/commit/f69d4d29cedb0402c8b8e6d9ac02d4cd7b48045a))
+
+
+### Bug Fixes
+
+* closed projects now appear in sidebar when selected from switcher ([938f453](https://github.com/shkm/shellflow/commit/938f4530ac9f3104bd16ab2b3b040573452ffafa))
+
+
+### Performance Improvements
+
+* only watch worktrees for active projects at startup ([f5858f4](https://github.com/shkm/shellflow/commit/f5858f465e8b9a895d6eaa36fa170283a88d90ae))
+
 ## [0.7.0](https://github.com/shkm/shellflow/compare/v0.6.0...v0.7.0) (2026-01-24)
 
 
