@@ -162,10 +162,17 @@ pub fn stop_watching(worktree_id: &str) {
 }
 
 pub fn stop_all_watchers() {
+    // Stop file watchers
     let watchers = std::mem::take(&mut *WATCHERS.lock());
     for (_, tx) in watchers {
         let _ = tx.send(());
     }
+
+    // Stop config watcher
+    stop_config_watcher();
+
+    // Stop mappings watcher
+    stop_mappings_watcher();
 }
 
 // Track active merge watchers
@@ -445,6 +452,112 @@ pub fn watch_config(app: AppHandle, project_path: Option<String>) {
 
 pub fn stop_config_watcher() {
     if let Some(tx) = CONFIG_WATCHER.lock().take() {
+        let _ = tx.send(());
+    }
+}
+
+// Track active mappings watcher
+lazy_static::lazy_static! {
+    static ref MAPPINGS_WATCHER: Mutex<Option<Sender<()>>> = Mutex::new(None);
+}
+
+/// Watch mappings.jsonc for changes and emit events when it changes.
+pub fn watch_mappings(app: AppHandle) {
+    use crate::mappings;
+
+    // Stop any existing mappings watcher
+    stop_mappings_watcher();
+
+    let mappings_path = mappings::get_mappings_path();
+
+    // Watch the file if it exists, or its parent directory
+    let watch_target = if mappings_path.exists() {
+        mappings_path.clone()
+    } else if let Some(parent) = mappings_path.parent() {
+        parent.to_path_buf()
+    } else {
+        return;
+    };
+
+    let (stop_tx, stop_rx) = channel::<()>();
+    *MAPPINGS_WATCHER.lock() = Some(stop_tx);
+
+    thread::spawn(move || {
+        let (tx, rx) = channel::<notify::Result<Event>>();
+
+        let watcher_config = Config::default()
+            .with_poll_interval(Duration::from_secs(2))
+            .with_compare_contents(false);
+
+        let mut watcher: RecommendedWatcher = match Watcher::new(tx, watcher_config) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("[MappingsWatcher] Failed to create watcher: {}", e);
+                *MAPPINGS_WATCHER.lock() = None;
+                return;
+            }
+        };
+
+        if let Err(e) = watcher.watch(&watch_target, RecursiveMode::NonRecursive) {
+            eprintln!("[MappingsWatcher] Failed to watch {:?}: {}", watch_target, e);
+            *MAPPINGS_WATCHER.lock() = None;
+            return;
+        }
+
+        eprintln!("[MappingsWatcher] Watching {:?}", watch_target);
+
+        // Trailing-edge debounce
+        let debounce_duration = Duration::from_millis(300);
+        let mut pending_update = false;
+        let mut last_event_time = std::time::Instant::now();
+
+        loop {
+            // Check for stop signal
+            if stop_rx.try_recv().is_ok() {
+                eprintln!("[MappingsWatcher] Stopping");
+                break;
+            }
+
+            // Check for file events with short timeout
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(Ok(event)) => {
+                    // Check if this event is for mappings.jsonc
+                    let is_mappings_event = event.paths.iter().any(|p| {
+                        p.file_name()
+                            .map(|n| n.to_string_lossy().contains("mappings"))
+                            .unwrap_or(false)
+                    });
+
+                    if is_mappings_event {
+                        pending_update = true;
+                        last_event_time = std::time::Instant::now();
+                    }
+                }
+                Ok(Err(e)) => {
+                    eprintln!("[MappingsWatcher] Watch error: {}", e);
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // No event, check if we should emit debounced update
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    break;
+                }
+            }
+
+            // Check if debounce period has passed
+            if pending_update && last_event_time.elapsed() >= debounce_duration {
+                pending_update = false;
+                eprintln!("[MappingsWatcher] Mappings changed, emitting event");
+                let _ = app.emit("mappings-changed", ());
+            }
+        }
+
+        *MAPPINGS_WATCHER.lock() = None;
+    });
+}
+
+pub fn stop_mappings_watcher() {
+    if let Some(tx) = MAPPINGS_WATCHER.lock().take() {
         let _ = tx.send(());
     }
 }

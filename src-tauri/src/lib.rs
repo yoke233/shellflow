@@ -1,6 +1,7 @@
 mod cleanup;
 mod config;
 mod git;
+mod mappings;
 mod menu;
 mod pty;
 mod state;
@@ -762,6 +763,22 @@ fn watch_config(app: AppHandle, project_path: Option<String>) {
 #[tauri::command]
 fn stop_config_watcher() {
     watcher::stop_config_watcher();
+}
+
+// Mappings commands
+#[tauri::command]
+fn get_mappings() -> mappings::MappingsResult {
+    mappings::load_mappings()
+}
+
+#[tauri::command]
+fn watch_mappings(app: AppHandle) {
+    watcher::watch_mappings(app);
+}
+
+#[tauri::command]
+fn stop_mappings_watcher() {
+    watcher::stop_mappings_watcher();
 }
 
 // Action commands
@@ -1555,6 +1572,9 @@ pub fn run() {
             get_config,
             watch_config,
             stop_config_watcher,
+            get_mappings,
+            watch_mappings,
+            stop_mappings_watcher,
             expand_action_prompt,
             check_merge_feasibility,
             execute_merge_workflow,
