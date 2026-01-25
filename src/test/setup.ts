@@ -1,13 +1,108 @@
 import { vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import type { Project, Worktree } from '../types';
+
+// Store listeners for simulating events
+export const eventListeners = new Map<string, Set<(event: { payload: unknown }) => void>>();
+
+// Mock invoke responses - tests can override these
+export const mockInvokeResponses = new Map<string, unknown>();
+
+// Track invocations for assertions
+export const invokeHistory: Array<{ command: string; args: unknown }> = [];
+
+// Reset all mocks between tests
+export function resetMocks() {
+  eventListeners.clear();
+  mockInvokeResponses.clear();
+  invokeHistory.length = 0;
+}
+
+// Helper to emit events to listeners
+export function emitEvent(eventName: string, payload: unknown) {
+  const listeners = eventListeners.get(eventName);
+  if (listeners) {
+    listeners.forEach((listener) => listener({ payload }));
+  }
+}
+
+// Default config - minimal structure that the app requires
+// Tests can override specific values as needed
+export const defaultTestConfig = {
+  main: { command: 'claude', fontFamily: 'Menlo', fontSize: 13, fontLigatures: false, padding: 8 },
+  terminal: { fontFamily: 'Menlo', fontSize: 13, fontLigatures: false, padding: 8 },
+  merge: { strategy: 'merge', deleteWorktree: true, deleteLocalBranch: true, deleteRemoteBranch: false },
+  navigation: { includeProjects: true },
+  indicators: { activityTimeout: 5000, showIdleCheck: true },
+  apps: { terminal: 'Terminal', editor: 'VS Code' },
+  mappings: {
+    toggleDrawer: 'meta+j', toggleRightPanel: 'meta+l', terminalCopy: 'meta+c', terminalPaste: 'meta+v',
+    worktreePrev: 'meta+shift+[', worktreeNext: 'meta+shift+]', drawerTabPrev: 'meta+alt+[', drawerTabNext: 'meta+alt+]',
+    worktree1: 'meta+1', worktree2: 'meta+2', worktree3: 'meta+3', worktree4: 'meta+4', worktree5: 'meta+5',
+    worktree6: 'meta+6', worktree7: 'meta+7', worktree8: 'meta+8', worktree9: 'meta+9',
+    renameBranch: 'meta+shift+r', runTask: 'meta+r', newWorkspace: 'meta+n', newScratchTerminal: 'meta+t',
+    closeTab: 'meta+w', focusMain: 'meta+k', switchFocus: 'meta+e', switchToPreviousView: "meta+'", commandPalette: 'meta+shift+p',
+  },
+  tasks: [],
+  actions: { mergeWorktreeWithConflicts: '' },
+  scratch: { startOnLaunch: true },
+  worktree: { focusNewBranchNames: false },
+  unfocusedOpacity: 1,
+};
+
+// Helper to set up common mock responses
+export function setupDefaultMocks() {
+  mockInvokeResponses.set('list_projects', []);
+  mockInvokeResponses.set('get_config', { config: defaultTestConfig, errors: [] });
+  mockInvokeResponses.set('get_home_dir', '/Users/test');
+}
+
+// Helper to create config with overrides
+export function createTestConfig(overrides: Record<string, unknown> = {}) {
+  return { config: { ...defaultTestConfig, ...overrides }, errors: [] };
+}
 
 // Mock Tauri core API
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+  invoke: vi.fn((command: string, args?: unknown) => {
+    invokeHistory.push({ command, args });
+
+    if (mockInvokeResponses.has(command)) {
+      const response = mockInvokeResponses.get(command);
+      // If it's a function, call it with args
+      if (typeof response === 'function') {
+        return Promise.resolve(response(args));
+      }
+      return Promise.resolve(response);
+    }
+
+    // Default responses for common commands
+    switch (command) {
+      case 'spawn_main':
+      case 'spawn_terminal':
+      case 'spawn_scratch_terminal':
+      case 'spawn_project_shell':
+      case 'spawn_shell':
+        return Promise.resolve(`pty-${Date.now()}`);
+      default:
+        return Promise.resolve(null);
+    }
+  }),
 }));
 
 // Mock Tauri event API
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
+  listen: vi.fn((eventName: string, callback: (event: { payload: unknown }) => void) => {
+    if (!eventListeners.has(eventName)) {
+      eventListeners.set(eventName, new Set());
+    }
+    eventListeners.get(eventName)!.add(callback);
+
+    // Return unlisten function
+    return Promise.resolve(() => {
+      eventListeners.get(eventName)?.delete(callback);
+    });
+  }),
   emit: vi.fn(),
 }));
 
@@ -33,6 +128,19 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
   sendNotification: vi.fn(),
 }));
 
+// Mock Tauri opener plugin
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openUrl: vi.fn(() => Promise.resolve()),
+}));
+
+// Mock Tauri webview window API
+vi.mock('@tauri-apps/api/webviewWindow', () => ({
+  getCurrentWebviewWindow: vi.fn(() => ({
+    onDragDropEvent: vi.fn(() => Promise.resolve(() => {})),
+    listen: vi.fn(() => Promise.resolve(() => {})),
+  })),
+}));
+
 // Mock navigator for platform detection in keyboard.ts
 Object.defineProperty(globalThis, 'navigator', {
   value: {
@@ -41,3 +149,174 @@ Object.defineProperty(globalThis, 'navigator', {
   },
   writable: true,
 });
+
+// Mock localStorage
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; },
+    get length() { return Object.keys(store).length; },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  };
+})();
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock });
+
+// Mock ResizeObserver
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver = ResizeObserverMock;
+
+// Mock matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+// Mock devicePixelRatio
+Object.defineProperty(window, 'devicePixelRatio', {
+  writable: true,
+  value: 1,
+});
+
+// Mock xterm.js Terminal - use a class for proper constructor behavior
+class MockTerminal {
+  element = document.createElement('div');
+  textarea = document.createElement('textarea');
+  options = {};
+  cols = 80;
+  rows = 24;
+  buffer = {
+    active: {
+      cursorX: 0,
+      cursorY: 0,
+      viewportY: 0,
+      baseY: 0,
+      length: 24,
+      type: 'normal',
+      getLine: () => null,
+    },
+    normal: { type: 'normal' },
+    alternate: { type: 'alternate' },
+  };
+  parser = {
+    registerCsiHandler: () => ({ dispose: () => {} }),
+    registerDcsHandler: () => ({ dispose: () => {} }),
+    registerEscHandler: () => ({ dispose: () => {} }),
+    registerOscHandler: () => ({ dispose: () => {} }),
+  };
+  unicode = { activeVersion: '11' };
+  modes = { mouseTrackingMode: 'none' };
+
+  constructor(_options?: unknown) {}
+  open() {}
+  write() {}
+  writeln() {}
+  clear() {}
+  reset() {}
+  dispose() {}
+  focus() {}
+  blur() {}
+  scrollToBottom() {}
+  select() {}
+  selectAll() {}
+  clearSelection() {}
+  hasSelection() { return false; }
+  getSelection() { return ''; }
+  onData() { return { dispose: () => {} }; }
+  onResize() { return { dispose: () => {} }; }
+  onTitleChange() { return { dispose: () => {} }; }
+  onBell() { return { dispose: () => {} }; }
+  onBinary() { return { dispose: () => {} }; }
+  onCursorMove() { return { dispose: () => {} }; }
+  onKey() { return { dispose: () => {} }; }
+  onLineFeed() { return { dispose: () => {} }; }
+  onRender() { return { dispose: () => {} }; }
+  onScroll() { return { dispose: () => {} }; }
+  onSelectionChange() { return { dispose: () => {} }; }
+  onWriteParsed() { return { dispose: () => {} }; }
+  loadAddon() {}
+  refresh() {}
+  resize() {}
+  attachCustomKeyEventHandler() {}
+  registerLinkProvider() { return { dispose: () => {} }; }
+  registerCharacterJoiner() { return 0; }
+  deregisterCharacterJoiner() {}
+  registerMarker() { return { dispose: () => {}, isDisposed: false, line: 0 }; }
+  registerDecoration() { return { dispose: () => {}, isDisposed: false }; }
+}
+
+vi.mock('@xterm/xterm', () => ({
+  Terminal: MockTerminal,
+}));
+
+// Mock xterm addons - use classes for proper constructor behavior
+class MockFitAddon {
+  activate() {}
+  fit() {}
+  proposeDimensions() { return { cols: 80, rows: 24 }; }
+  dispose() {}
+}
+
+class MockWebLinksAddon {
+  constructor(_handler?: unknown) {}
+  activate() {}
+  dispose() {}
+}
+
+class MockClipboardAddon {
+  activate() {}
+  dispose() {}
+}
+
+vi.mock('@xterm/addon-fit', () => ({
+  FitAddon: MockFitAddon,
+}));
+
+vi.mock('@xterm/addon-web-links', () => ({
+  WebLinksAddon: MockWebLinksAddon,
+}));
+
+vi.mock('@xterm/addon-clipboard', () => ({
+  ClipboardAddon: MockClipboardAddon,
+}));
+
+// Note: @xterm/addon-ligatures is mocked via vitest config alias
+
+// Test data factories
+export function createTestProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: `project-${Date.now()}`,
+    name: 'test-project',
+    path: '/Users/test/projects/test-project',
+    worktrees: [],
+    isActive: true,
+    lastAccessedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function createTestWorktree(overrides: Partial<Worktree> = {}): Worktree {
+  return {
+    id: `worktree-${Date.now()}`,
+    name: 'test-worktree',
+    path: '/Users/test/projects/test-project/.worktrees/test-worktree',
+    branch: 'test-branch',
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
