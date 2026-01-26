@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -58,6 +58,7 @@ export function TaskTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const ptyIdRef = useRef<string | null>(null);
+  const [isPtyReady, setIsPtyReady] = useState(false);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
@@ -228,6 +229,7 @@ export function TaskTerminal({
       const newPtyId = await spawnTask(entityId, taskName, cols, rows);
       ptyIdRef.current = newPtyId;
       ptyIdKnown = true;
+      setIsPtyReady(true);
 
       // Report ptyId to parent so it can stop the task
       onPtyIdReadyRef.current?.(newPtyId);
@@ -304,7 +306,7 @@ export function TaskTerminal({
   // ResizeObserver for container size changes
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !ptyIdRef.current || !isActive) return;
+    if (!container || !isPtyReady || !isActive) return;
 
     const resizeObserver = new ResizeObserver(() => {
       debouncedResize();
@@ -312,11 +314,11 @@ export function TaskTerminal({
 
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
-  }, [isActive, debouncedResize]);
+  }, [isPtyReady, isActive, debouncedResize]);
 
   // Listen for panel toggle completion
   useEffect(() => {
-    if (!ptyIdRef.current || !isActive) return;
+    if (!isPtyReady || !isActive) return;
 
     const handlePanelResizeComplete = () => {
       immediateResize();
@@ -325,15 +327,15 @@ export function TaskTerminal({
     window.addEventListener('panel-resize-complete', handlePanelResizeComplete);
     return () =>
       window.removeEventListener('panel-resize-complete', handlePanelResizeComplete);
-  }, [isActive, immediateResize]);
+  }, [isPtyReady, isActive, immediateResize]);
 
   // Fit on active change
   useEffect(() => {
-    if (isActive && ptyIdRef.current) {
+    if (isActive && isPtyReady) {
       const timeout = setTimeout(immediateResize, 50);
       return () => clearTimeout(timeout);
     }
-  }, [isActive, immediateResize]);
+  }, [isActive, isPtyReady, immediateResize]);
 
   // Focus terminal when shouldAutoFocus is true
   useEffect(() => {
