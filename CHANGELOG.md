@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/shkm/shellflow/compare/v0.8.0...v0.9.0) (2026-01-26)
+
+
+### Features
+
+* add session tabs within each session ([678b983](https://github.com/shkm/shellflow/commit/678b9834723b995584e95360d30312feda6924fc))
+* allow command palette navigation to unopened projects and worktrees ([7fbe2a6](https://github.com/shkm/shellflow/commit/7fbe2a67badf4ada7d9f89dbbd4f18b24260e52f))
+* default main.command to user's shell instead of claude ([9a3976d](https://github.com/shkm/shellflow/commit/9a3976daf3539d1ffe2a287894496ab1d180c8f5))
+
+
+### Bug Fixes
+
+* Ctrl+C now properly interrupts PTY processes like `yes` ([0d4fd24](https://github.com/shkm/shellflow/commit/0d4fd24efaa0a70b4136c1c78045b7493a0d6734))
+* emit pty-ready for all terminal types to fix loading state ([3e313db](https://github.com/shkm/shellflow/commit/3e313db486748bdf342a164e1c52326b1d0882fa))
+* restore focus to previous element when closing pickers ([8afab6f](https://github.com/shkm/shellflow/commit/8afab6fb881a577afd12328ac9ae65f78ba2e68d))
+
 ## [0.8.0](https://github.com/shkm/shellflow/compare/v0.7.0...v0.8.0) (2026-01-25)
 
 
