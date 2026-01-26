@@ -115,14 +115,10 @@ export function TaskSwitcher({
                 )
               }
             >
-              <div
-                className={`text-sm truncate ${
-                  isSelected ? 'text-blue-400' : 'text-zinc-100'
-                }`}
-              >
+              <div className="text-sm truncate" style={{ color: isSelected ? 'rgb(96, 165, 250)' : undefined }}>
                 {task.name}
               </div>
-              <div className="text-xs text-zinc-500 truncate">{task.command}</div>
+              <div className="text-xs truncate" style={{ color: 'var(--modal-item-text-muted)' }}>{task.command}</div>
             </ModalListItem>
           );
         })}

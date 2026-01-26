@@ -13,7 +13,7 @@ export const ModalList = forwardRef<HTMLDivElement, ModalListProps>(function Mod
   return (
     <div
       ref={ref}
-      className="max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent hover:scrollbar-thumb-zinc-600"
+      className="max-h-80 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent hover:scrollbar-thumb-zinc-600"
       style={{
         scrollbarWidth: 'thin',
         scrollbarColor: 'transparent transparent',
@@ -26,7 +26,9 @@ export const ModalList = forwardRef<HTMLDivElement, ModalListProps>(function Mod
       }}
     >
       {isEmpty ? (
-        <div className="px-3 py-4 text-sm text-zinc-500 text-center">{emptyMessage}</div>
+        <div className="px-3 py-6 text-sm text-center" style={{ color: 'var(--modal-item-text-muted)' }}>
+          {emptyMessage}
+        </div>
       ) : (
         children
       )}
@@ -63,9 +65,12 @@ export function ModalListItem({
       ref={itemRef}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      className={`w-full px-3 py-2 text-left flex items-center gap-2 ${
-        isHighlighted ? 'bg-zinc-800' : ''
-      }`}
+      className="w-full px-2.5 py-1.5 mx-1 text-left flex items-center gap-2 rounded transition-colors"
+      style={{
+        width: 'calc(100% - 8px)',
+        background: isHighlighted ? 'var(--modal-item-highlight)' : 'transparent',
+        color: 'var(--modal-item-text)',
+      }}
     >
       <div className="flex-1 min-w-0">{children}</div>
       {rightContent && <div className="flex-shrink-0">{rightContent}</div>}

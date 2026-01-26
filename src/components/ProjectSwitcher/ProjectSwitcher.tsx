@@ -89,17 +89,18 @@ export function ProjectSwitcher({
               onClick={() => handleSelect(index)}
               onMouseEnter={() => setHighlightedIndex(index)}
               rightContent={
-                isClosed && <span className="text-xs text-zinc-500">Closed</span>
+                isClosed && <span className="text-xs" style={{ color: 'var(--modal-item-text-muted)' }}>Closed</span>
               }
             >
               <div
-                className={`text-sm truncate ${
-                  isSelected ? 'text-blue-400' : isClosed ? 'text-zinc-500' : 'text-zinc-100'
-                }`}
+                className="text-sm truncate"
+                style={{
+                  color: isSelected ? 'rgb(96, 165, 250)' : isClosed ? 'var(--modal-item-text-muted)' : undefined,
+                }}
               >
                 {project.name}
               </div>
-              <div className="text-xs text-zinc-500 truncate">{project.path}</div>
+              <div className="text-xs truncate" style={{ color: 'var(--modal-item-text-muted)' }}>{project.path}</div>
             </ModalListItem>
           );
         })}

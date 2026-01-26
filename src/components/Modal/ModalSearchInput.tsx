@@ -26,7 +26,7 @@ export const ModalSearchInput = forwardRef<ModalSearchInputRef, ModalSearchInput
     }));
 
     return (
-      <div className="p-3 border-b border-zinc-700">
+      <div className="p-2.5" style={{ borderBottom: '1px solid var(--modal-footer-border)' }}>
         <input
           ref={inputRef}
           type="text"
@@ -34,7 +34,18 @@ export const ModalSearchInput = forwardRef<ModalSearchInputRef, ModalSearchInput
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
-          className="w-full bg-zinc-800 text-zinc-100 text-sm px-3 py-2 rounded border border-zinc-600 focus:border-zinc-500 focus:outline-none placeholder-zinc-500"
+          className="w-full text-sm px-2.5 py-1.5 rounded focus:outline-none placeholder-zinc-500 transition-colors"
+          style={{
+            background: 'var(--modal-input-bg)',
+            border: '1px solid var(--modal-input-border)',
+            color: 'var(--modal-item-text)',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = 'var(--modal-input-focus-border)';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = 'var(--modal-input-border)';
+          }}
         />
       </div>
     );

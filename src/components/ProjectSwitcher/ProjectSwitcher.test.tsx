@@ -61,7 +61,7 @@ describe('ProjectSwitcher', () => {
       render(<ProjectSwitcher {...defaultProps} projects={projects} activeProjectId="p1" />);
 
       const activeProject = screen.getByText('Active Project');
-      expect(activeProject).toHaveClass('text-blue-400');
+      expect(activeProject).toHaveStyle({ color: 'rgb(96, 165, 250)' });
     });
 
     it('shows closed badge for inactive projects', () => {

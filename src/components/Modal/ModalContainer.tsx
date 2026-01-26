@@ -115,11 +115,19 @@ export function ModalContainer({
       onClick={handleBackdropClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="absolute inset-0 bg-black/50" />
       <div
-        className={`relative bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl w-full ${widthClass} mx-4 overflow-hidden transition-all duration-100 ${
+        className="absolute inset-0 backdrop-blur-[2px]"
+        style={{ background: 'var(--modal-backdrop)' }}
+      />
+      <div
+        className={`relative backdrop-blur-xl rounded-md w-full ${widthClass} mx-4 overflow-hidden transition-all duration-100 ${
           showContent ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
+        style={{
+          background: 'var(--modal-bg)',
+          border: '1px solid var(--modal-border)',
+          boxShadow: 'var(--modal-shadow)',
+        }}
       >
         {children}
       </div>

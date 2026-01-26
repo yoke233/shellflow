@@ -68,7 +68,7 @@ describe('TaskSwitcher', () => {
       render(<TaskSwitcher {...defaultProps} tasks={tasks} selectedTask="selected-task" />);
 
       const selectedTask = screen.getByText('selected-task');
-      expect(selectedTask).toHaveClass('text-blue-400');
+      expect(selectedTask).toHaveStyle({ color: 'rgb(96, 165, 250)' });
     });
 
     it('shows running indicator for running tasks', () => {

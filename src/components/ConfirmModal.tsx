@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { Modal, ModalHeader, ModalBody, ModalActions, ModalButton, ModalText } from './Modal';
 
 interface ConfirmModalProps {
   title: string;
@@ -19,62 +19,21 @@ export function ConfirmModal({
   onModalOpen,
   onModalClose,
 }: ConfirmModalProps) {
-  const isMac = navigator.userAgent.includes('Mac');
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Register modal open/close for app-wide tracking
-  useEffect(() => {
-    onModalOpen?.();
-    return () => onModalClose?.();
-  }, [onModalOpen, onModalClose]);
-
-  // Auto-focus modal on mount
-  useEffect(() => {
-    modalRef.current?.focus();
-  }, []);
-
-  // Keyboard shortcuts (capture phase to intercept before terminal)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        onCancel();
-      } else if (e.key === 'Enter' && (isMac ? e.metaKey : e.ctrlKey)) {
-        e.preventDefault();
-        e.stopPropagation();
-        onConfirm();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [onCancel, onConfirm, isMac]);
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onCancel} />
-      <div
-        ref={modalRef}
-        tabIndex={-1}
-        className="relative bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl p-6 max-w-md w-full mx-4 outline-none">
-        <h2 className="text-lg font-semibold text-zinc-100 mb-2">{title}</h2>
-        <p className="text-zinc-400 mb-6">{message}</p>
-        <div className="flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm bg-red-600 hover:bg-red-500 text-white rounded"
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      onClose={onCancel}
+      onSubmit={onConfirm}
+      onModalOpen={onModalOpen}
+      onModalClose={onModalClose}
+    >
+      <ModalHeader>{title}</ModalHeader>
+      <ModalBody>
+        <ModalText muted>{message}</ModalText>
+      </ModalBody>
+      <ModalActions>
+        <ModalButton onClick={onCancel}>Cancel</ModalButton>
+        <ModalButton onClick={onConfirm} variant="danger">{confirmLabel}</ModalButton>
+      </ModalActions>
+    </Modal>
   );
 }

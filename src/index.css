@@ -3,6 +3,52 @@
 :root {
   --sidebar-width: 240px;
   --right-panel-width: 280px;
+
+  /* Modal theming */
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --modal-bg: rgba(46, 46, 50, 0.98);
+  --modal-border: rgba(255, 255, 255, 0.08);
+  --modal-shadow: 0 24px 48px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 0, 0, 0.5);
+
+  /* Modal list items */
+  --modal-item-highlight: rgba(255, 255, 255, 0.08);
+  --modal-item-text: rgba(255, 255, 255, 0.9);
+  --modal-item-text-muted: rgba(255, 255, 255, 0.5);
+
+  /* Modal inputs */
+  --modal-input-bg: rgba(0, 0, 0, 0.25);
+  --modal-input-border: rgba(255, 255, 255, 0.1);
+  --modal-input-focus-border: rgba(255, 255, 255, 0.2);
+
+  /* Modal footer */
+  --modal-footer-bg: rgba(0, 0, 0, 0.15);
+  --modal-footer-border: rgba(255, 255, 255, 0.06);
+
+  /* Keyboard hints */
+  --kbd-bg: rgba(255, 255, 255, 0.08);
+  --kbd-border: rgba(255, 255, 255, 0.1);
+  --kbd-text: rgba(255, 255, 255, 0.5);
+
+  /* Modal buttons */
+  --btn-secondary-bg: rgba(255, 255, 255, 0.08);
+  --btn-secondary-bg-hover: rgba(255, 255, 255, 0.14);
+  --btn-secondary-border: rgba(255, 255, 255, 0.1);
+  --btn-secondary-text: rgba(255, 255, 255, 0.8);
+
+  --btn-primary-bg: rgba(59, 130, 246, 0.8);
+  --btn-primary-bg-hover: rgba(59, 130, 246, 1);
+  --btn-primary-border: rgba(96, 165, 250, 0.3);
+  --btn-primary-text: rgba(255, 255, 255, 1);
+
+  --btn-danger-bg: rgba(220, 38, 38, 0.75);
+  --btn-danger-bg-hover: rgba(220, 38, 38, 0.95);
+  --btn-danger-border: rgba(248, 113, 113, 0.3);
+  --btn-danger-text: rgba(255, 255, 255, 1);
+
+  --btn-purple-bg: rgba(147, 51, 234, 0.75);
+  --btn-purple-bg-hover: rgba(147, 51, 234, 0.95);
+  --btn-purple-border: rgba(192, 132, 252, 0.3);
+  --btn-purple-text: rgba(255, 255, 255, 1);
 }
 
 html,
@@ -126,4 +172,14 @@ textarea,
 
 .toast-exit {
   animation: toast-slide-out 0.2s ease-in forwards;
+}
+
+/* Modal button hover states */
+.modal-btn:not(:disabled):hover {
+  background: var(--hover-bg) !important;
+}
+
+/* Modal toggle button hover states */
+.modal-toggle:hover {
+  background: var(--modal-item-highlight) !important;
 }

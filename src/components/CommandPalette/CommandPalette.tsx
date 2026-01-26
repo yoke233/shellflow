@@ -230,11 +230,11 @@ export function CommandPalette({
               onMouseEnter={() => setHighlightedIndex(index)}
               rightContent={
                 shortcut && (
-                  <span className="text-xs text-zinc-500 font-mono">{shortcut}</span>
+                  <span className="text-xs font-mono" style={{ color: 'var(--modal-item-text-muted)' }}>{shortcut}</span>
                 )
               }
             >
-              <div className="text-sm text-zinc-100">{label}</div>
+              <div className="text-sm">{label}</div>
             </ModalListItem>
           );
         })}

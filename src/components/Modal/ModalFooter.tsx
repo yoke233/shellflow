@@ -6,7 +6,14 @@ interface ModalFooterProps {
 
 export function ModalFooter({ children }: ModalFooterProps) {
   return (
-    <div className="px-3 py-2 border-t border-zinc-700 text-[10px] text-zinc-500 flex justify-between">
+    <div
+      className="px-3 py-2 text-[11px] flex justify-between"
+      style={{
+        background: 'var(--modal-footer-bg)',
+        borderTop: '1px solid var(--modal-footer-border)',
+        color: 'var(--modal-item-text-muted)',
+      }}
+    >
       {children}
     </div>
   );
@@ -19,13 +26,22 @@ interface KeyHintProps {
 
 export function KeyHint({ keys, label }: KeyHintProps) {
   return (
-    <span>
+    <span className="inline-flex items-center gap-1">
       {keys.map((key, i) => (
-        <kbd key={i} className="px-1 py-0.5 bg-zinc-800 rounded ml-1 first:ml-0">
+        <kbd
+          key={i}
+          className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-medium rounded"
+          style={{
+            background: 'var(--kbd-bg)',
+            border: '1px solid var(--kbd-border)',
+            color: 'var(--kbd-text)',
+            boxShadow: '0 1px 0 rgba(0,0,0,0.3)',
+          }}
+        >
           {key}
         </kbd>
       ))}
-      <span className="ml-1">{label}</span>
+      {label && <span style={{ color: 'var(--modal-item-text-muted)' }}>{label}</span>}
     </span>
   );
 }
