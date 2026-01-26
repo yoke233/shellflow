@@ -67,6 +67,8 @@ interface SidebarProps {
   homeDir: string | null;
   /** Worktree ID that should auto-enter edit mode for its name */
   autoEditWorktreeId: string | null;
+  /** Scratch ID that should enter edit mode for its name (triggered by F2) */
+  editingScratchId: string | null;
   /** Ref to element that should receive focus when editing ends */
   focusToRestoreRef: React.RefObject<HTMLElement | null>;
   /** Called to focus the main terminal area */
@@ -95,6 +97,7 @@ interface SidebarProps {
   onRenameScratch: (scratchId: string, newName: string) => void;
   onReorderScratchTerminals: (scratchIds: string[]) => void;
   onAutoEditConsumed: () => void;
+  onEditingScratchConsumed: () => void;
 }
 
 export function Sidebar({
@@ -133,6 +136,7 @@ export function Sidebar({
   activeScratchCwd,
   homeDir,
   autoEditWorktreeId,
+  editingScratchId,
   focusToRestoreRef,
   onFocusMain,
   onToggleProject,
@@ -159,6 +163,7 @@ export function Sidebar({
   onRenameScratch,
   onReorderScratchTerminals,
   onAutoEditConsumed,
+  onEditingScratchConsumed,
 }: SidebarProps) {
   const [contextMenu, setContextMenu] = useState<{
     project: Project;
@@ -406,6 +411,10 @@ export function Sidebar({
                               onRenameScratch(scratch.id, newName);
                               return Promise.resolve();
                             }}
+                            autoEdit={editingScratchId === scratch.id}
+                            onAutoEditConsumed={onEditingScratchConsumed}
+                            focusToRestoreRef={editingScratchId === scratch.id ? focusToRestoreRef : undefined}
+                            onFocusMain={onFocusMain}
                           />
                           {/* Action buttons - show on hover */}
                           <div className={`absolute right-1 hidden group-hover/scratch:flex items-center gap-0.5 rounded ${isSelected ? 'bg-zinc-700' : 'bg-zinc-800'}`}>

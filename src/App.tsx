@@ -59,7 +59,9 @@ function App() {
 
   // Worktree that should auto-enter edit mode for its name (used with focusNewBranchNames config)
   const [autoEditWorktreeId, setAutoEditWorktreeId] = useState<string | null>(null);
-  // Element to restore focus to after editing worktree name
+  // Scratch terminal that should enter edit mode for its name (triggered by F2)
+  const [editingScratchId, setEditingScratchId] = useState<string | null>(null);
+  // Element to restore focus to after editing worktree/scratch name
   const focusToRestoreRef = useRef<HTMLElement | null>(null);
 
   // Active project (when viewing main repo terminal instead of a worktree)
@@ -2238,6 +2240,12 @@ function App() {
     // Scratch actions
     onCloseScratch: () => activeScratchId && handleCloseScratch(activeScratchId),
     onNewScratch: handleAddScratchTerminal,
+    onRenameSession: () => {
+      if (activeScratchId) {
+        focusToRestoreRef.current = document.activeElement as HTMLElement | null;
+        setEditingScratchId(activeScratchId);
+      }
+    },
 
     // Worktree actions
     onCloseWorktree: () => activeWorktreeId && handleCloseWorktree(activeWorktreeId),
@@ -2619,6 +2627,7 @@ function App() {
               activeScratchCwd={activeScratchId ? scratchCwds.get(activeScratchId) ?? null : null}
               homeDir={homeDir}
               autoEditWorktreeId={autoEditWorktreeId}
+              editingScratchId={editingScratchId}
               focusToRestoreRef={focusToRestoreRef}
               onFocusMain={handleFocusMain}
               onToggleProject={toggleProject}
@@ -2645,6 +2654,7 @@ function App() {
               onRenameScratch={handleRenameScratch}
               onReorderScratchTerminals={handleReorderScratchTerminals}
               onAutoEditConsumed={() => setAutoEditWorktreeId(null)}
+              onEditingScratchConsumed={() => setEditingScratchId(null)}
             />
           </div>
         </Panel>

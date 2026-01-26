@@ -144,7 +144,8 @@
       "context": "scratchFocused && !drawerFocused",
       "bindings": {
         "cmd-n": "scratch::new",
-        "cmd-shift-n": "scratch::new"
+        "cmd-shift-n": "scratch::new",
+        "F2": "scratch::renameSession"
       }
     },
 

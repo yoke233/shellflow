@@ -44,6 +44,7 @@ export interface ActionHandlerCallbacks {
   // Scratch actions
   onCloseScratch: () => void;
   onNewScratch: () => void;
+  onRenameSession: () => void;
 
   // Worktree actions
   onCloseWorktree: () => void;
@@ -130,6 +131,7 @@ export function createActionHandlers(callbacks: ActionHandlerCallbacks): ActionH
     // Scratch actions
     'scratch::close': callbacks.onCloseScratch,
     'scratch::new': callbacks.onNewScratch,
+    'scratch::renameSession': callbacks.onRenameSession,
 
     // Worktree actions
     'worktree::close': callbacks.onCloseWorktree,
