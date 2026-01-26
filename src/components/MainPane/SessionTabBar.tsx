@@ -15,11 +15,12 @@ import {
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { SortableSessionTab } from './SortableSessionTab';
-import { SessionTab } from '../../types';
+import { SessionTab, TabIndicators } from '../../types';
 
 interface SessionTabBarProps {
   tabs: SessionTab[];
   activeTabId: string | null;
+  tabIndicators?: Map<string, TabIndicators>;
   isCtrlKeyHeld?: boolean;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
@@ -30,6 +31,7 @@ interface SessionTabBarProps {
 export function SessionTabBar({
   tabs,
   activeTabId,
+  tabIndicators,
   isCtrlKeyHeld = false,
   onSelectTab,
   onCloseTab,
@@ -115,18 +117,24 @@ export function SessionTabBar({
           strategy={horizontalListSortingStrategy}
         >
           <div className="flex items-stretch overflow-x-auto flex-1">
-            {tabs.map((tab, index) => (
-              <SortableSessionTab
-                key={tab.id}
-                tab={tab}
-                isActive={activeTabId === tab.id}
-                isAnyDragging={activeDragTab !== null}
-                shortcutNumber={index < 9 ? index + 1 : null}
-                isCtrlKeyHeld={isCtrlKeyHeld}
-                onSelect={() => onSelectTab(tab.id)}
-                onClose={() => handleCloseTab(tab.id)}
-              />
-            ))}
+            {tabs.map((tab, index) => {
+              const indicators = tabIndicators?.get(tab.id);
+              return (
+                <SortableSessionTab
+                  key={tab.id}
+                  tab={tab}
+                  isActive={activeTabId === tab.id}
+                  isThinking={indicators?.thinking ?? false}
+                  isNotified={indicators?.notified ?? false}
+                  isIdle={indicators?.idle ?? false}
+                  isAnyDragging={activeDragTab !== null}
+                  shortcutNumber={index < 9 ? index + 1 : null}
+                  isCtrlKeyHeld={isCtrlKeyHeld}
+                  onSelect={() => onSelectTab(tab.id)}
+                  onClose={() => handleCloseTab(tab.id)}
+                />
+              );
+            })}
           </div>
         </SortableContext>
         <DragOverlay dropAnimation={null}>

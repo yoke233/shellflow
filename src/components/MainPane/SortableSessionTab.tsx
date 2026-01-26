@@ -1,11 +1,14 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { X, Terminal } from 'lucide-react';
+import { X, Terminal, Loader2, BellDot, Check } from 'lucide-react';
 import { SessionTab } from '../../types';
 
 interface SortableSessionTabProps {
   tab: SessionTab;
   isActive: boolean;
+  isThinking?: boolean;
+  isNotified?: boolean;
+  isIdle?: boolean;
   isAnyDragging: boolean;
   shortcutNumber: number | null;
   isCtrlKeyHeld: boolean;
@@ -16,6 +19,9 @@ interface SortableSessionTabProps {
 export function SortableSessionTab({
   tab,
   isActive,
+  isThinking = false,
+  isNotified = false,
+  isIdle = false,
   isAnyDragging,
   shortcutNumber,
   isCtrlKeyHeld,
@@ -55,6 +61,12 @@ export function SortableSessionTab({
     >
       {isCtrlKeyHeld && shortcutNumber !== null ? (
         <span className="text-xs font-medium text-zinc-400 w-3.5 text-center flex-shrink-0">{shortcutNumber}</span>
+      ) : isNotified && !isActive ? (
+        <BellDot size={14} className="flex-shrink-0 text-blue-400" />
+      ) : isThinking ? (
+        <Loader2 size={14} className="flex-shrink-0 animate-spin text-violet-400" />
+      ) : isIdle && !isActive ? (
+        <Check size={14} className="flex-shrink-0 text-emerald-400" />
       ) : (
         <Terminal size={14} className="flex-shrink-0" />
       )}

@@ -1,9 +1,10 @@
+import { useState, useEffect, useRef } from 'react';
 import { GitBranch, FolderPlus, Terminal, Keyboard } from 'lucide-react';
 import { MainTerminal } from './MainTerminal';
 import { SessionTabBar } from './SessionTabBar';
 import { TerminalConfig, ConfigError } from '../../hooks/useConfig';
 import { ConfigErrorBanner } from '../ConfigErrorBanner';
-import { Session, SessionKind, SessionTab } from '../../types';
+import { Session, SessionKind, SessionTab, TabIndicators } from '../../types';
 
 interface MainPaneProps {
   // Unified session props
@@ -14,7 +15,8 @@ interface MainPaneProps {
   // Session tabs props - Map of all session tabs to keep terminals alive across session switches
   allSessionTabs: Map<string, SessionTab[]>;
   activeSessionTabId: string | null;
-  lastActiveSessionTabId: string | null;
+  /** Map of sessionId -> last active tabId (for routing thinking indicators to correct tab) */
+  sessionLastActiveTabIds: Map<string, string>;
   isCtrlKeyHeld?: boolean;
   onSelectSessionTab: (tabId: string) => void;
   onCloseSessionTab: (tabId: string) => void;
@@ -31,6 +33,7 @@ interface MainPaneProps {
   onFocus: (sessionId: string, tabId?: string) => void;
   onNotification?: (sessionId: string, tabId: string, title: string, body: string) => void;
   onThinkingChange?: (sessionId: string, tabId: string, isThinking: boolean) => void;
+  onClearNotification?: (sessionId: string) => void;
   onCwdChange?: (sessionId: string, cwd: string) => void;
   onTabTitleChange?: (sessionId: string, tabId: string, title: string) => void;
 
@@ -67,7 +70,7 @@ export function MainPane({
   activeSessionId,
   allSessionTabs,
   activeSessionTabId,
-  lastActiveSessionTabId,
+  sessionLastActiveTabIds,
   isCtrlKeyHeld = false,
   onSelectSessionTab,
   onCloseSessionTab,
@@ -81,6 +84,7 @@ export function MainPane({
   onFocus,
   onNotification,
   onThinkingChange,
+  onClearNotification,
   onCwdChange,
   onTabTitleChange,
   // Legacy props
@@ -93,6 +97,105 @@ export function MainPane({
   onScratchCwdChange,
 }: MainPaneProps) {
   const hasOpenSessions = openSessionIds.size > 0;
+
+  // Per-tab indicator state (for tab bar display)
+  const [tabIndicators, setTabIndicators] = useState<Map<string, TabIndicators>>(new Map());
+
+  // Clear notification and idle indicators when a tab becomes active (you've seen it)
+  // Note: thinking state is NOT cleared here - MainTerminal controls it
+  // (OSC-based thinking persists until explicit stop, activity-based clears on its own)
+  useEffect(() => {
+    if (activeSessionTabId) {
+      setTabIndicators((prev) => {
+        const current = prev.get(activeSessionTabId);
+        if (!current || (!current.notified && !current.idle)) return prev;
+        const next = new Map(prev);
+        next.set(activeSessionTabId, { ...current, notified: false, idle: false });
+        return next;
+      });
+    }
+  }, [activeSessionTabId]);
+
+  // Track last propagated states per session to avoid redundant updates
+  const lastPropagatedThinkingRef = useRef<Map<string, boolean>>(new Map());
+  const lastPropagatedNotifiedRef = useRef<Map<string, boolean>>(new Map());
+
+  // Effect to propagate thinking and notification state to sidebar when relevant state changes
+  // This ensures sidebar gets updated when sessionLastActiveTabIds changes after a session switch
+  useEffect(() => {
+    for (const [sessionId, tabs] of allSessionTabs.entries()) {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) continue;
+
+      // Determine which tab's thinking state should propagate to sidebar
+      const isActiveSession = sessionId === activeSessionId;
+      const lastActiveTabId = sessionLastActiveTabIds.get(sessionId);
+      // For active session, use active tab; for others, use last active tab or first tab
+      const propagatingTabId = isActiveSession
+        ? activeSessionTabId
+        : (lastActiveTabId ?? tabs[0]?.id);
+
+      if (!propagatingTabId) continue;
+
+      const tabState = tabIndicators.get(propagatingTabId);
+      const isThinking = tabState?.thinking ?? false;
+      const lastPropagatedThinking = lastPropagatedThinkingRef.current.get(sessionId);
+
+      // Only propagate thinking if the state has changed
+      if (isThinking !== lastPropagatedThinking) {
+        lastPropagatedThinkingRef.current.set(sessionId, isThinking);
+
+        if (onThinkingChange) {
+          onThinkingChange(sessionId, propagatingTabId, isThinking);
+        } else {
+          // Legacy handlers
+          if (session.kind === 'worktree') {
+            onWorktreeThinkingChange?.(sessionId, isThinking);
+          } else if (session.kind === 'project') {
+            onProjectThinkingChange?.(sessionId, isThinking);
+          } else {
+            onScratchThinkingChange?.(sessionId, isThinking);
+          }
+        }
+      }
+
+      // Notification: session is notified if ANY tab in the session is notified
+      const isSessionNotified = tabs.some(t => tabIndicators.get(t.id)?.notified);
+      const lastPropagatedNotified = lastPropagatedNotifiedRef.current.get(sessionId);
+
+      // Only propagate notification if the state has changed
+      if (isSessionNotified !== lastPropagatedNotified) {
+        lastPropagatedNotifiedRef.current.set(sessionId, isSessionNotified);
+
+        if (isSessionNotified) {
+          // Use the first notified tab for the propagation call
+          const notifiedTab = tabs.find(t => tabIndicators.get(t.id)?.notified);
+          const notifyingTabId = notifiedTab?.id ?? propagatingTabId;
+
+          if (onNotification) {
+            // We propagate a "synthetic" notification to update sidebar state
+            onNotification(sessionId, notifyingTabId, '', '');
+          }
+        } else {
+          // Clear notification - all tabs have been visited
+          onClearNotification?.(sessionId);
+        }
+      }
+    }
+  }, [
+    tabIndicators,
+    sessionLastActiveTabIds,
+    allSessionTabs,
+    activeSessionId,
+    activeSessionTabId,
+    sessions,
+    onThinkingChange,
+    onNotification,
+    onClearNotification,
+    onWorktreeThinkingChange,
+    onProjectThinkingChange,
+    onScratchThinkingChange,
+  ]);
 
   if (!hasOpenSessions || !activeSessionId) {
     return (
@@ -147,6 +250,7 @@ export function MainPane({
       <SessionTabBar
         tabs={allSessionTabs.get(activeSessionId) ?? []}
         activeTabId={activeSessionTabId}
+        tabIndicators={tabIndicators}
         isCtrlKeyHeld={isCtrlKeyHeld}
         onSelectTab={onSelectSessionTab}
         onCloseTab={onCloseSessionTab}
@@ -165,18 +269,23 @@ export function MainPane({
 
           return tabs.map((tab) => {
             const isActiveTab = isActiveSession && tab.id === activeSessionTabId;
-            // Determine if this tab is the "last active" for notification routing
-            // If there's no lastActiveSessionTabId set, default to the current active tab
-            const isLastActiveTab = lastActiveSessionTabId
-              ? tab.id === lastActiveSessionTabId
-              : isActiveTab;
 
-            // Handle notifications - route based on explicit vs thinking
+            // Handle notifications - update tab state (effect handles sidebar propagation)
             const handleNotification = (title: string, body: string) => {
+              // Update per-tab indicator state
+              setTabIndicators((prev) => {
+                const current = prev.get(tab.id) ?? { notified: false, thinking: false, idle: false };
+                const next = new Map(prev);
+                next.set(tab.id, { ...current, notified: true });
+                return next;
+              });
+
+              // Propagate to sidebar with actual title/body for OS notification
+              // (effect handles syncing the notified state, this is for immediate OS notification)
               if (onNotification) {
                 onNotification(session.id, tab.id, title, body);
               } else {
-                // Legacy handlers (always fire for any tab's notification)
+                // Legacy handlers
                 if (session.kind === 'worktree') {
                   onWorktreeNotification?.(session.id, title, body);
                 } else if (session.kind === 'project') {
@@ -187,22 +296,20 @@ export function MainPane({
               }
             };
 
-            // Handle thinking changes - only route if this is the last active tab
+            // Handle thinking changes - update tab state (effect handles sidebar propagation)
             const handleThinkingChange = (isThinking: boolean) => {
-              if (onThinkingChange) {
-                onThinkingChange(session.id, tab.id, isThinking);
-              } else {
-                // Legacy handlers - only fire if this is the last active tab
-                if (isLastActiveTab) {
-                  if (session.kind === 'worktree') {
-                    onWorktreeThinkingChange?.(session.id, isThinking);
-                  } else if (session.kind === 'project') {
-                    onProjectThinkingChange?.(session.id, isThinking);
-                  } else {
-                    onScratchThinkingChange?.(session.id, isThinking);
-                  }
+              setTabIndicators((prev) => {
+                const current = prev.get(tab.id) ?? { notified: false, thinking: false, idle: false };
+                const next = new Map(prev);
+                if (isThinking) {
+                  // Clear idle when thinking starts
+                  next.set(tab.id, { ...current, thinking: true, idle: false });
+                } else {
+                  // Set idle when thinking stops (only if was thinking)
+                  next.set(tab.id, { ...current, thinking: false, idle: current.thinking });
                 }
-              }
+                return next;
+              });
             };
 
             // Handle cwd changes - only for scratch terminals
@@ -239,7 +346,6 @@ export function MainPane({
                   focusTrigger={isActiveTab ? focusTrigger : undefined}
                   terminalConfig={terminalConfig}
                   activityTimeout={activityTimeout}
-                  isLastActiveTab={isLastActiveTab}
                   onFocus={() => onFocus(session.id, tab.id)}
                   onNotification={handleNotification}
                   onThinkingChange={handleThinkingChange}

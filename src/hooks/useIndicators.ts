@@ -14,6 +14,7 @@ export interface UseIndicatorsReturn {
   // Handler for all session types
   handleNotification: (sessionId: string, title: string, body: string) => void;
   handleThinkingChange: (sessionId: string, isThinking: boolean) => void;
+  clearNotification: (sessionId: string) => void;
 
   // Helper to get indicators for a session
   getIndicators: (sessionId: string) => SessionIndicators;
@@ -25,6 +26,9 @@ export interface UseIndicatorsReturn {
   notifiedProjectIds: Set<string>;
   thinkingProjectIds: Set<string>;
   idleProjectIds: Set<string>;
+  notifiedScratchIds: Set<string>;
+  thinkingScratchIds: Set<string>;
+  idleScratchIds: Set<string>;
 
   // Legacy handlers
   handleWorktreeNotification: (worktreeId: string, title: string, body: string) => void;
@@ -53,17 +57,18 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
     [sessions]
   );
 
-  // Clear notification and idle state when session becomes active
+  // Clear idle state when session becomes active
+  // Note: notification clearing is handled at the tab level - session notification
+  // only clears when all tabs' notifications have been viewed (propagated from MainPane)
   useEffect(() => {
     if (activeSessionId) {
       setIndicators((prev) => {
         const current = prev.get(activeSessionId);
-        if (!current || (!current.notified && !current.idle)) return prev;
+        if (!current || !current.idle) return prev;
 
         const next = new Map(prev);
         next.set(activeSessionId, {
           ...current,
-          notified: false,
           idle: false,
         });
         return next;
@@ -93,6 +98,17 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
     }
   }, [activeSessionId, sessionMap]);
 
+  // Clear notification handler (called when all tabs have been visited)
+  const clearNotification = useCallback((sessionId: string) => {
+    setIndicators((prev) => {
+      const current = prev.get(sessionId);
+      if (!current || !current.notified) return prev;
+      const next = new Map(prev);
+      next.set(sessionId, { ...current, notified: false });
+      return next;
+    });
+  }, []);
+
   // Thinking state handler
   const handleThinkingChange = useCallback((sessionId: string, isThinking: boolean) => {
     setIndicators((prev) => {
@@ -107,26 +123,31 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
           idle: false,
         });
       } else {
-        // Set idle when thinking stops (only if was thinking)
+        // Set idle when thinking stops, but only for background sessions
+        // (never show checkmark for active session)
         next.set(sessionId, {
           ...current,
           thinking: false,
-          idle: current.thinking, // Only set idle if we were thinking
+          idle: current.thinking && sessionId !== activeSessionId,
         });
       }
       return next;
     });
-  }, []);
+  }, [activeSessionId]);
 
   // Legacy compatibility: derive Sets from unified Map
   const { notifiedWorktreeIds, thinkingWorktreeIds, idleWorktreeIds,
-          notifiedProjectIds, thinkingProjectIds, idleProjectIds } = useMemo(() => {
+          notifiedProjectIds, thinkingProjectIds, idleProjectIds,
+          notifiedScratchIds, thinkingScratchIds, idleScratchIds } = useMemo(() => {
     const notifiedWorktree = new Set<string>();
     const thinkingWorktree = new Set<string>();
     const idleWorktree = new Set<string>();
     const notifiedProject = new Set<string>();
     const thinkingProject = new Set<string>();
     const idleProject = new Set<string>();
+    const notifiedScratch = new Set<string>();
+    const thinkingScratch = new Set<string>();
+    const idleScratch = new Set<string>();
 
     for (const [sessionId, state] of indicators.entries()) {
       const session = sessionMap.get(sessionId);
@@ -140,6 +161,10 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
         if (state.notified) notifiedProject.add(sessionId);
         if (state.thinking) thinkingProject.add(sessionId);
         if (state.idle) idleProject.add(sessionId);
+      } else if (session.kind === 'scratch') {
+        if (state.notified) notifiedScratch.add(sessionId);
+        if (state.thinking) thinkingScratch.add(sessionId);
+        if (state.idle) idleScratch.add(sessionId);
       }
     }
 
@@ -150,6 +175,9 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
       notifiedProjectIds: notifiedProject,
       thinkingProjectIds: thinkingProject,
       idleProjectIds: idleProject,
+      notifiedScratchIds: notifiedScratch,
+      thinkingScratchIds: thinkingScratch,
+      idleScratchIds: idleScratch,
     };
   }, [indicators, sessionMap]);
 
@@ -182,6 +210,7 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
     indicators,
     handleNotification,
     handleThinkingChange,
+    clearNotification,
     getIndicators,
     // Legacy compatibility
     notifiedWorktreeIds,
@@ -190,6 +219,9 @@ export function useIndicators(options: UseIndicatorsOptions): UseIndicatorsRetur
     notifiedProjectIds,
     thinkingProjectIds,
     idleProjectIds,
+    notifiedScratchIds,
+    thinkingScratchIds,
+    idleScratchIds,
     handleWorktreeNotification,
     handleWorktreeThinkingChange,
     handleProjectNotification,

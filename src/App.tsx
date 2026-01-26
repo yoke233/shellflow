@@ -333,7 +333,7 @@ function App() {
 
   // Get current session's active tab
   const activeSessionTabId = getActiveTabIdForSession(activeSessionId);
-  const lastActiveSessionTabId = activeSessionId ? sessionLastActiveTabIds.get(activeSessionId) ?? null : null;
+  // Note: sessionLastActiveTabIds is passed directly to MainPane for per-session lookup
 
   // Create initial session tab when a session becomes active and has no tabs
   useEffect(() => {
@@ -365,7 +365,7 @@ function App() {
     prevActiveSessionIdRef.current = activeSessionId;
   }, [activeSessionId, getActiveTabIdForSession, setLastActiveTabId]);
 
-  // Indicator states for worktrees and projects
+  // Indicator states for worktrees, projects, and scratch terminals
   const {
     notifiedWorktreeIds,
     thinkingWorktreeIds,
@@ -373,12 +373,16 @@ function App() {
     notifiedProjectIds,
     thinkingProjectIds,
     idleProjectIds,
+    notifiedScratchIds,
+    thinkingScratchIds,
+    idleScratchIds,
     handleWorktreeNotification,
     handleWorktreeThinkingChange,
     handleProjectNotification,
     handleProjectThinkingChange,
     handleScratchNotification,
     handleScratchThinkingChange,
+    clearNotification,
   } = useIndicators({
     activeSessionId,
     sessions,
@@ -2596,6 +2600,9 @@ function App() {
               notifiedProjectIds={notifiedProjectIds}
               thinkingProjectIds={thinkingProjectIds}
               idleProjectIds={idleProjectIds}
+              notifiedScratchIds={notifiedScratchIds}
+              thinkingScratchIds={thinkingScratchIds}
+              idleScratchIds={idleScratchIds}
               runningTaskCounts={runningTaskCounts}
               expandedProjects={expandedProjects}
               isDrawerOpen={isDrawerOpen}
@@ -2660,7 +2667,7 @@ function App() {
                   activeSessionId={activeSessionId}
                   allSessionTabs={sessionTabs}
                   activeSessionTabId={activeSessionTabId}
-                  lastActiveSessionTabId={lastActiveSessionTabId}
+                  sessionLastActiveTabIds={sessionLastActiveTabIds}
                   isCtrlKeyHeld={isCtrlKeyHeld && !isPickerOpen}
                   onSelectSessionTab={handleSelectSessionTab}
                   onCloseSessionTab={handleCloseSessionTab}
@@ -2679,6 +2686,7 @@ function App() {
                   onScratchNotification={handleScratchNotification}
                   onScratchThinkingChange={handleScratchThinkingChange}
                   onScratchCwdChange={handleScratchCwdChange}
+                  onClearNotification={clearNotification}
                   onTabTitleChange={updateSessionTabLabel}
                 />
               </div>

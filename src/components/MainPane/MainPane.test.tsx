@@ -32,7 +32,7 @@ describe('MainPane', () => {
     activeSessionId: null as string | null,
     allSessionTabs: new Map<string, SessionTab[]>(),
     activeSessionTabId: null as string | null,
-    lastActiveSessionTabId: null as string | null,
+    sessionLastActiveTabIds: new Map<string, string>(),
     isCtrlKeyHeld: false,
     onSelectSessionTab: vi.fn(),
     onCloseSessionTab: vi.fn(),
@@ -429,8 +429,8 @@ describe('MainPane', () => {
     });
   });
 
-  describe('lastActiveSessionTabId', () => {
-    it('passes lastActiveSessionTabId correctly to terminals', () => {
+  describe('sessionLastActiveTabIds', () => {
+    it('passes sessionLastActiveTabIds correctly to terminals', () => {
       const sessions = [createSession('scratch-1', 'scratch', 'Terminal 1', '/home')];
       const sessionTabs = [
         createSessionTab('scratch-1', 1, true),
@@ -446,7 +446,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-          lastActiveSessionTabId={sessionTabs[1].id}
+          sessionLastActiveTabIds={new Map([['scratch-1', sessionTabs[1].id]])}
         />
       );
 
@@ -467,7 +467,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-          lastActiveSessionTabId={null}
+          sessionLastActiveTabIds={new Map()}
         />
       );
 

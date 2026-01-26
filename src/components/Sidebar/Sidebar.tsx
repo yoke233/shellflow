@@ -1,5 +1,6 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, BellDot, Settings, Circle, Folder, Check, ExternalLink, Hash, SquareTerminal, Code } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal } from '../../types';
+import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig } from '../../hooks/useConfig';
 import { useState, useEffect } from 'react';
 import { getTaskUrls, NamedUrl } from '../../lib/tauri';
@@ -47,6 +48,9 @@ interface SidebarProps {
   notifiedProjectIds: Set<string>;
   thinkingProjectIds: Set<string>;
   idleProjectIds: Set<string>;
+  notifiedScratchIds: Set<string>;
+  thinkingScratchIds: Set<string>;
+  idleScratchIds: Set<string>;
   runningTaskCounts: Map<string, number>;
   expandedProjects: Set<string>;
   isDrawerOpen: boolean;
@@ -111,6 +115,9 @@ export function Sidebar({
   notifiedProjectIds,
   thinkingProjectIds,
   idleProjectIds,
+  notifiedScratchIds,
+  thinkingScratchIds,
+  idleScratchIds,
   runningTaskCounts,
   expandedProjects,
   isDrawerOpen,
@@ -371,6 +378,9 @@ export function Sidebar({
                 <div className="space-y-0.5 py-0.5">
                   {scratchTerminals.map((scratch) => {
                     const isSelected = activeScratchId === scratch.id;
+                    const isThinking = thinkingScratchIds.has(scratch.id);
+                    const isIdle = idleScratchIds.has(scratch.id);
+                    const isNotified = notifiedScratchIds.has(scratch.id);
                     // Get shortcut number (1-9) for scratch terminals
                     const shortcutIndex = openEntitiesInOrder.findIndex(e => e.type === 'scratch' && e.id === scratch.id);
                     const shortcutNumber = shortcutIndex >= 0 && shortcutIndex < 9 ? shortcutIndex + 1 : null;
@@ -410,6 +420,15 @@ export function Sidebar({
                               <X size={12} />
                             </button>
                           </div>
+                          {/* Status indicators - hide on hover */}
+                          <StatusIndicators
+                            isNotified={isNotified}
+                            isThinking={isThinking}
+                            isIdle={isIdle}
+                            showIdleCheck={showIdleCheck}
+                            isSelected={isSelected}
+                            className="absolute right-1 group-hover/scratch:hidden"
+                          />
                         </div>
                       </SortableScratch>
                     );
@@ -539,22 +558,15 @@ export function Sidebar({
                             <MoreHorizontal size={14} />
                           </button>
                         </div>
-                        {/* Status indicators - hide on hover. Priority: notification > thinking > idle */}
-                        {notifiedProjectIds.has(project.id) && !isProjectSelected && (
-                          <span className="absolute right-1 group-hover:hidden" title="New notification">
-                            <BellDot size={12} className="text-blue-400" />
-                          </span>
-                        )}
-                        {thinkingProjectIds.has(project.id) && !isProjectSelected && !notifiedProjectIds.has(project.id) && (
-                          <span className="absolute right-1 group-hover:hidden" title="Thinking...">
-                            <Loader2 size={12} className="animate-spin text-violet-400" />
-                          </span>
-                        )}
-                        {showIdleCheck && idleProjectIds.has(project.id) && !isProjectSelected && !notifiedProjectIds.has(project.id) && !thinkingProjectIds.has(project.id) && (
-                          <span className="absolute right-1 group-hover:hidden" title="Ready">
-                            <Check size={12} className="text-emerald-400" />
-                          </span>
-                        )}
+                        {/* Status indicators - hide on hover */}
+                        <StatusIndicators
+                          isNotified={notifiedProjectIds.has(project.id)}
+                          isThinking={thinkingProjectIds.has(project.id)}
+                          isIdle={idleProjectIds.has(project.id)}
+                          showIdleCheck={showIdleCheck}
+                          isSelected={isProjectSelected}
+                          className="absolute right-1 group-hover:hidden"
+                        />
                       </div>
 
                       {expandedProjects.has(project.id) && (
@@ -650,22 +662,15 @@ export function Sidebar({
                                               </button>
                                             )}
                                           </div>
-                                          {/* Status indicators - hide on hover. Priority: notification > thinking > idle */}
-                                          {isNotified && !isSelected && (
-                                            <span className="absolute right-1 group-hover/worktree:hidden" title="New notification">
-                                              <BellDot size={12} className="text-blue-400" />
-                                            </span>
-                                          )}
-                                          {isThinking && !isSelected && !isNotified && (
-                                            <span className="absolute right-1 group-hover/worktree:hidden" title="Thinking...">
-                                              <Loader2 size={12} className="animate-spin text-violet-400" />
-                                            </span>
-                                          )}
-                                          {showIdleCheck && isIdle && !isSelected && !isNotified && !isThinking && (
-                                            <span className="absolute right-1 group-hover/worktree:hidden" title="Ready">
-                                              <Check size={12} className="text-emerald-400" />
-                                            </span>
-                                          )}
+                                          {/* Status indicators - hide on hover */}
+                                          <StatusIndicators
+                                            isNotified={isNotified}
+                                            isThinking={isThinking}
+                                            isIdle={isIdle}
+                                            showIdleCheck={showIdleCheck}
+                                            isSelected={isSelected}
+                                            className="absolute right-1 group-hover/worktree:hidden"
+                                          />
                                         </>
                                       )}
                                     </div>

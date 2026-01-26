@@ -35,8 +35,15 @@ export interface Session {
   branch?: string;        // only for worktrees
 }
 
-// Indicator state for sessions
+// Indicator state for sessions (shown in sidebar)
 export interface SessionIndicators {
+  notified: boolean;
+  thinking: boolean;
+  idle: boolean;
+}
+
+// Indicator state for tabs (shown in tab bar)
+export interface TabIndicators {
   notified: boolean;
   thinking: boolean;
   idle: boolean;

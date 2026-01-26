@@ -41,8 +41,6 @@ interface MainTerminalProps {
   focusTrigger?: number;
   terminalConfig: TerminalConfig;
   activityTimeout?: number;
-  /** Whether this tab was the last active when leaving the session (for notification routing) */
-  isLastActiveTab?: boolean;
   onFocus?: () => void;
   onNotification?: (title: string, body: string) => void;
   onThinkingChange?: (isThinking: boolean) => void;
@@ -51,13 +49,9 @@ interface MainTerminalProps {
   onTitleChange?: (title: string) => void;
 }
 
-export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, isLastActiveTab = true, onFocus, onNotification, onThinkingChange: onThinkingChangeProp, onCwdChange, onTitleChange }: MainTerminalProps) {
+export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange }: MainTerminalProps) {
   // Use sessionId for spawn if provided, otherwise fall back to entityId (for backward compatibility)
   const spawnId = sessionId ?? entityId;
-
-  // Wrap onThinkingChange to only fire if this is the last active tab
-  // (thinking indicators should only show from the tab that was active when leaving session)
-  const onThinkingChange = isLastActiveTab ? onThinkingChangeProp : undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -98,8 +92,9 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     isActiveRef.current = isActive;
 
     if (isActive) {
-      // When becoming active, clear any pending activity state
-      // (no need to show indicator for the tab you're looking at)
+      // When becoming active, clear any pending activity-based state
+      // (activity indicators are for background tabs only)
+      // Note: OSC-based thinking state persists - it only clears on explicit OSC stop
       if (gracePeriodTimeoutRef.current) {
         clearTimeout(gracePeriodTimeoutRef.current);
         gracePeriodTimeoutRef.current = null;
@@ -110,9 +105,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         activityTimeoutRef.current = null;
       }
       isActivityThinkingRef.current = false;
-      isOscThinkingRef.current = false;
-      // Notify parent that thinking stopped
-      onThinkingChangeRef.current?.(false);
+      // Report current state (OSC thinking may still be active)
+      updateThinkingStateRef.current();
     } else if (wasActive) {
       // Just became inactive - start grace period timer
       // If sustained activity occurs during grace period, we'll trigger when it ends
@@ -141,12 +135,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       // Only fix color sequences for main terminals (Claude uses them)
       terminalRef.current.write(type === 'main' ? fixColorSequences(data) : data);
 
-      // Output activity detection only for main terminals when NOT active
-      if (type === 'main' && data.length > 0 && !isActiveRef.current) {
+      // Output activity detection when NOT active (for background tab indicators)
+      if (data.length > 0 && !isActiveRef.current) {
         triggerActivityRef.current();
       }
     }
-  }, [type]);
+  }, []);
 
   // Handle pty-ready event - passed to usePty to avoid race condition
   const handleReady = useCallback(() => {
@@ -398,78 +392,75 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       return true;
     });
 
-    // Register notification handlers only for main terminals
-    if (type === 'main') {
-      // OSC 777: format is "notify;title;body"
-      osc777Disposable = terminal.parser.registerOscHandler(777, (data) => {
-        const parts = data.split(';');
-        if (parts[0] === 'notify' && parts.length >= 3) {
-          const title = parts[1];
-          const body = parts.slice(2).join(';');
-          onNotificationRef.current?.(title, body);
-        }
-        return true;
-      });
+    // Register notification and progress handlers for all terminals
+    // OSC 777: format is "notify;title;body"
+    osc777Disposable = terminal.parser.registerOscHandler(777, (data) => {
+      const parts = data.split(';');
+      if (parts[0] === 'notify' && parts.length >= 3) {
+        const title = parts[1];
+        const body = parts.slice(2).join(';');
+        onNotificationRef.current?.(title, body);
+      }
+      return true;
+    });
 
-      // OSC 9: ConEmu-style sequences
-      // - OSC 9 ; 4 ; state ; progress - Progress reporting (state: 0=hidden, 1=default, 2=error, 3=indeterminate, 4=warning)
-      // - OSC 9 ; text - Notification (just the body)
-      osc9Disposable = terminal.parser.registerOscHandler(9, (data) => {
-        // Check for progress reporting: "4;state" or "4;state;progress"
-        if (data.startsWith('4;')) {
-          // Only track when not active (background tabs only)
-          if (isActiveRef.current) return true;
-          const parts = data.split(';');
-          const state = parseInt(parts[1], 10);
-          // State 0 means hidden/done, anything else means busy/thinking
-          // OSC progress uses explicit start/stop (no timeout)
-          isOscThinkingRef.current = state !== 0 && !isNaN(state);
-          updateThinkingStateRef.current();
-          return true;
-        }
-        // Otherwise treat as notification
+    // OSC 9: ConEmu-style sequences
+    // - OSC 9 ; 4 ; state ; progress - Progress reporting (state: 0=hidden, 1=default, 2=error, 3=indeterminate, 4=warning)
+    // - OSC 9 ; text - Notification (just the body)
+    osc9Disposable = terminal.parser.registerOscHandler(9, (data) => {
+      // Check for progress reporting: "4;state" or "4;state;progress"
+      if (data.startsWith('4;')) {
+        const parts = data.split(';');
+        const state = parseInt(parts[1], 10);
+        // State 0 means hidden/done, anything else means busy/thinking
+        // OSC progress uses explicit start/stop (no timeout) and works even when active
+        isOscThinkingRef.current = state !== 0 && !isNaN(state);
+        updateThinkingStateRef.current();
+        return true;
+      }
+      // Otherwise treat as notification
+      onNotificationRef.current?.('', data);
+      return true;
+    });
+
+    // OSC 99: Kitty notification protocol
+    // Format: "i=<id>:d=<done>:p=<progress>:...;<payload>"
+    // or just ";<payload>" for simple notifications
+    osc99Disposable = terminal.parser.registerOscHandler(99, (data) => {
+      // Find the payload after the semicolon
+      const semicolonIndex = data.indexOf(';');
+      if (semicolonIndex === -1) {
+        // No semicolon, treat entire data as payload
         onNotificationRef.current?.('', data);
         return true;
-      });
+      }
 
-      // OSC 99: Kitty notification protocol
-      // Format: "i=<id>:d=<done>:p=<progress>:...;<payload>"
-      // or just ";<payload>" for simple notifications
-      osc99Disposable = terminal.parser.registerOscHandler(99, (data) => {
-        // Find the payload after the semicolon
-        const semicolonIndex = data.indexOf(';');
-        if (semicolonIndex === -1) {
-          // No semicolon, treat entire data as payload
-          onNotificationRef.current?.('', data);
-          return true;
+      const params = data.slice(0, semicolonIndex);
+      const payload = data.slice(semicolonIndex + 1);
+
+      // Parse parameters (key=value pairs separated by :)
+      const paramMap: Record<string, string> = {};
+      for (const param of params.split(':')) {
+        const eqIndex = param.indexOf('=');
+        if (eqIndex !== -1) {
+          paramMap[param.slice(0, eqIndex)] = param.slice(eqIndex + 1);
         }
+      }
 
-        const params = data.slice(0, semicolonIndex);
-        const payload = data.slice(semicolonIndex + 1);
+      // 'p' parameter can indicate progress, 'a' can be action type
+      // For now, just send the payload as a notification
+      // Could extend to support progress via 'p' parameter in the future
+      if (payload) {
+        onNotificationRef.current?.('', payload);
+      }
+      return true;
+    });
 
-        // Parse parameters (key=value pairs separated by :)
-        const paramMap: Record<string, string> = {};
-        for (const param of params.split(':')) {
-          const eqIndex = param.indexOf('=');
-          if (eqIndex !== -1) {
-            paramMap[param.slice(0, eqIndex)] = param.slice(eqIndex + 1);
-          }
-        }
+    // Bell (BEL character)
+    bellDisposable = terminal.onBell(() => {
+      onNotificationRef.current?.('', 'Bell');
+    });
 
-        // 'p' parameter can indicate progress, 'a' can be action type
-        // For now, just send the payload as a notification
-        // Could extend to support progress via 'p' parameter in the future
-        if (payload) {
-          onNotificationRef.current?.('', payload);
-        }
-        return true;
-      });
-
-      // Bell (BEL character)
-      bellDisposable = terminal.onBell(() => {
-        onNotificationRef.current?.('', 'Bell');
-      });
-    }
 
     // Title change handler - works for all terminal types
     // For main terminals: also triggers activity-based thinking (with timeout)

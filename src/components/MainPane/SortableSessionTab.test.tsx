@@ -195,4 +195,88 @@ describe('SortableSessionTab', () => {
       expect(labelElement).toHaveClass('truncate');
     });
   });
+
+  describe('indicator icons', () => {
+    it('shows thinking spinner when isThinking is true', () => {
+      render(<SortableSessionTab {...defaultProps} isThinking={true} />);
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      expect(svg).toHaveClass('animate-spin', 'text-violet-400');
+    });
+
+    it('shows notification bell when isNotified is true and not active', () => {
+      render(<SortableSessionTab {...defaultProps} isNotified={true} isActive={false} />);
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      expect(svg).toHaveClass('text-blue-400');
+    });
+
+    it('does not show notification bell when isNotified is true but active', () => {
+      render(<SortableSessionTab {...defaultProps} isNotified={true} isActive={true} />);
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      // When active and notified, shows terminal icon (no special color)
+      expect(svg).not.toHaveClass('text-blue-400');
+    });
+
+    it('shows checkmark when isIdle is true and not active', () => {
+      render(<SortableSessionTab {...defaultProps} isIdle={true} isActive={false} />);
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      expect(svg).toHaveClass('text-emerald-400');
+    });
+
+    it('does not show checkmark when isIdle is true but active', () => {
+      render(<SortableSessionTab {...defaultProps} isIdle={true} isActive={true} />);
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      // When active and idle, shows terminal icon (no special color)
+      expect(svg).not.toHaveClass('text-emerald-400');
+    });
+
+    it('notification takes priority over thinking', () => {
+      render(
+        <SortableSessionTab
+          {...defaultProps}
+          isNotified={true}
+          isThinking={true}
+          isActive={false}
+        />
+      );
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      // Should show notification (blue), not thinking (violet)
+      expect(svg).toHaveClass('text-blue-400');
+    });
+
+    it('thinking takes priority over idle', () => {
+      render(
+        <SortableSessionTab
+          {...defaultProps}
+          isThinking={true}
+          isIdle={true}
+          isActive={false}
+        />
+      );
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      // Should show thinking (violet), not idle (emerald)
+      expect(svg).toHaveClass('text-violet-400');
+    });
+
+    it('notification takes priority over idle', () => {
+      render(
+        <SortableSessionTab
+          {...defaultProps}
+          isNotified={true}
+          isIdle={true}
+          isActive={false}
+        />
+      );
+      const tabElement = screen.getByText('Terminal 1').closest('div');
+      const svg = tabElement?.querySelector('svg');
+      // Should show notification (blue), not idle (emerald)
+      expect(svg).toHaveClass('text-blue-400');
+    });
+  });
 });
