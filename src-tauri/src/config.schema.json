@@ -244,100 +244,20 @@
       "type": "object",
       "description": "Keyboard shortcut mappings",
       "properties": {
-        "toggleDrawer": {
+        "quit": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to toggle the drawer panel",
-          "default": "ctrl+`"
+          "description": "Shortcut to quit the application",
+          "default": { "mac": "cmd+q", "other": "ctrl+q" }
         },
-        "toggleRightPanel": {
+        "addProject": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to toggle the right panel",
-          "default": "cmd+b"
+          "description": "Shortcut to add a new project",
+          "default": { "mac": "cmd+o", "other": "ctrl+o" }
         },
-        "terminalCopy": {
+        "projectSwitcher": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to copy selected text in terminals",
-          "default": { "mac": "cmd+c", "other": "ctrl+shift+c" }
-        },
-        "terminalPaste": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to paste text in terminals",
-          "default": { "mac": "cmd+v", "other": "ctrl+shift+v" }
-        },
-        "worktreePrev": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to the previous worktree",
-          "default": { "mac": "cmd+k", "other": "ctrl+shift+k" }
-        },
-        "worktreeNext": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to the next worktree",
-          "default": { "mac": "cmd+j", "other": "ctrl+shift+j" }
-        },
-        "drawerTabPrev": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to the previous drawer tab",
-          "default": { "mac": "cmd+h", "other": "ctrl+h" }
-        },
-        "drawerTabNext": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to the next drawer tab",
-          "default": { "mac": "cmd+l", "other": "ctrl+l" }
-        },
-        "worktree1": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 1",
-          "default": { "mac": "cmd+1", "other": "ctrl+1" }
-        },
-        "worktree2": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 2",
-          "default": { "mac": "cmd+2", "other": "ctrl+2" }
-        },
-        "worktree3": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 3",
-          "default": { "mac": "cmd+3", "other": "ctrl+3" }
-        },
-        "worktree4": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 4",
-          "default": { "mac": "cmd+4", "other": "ctrl+4" }
-        },
-        "worktree5": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 5",
-          "default": { "mac": "cmd+5", "other": "ctrl+5" }
-        },
-        "worktree6": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 6",
-          "default": { "mac": "cmd+6", "other": "ctrl+6" }
-        },
-        "worktree7": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 7",
-          "default": { "mac": "cmd+7", "other": "ctrl+7" }
-        },
-        "worktree8": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 8",
-          "default": { "mac": "cmd+8", "other": "ctrl+8" }
-        },
-        "worktree9": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch to worktree 9",
-          "default": { "mac": "cmd+9", "other": "ctrl+9" }
-        },
-        "renameBranch": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to rename the current branch",
-          "default": "F2"
-        },
-        "runTask": {
-          "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to open the task runner",
-          "default": { "mac": "cmd+r", "other": "ctrl+shift+r" }
+          "description": "Shortcut to open the project switcher",
+          "default": { "mac": "cmd+shift+o", "other": "ctrl+shift+o" }
         },
         "newWorkspace": {
           "$ref": "#/$defs/shortcut",
@@ -349,25 +269,35 @@
           "description": "Shortcut to create a new scratch terminal (works from anywhere)",
           "default": { "mac": "cmd+shift+n", "other": "ctrl+shift+n" }
         },
-        "switchFocus": {
+        "newTab": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch focus between main pane and drawer",
-          "default": "ctrl+\\"
+          "description": "Shortcut to create a new tab",
+          "default": { "mac": "cmd+t", "other": "ctrl+t" }
         },
-        "taskSwitcher": {
+        "closeTab": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to open the task switcher",
-          "default": { "mac": "cmd+;", "other": "ctrl+;" }
+          "description": "Shortcut to close the current tab or session",
+          "default": { "mac": "cmd+w", "other": "ctrl+w" }
+        },
+        "toggleDrawer": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to toggle the drawer panel",
+          "default": "ctrl+`"
+        },
+        "toggleRightPanel": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to toggle the right panel",
+          "default": { "mac": "cmd+b", "other": "ctrl+b" }
         },
         "expandDrawer": {
           "$ref": "#/$defs/shortcut",
           "description": "Shortcut to expand the drawer to full screen",
           "default": "shift+Escape"
         },
-        "previousView": {
+        "commandPalette": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to switch between current and previous view (worktree or project)",
-          "default": { "mac": "cmd+'", "other": "ctrl+'" }
+          "description": "Shortcut to open the command palette",
+          "default": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
         },
         "zoomIn": {
           "$ref": "#/$defs/shortcut",
@@ -384,15 +314,85 @@
           "description": "Shortcut to reset terminal font size in focused pane to base size",
           "default": { "mac": "cmd+shift+0", "other": "ctrl+shift+0" }
         },
-        "commandPalette": {
+        "worktreePrev": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to open the command palette",
-          "default": { "mac": "cmd+shift+p", "other": "ctrl+shift+p" }
+          "description": "Shortcut to switch to the previous session",
+          "default": { "mac": "ctrl+cmd+k", "other": "ctrl+shift+k" }
         },
-        "projectSwitcher": {
+        "worktreeNext": {
           "$ref": "#/$defs/shortcut",
-          "description": "Shortcut to open the project switcher",
-          "default": { "mac": "cmd+shift+o", "other": "ctrl+shift+o" }
+          "description": "Shortcut to switch to the next session",
+          "default": { "mac": "ctrl+cmd+j", "other": "ctrl+shift+j" }
+        },
+        "previousView": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch between current and previous view (worktree or project)",
+          "default": { "mac": "cmd+'", "other": "ctrl+'" }
+        },
+        "switchFocus": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch focus between main pane and drawer",
+          "default": "ctrl+\\"
+        },
+        "session1": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 1",
+          "default": { "mac": "ctrl+cmd+1", "other": "ctrl+1" }
+        },
+        "session2": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 2",
+          "default": { "mac": "ctrl+cmd+2", "other": "ctrl+2" }
+        },
+        "session3": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 3",
+          "default": { "mac": "ctrl+cmd+3", "other": "ctrl+3" }
+        },
+        "session4": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 4",
+          "default": { "mac": "ctrl+cmd+4", "other": "ctrl+4" }
+        },
+        "session5": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 5",
+          "default": { "mac": "ctrl+cmd+5", "other": "ctrl+5" }
+        },
+        "session6": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 6",
+          "default": { "mac": "ctrl+cmd+6", "other": "ctrl+6" }
+        },
+        "session7": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 7",
+          "default": { "mac": "ctrl+cmd+7", "other": "ctrl+7" }
+        },
+        "session8": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 8",
+          "default": { "mac": "ctrl+cmd+8", "other": "ctrl+8" }
+        },
+        "session9": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to switch to session 9",
+          "default": { "mac": "ctrl+cmd+9", "other": "ctrl+9" }
+        },
+        "renameBranch": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to rename the current branch",
+          "default": "F2"
+        },
+        "runTask": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to open the task runner",
+          "default": { "mac": "cmd+r", "other": "ctrl+shift+r" }
+        },
+        "taskSwitcher": {
+          "$ref": "#/$defs/shortcut",
+          "description": "Shortcut to open the task switcher",
+          "default": { "mac": "cmd+;", "other": "ctrl+;" }
         }
       },
       "additionalProperties": false

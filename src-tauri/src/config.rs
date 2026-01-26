@@ -31,6 +31,7 @@ pub struct RawConfig {
     pub tasks: Vec<TaskConfig>,
     pub actions: ActionsConfig,
     pub scratch: ScratchConfig,
+    pub mappings: MappingsConfig,
     #[serde(rename = "unfocusedOpacity")]
     pub unfocused_opacity: f64,
 }
@@ -47,6 +48,7 @@ impl Default for RawConfig {
             tasks: Vec::new(),
             actions: ActionsConfig::default(),
             scratch: ScratchConfig::default(),
+            mappings: MappingsConfig::default(),
             unfocused_opacity: 1.0,
         }
     }
@@ -64,6 +66,7 @@ pub struct Config {
     pub tasks: Vec<TaskConfig>,
     pub actions: ActionsConfig,
     pub scratch: ScratchConfig,
+    pub mappings: MappingsConfig,
     /// Opacity (0.0 to 1.0) applied to unfocused panes (main terminal or drawer)
     #[serde(rename = "unfocusedOpacity")]
     pub unfocused_opacity: f64,
@@ -82,6 +85,7 @@ impl Config {
             tasks: raw.tasks,
             actions: raw.actions,
             scratch: raw.scratch,
+            mappings: raw.mappings,
             unfocused_opacity: raw.unfocused_opacity,
         }
     }
@@ -442,6 +446,280 @@ impl Default for AppsConfig {
     }
 }
 
+/// A keyboard shortcut that can be platform-specific or universal.
+/// Examples:
+/// - Universal: "ctrl+`" or "F2"
+/// - Platform-specific: { "mac": "cmd+n", "other": "ctrl+n" }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Shortcut {
+    /// Same shortcut for all platforms
+    Universal(String),
+    /// Different shortcuts per platform
+    Platform {
+        mac: String,
+        other: String,
+    },
+}
+
+impl Shortcut {
+    /// Get the shortcut string for the current platform
+    pub fn for_current_platform(&self) -> &str {
+        match self {
+            Shortcut::Universal(s) => s,
+            Shortcut::Platform { mac, other } => {
+                if cfg!(target_os = "macos") {
+                    mac
+                } else {
+                    other
+                }
+            }
+        }
+    }
+
+    /// Convert config shortcut format to Tauri accelerator format.
+    /// Config format: "ctrl+cmd+j", "cmd+shift+p", "F2"
+    /// Tauri format: "Ctrl+Cmd+J", "CmdOrCtrl+Shift+P", "F2"
+    pub fn to_accelerator(&self) -> String {
+        let shortcut = self.for_current_platform();
+        shortcut_to_accelerator(shortcut)
+    }
+}
+
+/// Convert a shortcut string to Tauri accelerator format.
+/// Config format uses lowercase with + separator: "ctrl+cmd+j", "cmd+shift+p"
+/// Tauri format uses title case: "Ctrl+Cmd+J", "CmdOrCtrl+Shift+P"
+pub fn shortcut_to_accelerator(shortcut: &str) -> String {
+    shortcut
+        .split('+')
+        .map(|part| {
+            match part.to_lowercase().as_str() {
+                "cmd" => "Cmd".to_string(),
+                "ctrl" => "Ctrl".to_string(),
+                "alt" => "Alt".to_string(),
+                "shift" => "Shift".to_string(),
+                "escape" => "Escape".to_string(),
+                "space" => "Space".to_string(),
+                "enter" => "Enter".to_string(),
+                "backspace" => "Backspace".to_string(),
+                "tab" => "Tab".to_string(),
+                // Function keys
+                key if key.starts_with('f') && key.len() <= 3 => key.to_uppercase(),
+                // Single character keys
+                key if key.len() == 1 => key.to_uppercase(),
+                // Special characters
+                "`" => "`".to_string(),
+                "'" => "'".to_string(),
+                "\\" => "\\".to_string(),
+                ";" => ";".to_string(),
+                "=" => "=".to_string(),
+                "-" => "-".to_string(),
+                "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" => part.to_string(),
+                // Fallback
+                _ => part.to_string(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+/// Keyboard shortcut mappings configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MappingsConfig {
+    // App actions
+    pub quit: Shortcut,
+    #[serde(rename = "addProject")]
+    pub add_project: Shortcut,
+    #[serde(rename = "projectSwitcher")]
+    pub project_switcher: Shortcut,
+
+    // Session/Tab actions
+    #[serde(rename = "newWorkspace")]
+    pub new_workspace: Shortcut,
+    #[serde(rename = "newScratchTerminal")]
+    pub new_scratch_terminal: Shortcut,
+    #[serde(rename = "newTab")]
+    pub new_tab: Shortcut,
+    #[serde(rename = "closeTab")]
+    pub close_tab: Shortcut,
+
+    // View actions
+    #[serde(rename = "toggleDrawer")]
+    pub toggle_drawer: Shortcut,
+    #[serde(rename = "toggleRightPanel")]
+    pub toggle_right_panel: Shortcut,
+    #[serde(rename = "expandDrawer")]
+    pub expand_drawer: Shortcut,
+    #[serde(rename = "commandPalette")]
+    pub command_palette: Shortcut,
+    #[serde(rename = "zoomIn")]
+    pub zoom_in: Shortcut,
+    #[serde(rename = "zoomOut")]
+    pub zoom_out: Shortcut,
+    #[serde(rename = "zoomReset")]
+    pub zoom_reset: Shortcut,
+
+    // Navigation
+    #[serde(rename = "worktreePrev")]
+    pub worktree_prev: Shortcut,
+    #[serde(rename = "worktreeNext")]
+    pub worktree_next: Shortcut,
+    #[serde(rename = "previousView")]
+    pub previous_view: Shortcut,
+    #[serde(rename = "switchFocus")]
+    pub switch_focus: Shortcut,
+
+    // Session navigation (sidebar)
+    pub session1: Shortcut,
+    pub session2: Shortcut,
+    pub session3: Shortcut,
+    pub session4: Shortcut,
+    pub session5: Shortcut,
+    pub session6: Shortcut,
+    pub session7: Shortcut,
+    pub session8: Shortcut,
+    pub session9: Shortcut,
+
+    // Worktree actions
+    #[serde(rename = "renameBranch")]
+    pub rename_branch: Shortcut,
+
+    // Tasks
+    #[serde(rename = "runTask")]
+    pub run_task: Shortcut,
+    #[serde(rename = "taskSwitcher")]
+    pub task_switcher: Shortcut,
+}
+
+impl Default for MappingsConfig {
+    fn default() -> Self {
+        Self {
+            // App actions
+            quit: Shortcut::Platform {
+                mac: "cmd+q".to_string(),
+                other: "ctrl+q".to_string(),
+            },
+            add_project: Shortcut::Platform {
+                mac: "cmd+o".to_string(),
+                other: "ctrl+o".to_string(),
+            },
+            project_switcher: Shortcut::Platform {
+                mac: "cmd+shift+o".to_string(),
+                other: "ctrl+shift+o".to_string(),
+            },
+
+            // Session/Tab actions
+            new_workspace: Shortcut::Platform {
+                mac: "cmd+n".to_string(),
+                other: "ctrl+n".to_string(),
+            },
+            new_scratch_terminal: Shortcut::Platform {
+                mac: "cmd+shift+n".to_string(),
+                other: "ctrl+shift+n".to_string(),
+            },
+            new_tab: Shortcut::Platform {
+                mac: "cmd+t".to_string(),
+                other: "ctrl+t".to_string(),
+            },
+            close_tab: Shortcut::Platform {
+                mac: "cmd+w".to_string(),
+                other: "ctrl+w".to_string(),
+            },
+
+            // View actions
+            toggle_drawer: Shortcut::Universal("ctrl+`".to_string()),
+            toggle_right_panel: Shortcut::Platform {
+                mac: "cmd+b".to_string(),
+                other: "ctrl+b".to_string(),
+            },
+            expand_drawer: Shortcut::Universal("shift+Escape".to_string()),
+            command_palette: Shortcut::Platform {
+                mac: "cmd+shift+p".to_string(),
+                other: "ctrl+shift+p".to_string(),
+            },
+            zoom_in: Shortcut::Platform {
+                mac: "cmd+=".to_string(),
+                other: "ctrl+=".to_string(),
+            },
+            zoom_out: Shortcut::Platform {
+                mac: "cmd+-".to_string(),
+                other: "ctrl+-".to_string(),
+            },
+            zoom_reset: Shortcut::Platform {
+                mac: "cmd+shift+0".to_string(),
+                other: "ctrl+shift+0".to_string(),
+            },
+
+            // Navigation
+            worktree_prev: Shortcut::Platform {
+                mac: "ctrl+cmd+k".to_string(),
+                other: "ctrl+shift+k".to_string(),
+            },
+            worktree_next: Shortcut::Platform {
+                mac: "ctrl+cmd+j".to_string(),
+                other: "ctrl+shift+j".to_string(),
+            },
+            previous_view: Shortcut::Platform {
+                mac: "cmd+'".to_string(),
+                other: "ctrl+'".to_string(),
+            },
+            switch_focus: Shortcut::Universal("ctrl+\\".to_string()),
+
+            // Session navigation (sidebar) - these use ctrl+cmd on mac
+            session1: Shortcut::Platform {
+                mac: "ctrl+cmd+1".to_string(),
+                other: "ctrl+1".to_string(),
+            },
+            session2: Shortcut::Platform {
+                mac: "ctrl+cmd+2".to_string(),
+                other: "ctrl+2".to_string(),
+            },
+            session3: Shortcut::Platform {
+                mac: "ctrl+cmd+3".to_string(),
+                other: "ctrl+3".to_string(),
+            },
+            session4: Shortcut::Platform {
+                mac: "ctrl+cmd+4".to_string(),
+                other: "ctrl+4".to_string(),
+            },
+            session5: Shortcut::Platform {
+                mac: "ctrl+cmd+5".to_string(),
+                other: "ctrl+5".to_string(),
+            },
+            session6: Shortcut::Platform {
+                mac: "ctrl+cmd+6".to_string(),
+                other: "ctrl+6".to_string(),
+            },
+            session7: Shortcut::Platform {
+                mac: "ctrl+cmd+7".to_string(),
+                other: "ctrl+7".to_string(),
+            },
+            session8: Shortcut::Platform {
+                mac: "ctrl+cmd+8".to_string(),
+                other: "ctrl+8".to_string(),
+            },
+            session9: Shortcut::Platform {
+                mac: "ctrl+cmd+9".to_string(),
+                other: "ctrl+9".to_string(),
+            },
+
+            // Worktree actions
+            rename_branch: Shortcut::Universal("F2".to_string()),
+
+            // Tasks
+            run_task: Shortcut::Platform {
+                mac: "cmd+r".to_string(),
+                other: "ctrl+shift+r".to_string(),
+            },
+            task_switcher: Shortcut::Platform {
+                mac: "cmd+;".to_string(),
+                other: "ctrl+;".to_string(),
+            },
+        }
+    }
+}
+
 pub fn get_config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("/tmp"))
@@ -631,4 +909,181 @@ pub fn load_config_with_errors(project_path: Option<&str>) -> ConfigResult {
     let config = Config::from_raw(raw_config);
 
     ConfigResult { config, errors }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod shortcut_to_accelerator {
+        use super::*;
+
+        #[test]
+        fn converts_simple_key() {
+            assert_eq!(shortcut_to_accelerator("a"), "A");
+            assert_eq!(shortcut_to_accelerator("z"), "Z");
+        }
+
+        #[test]
+        fn converts_function_keys() {
+            assert_eq!(shortcut_to_accelerator("F1"), "F1");
+            assert_eq!(shortcut_to_accelerator("f2"), "F2");
+            assert_eq!(shortcut_to_accelerator("F12"), "F12");
+        }
+
+        #[test]
+        fn converts_modifiers() {
+            assert_eq!(shortcut_to_accelerator("cmd+a"), "Cmd+A");
+            assert_eq!(shortcut_to_accelerator("ctrl+b"), "Ctrl+B");
+            assert_eq!(shortcut_to_accelerator("alt+c"), "Alt+C");
+            assert_eq!(shortcut_to_accelerator("shift+d"), "Shift+D");
+        }
+
+        #[test]
+        fn converts_multiple_modifiers() {
+            assert_eq!(shortcut_to_accelerator("cmd+shift+p"), "Cmd+Shift+P");
+            assert_eq!(shortcut_to_accelerator("ctrl+cmd+j"), "Ctrl+Cmd+J");
+            assert_eq!(shortcut_to_accelerator("ctrl+alt+shift+f"), "Ctrl+Alt+Shift+F");
+        }
+
+        #[test]
+        fn converts_special_characters() {
+            assert_eq!(shortcut_to_accelerator("ctrl+`"), "Ctrl+`");
+            assert_eq!(shortcut_to_accelerator("cmd+'"), "Cmd+'");
+            assert_eq!(shortcut_to_accelerator("ctrl+\\"), "Ctrl+\\");
+            assert_eq!(shortcut_to_accelerator("cmd+;"), "Cmd+;");
+        }
+
+        #[test]
+        fn converts_number_keys() {
+            assert_eq!(shortcut_to_accelerator("cmd+1"), "Cmd+1");
+            assert_eq!(shortcut_to_accelerator("ctrl+cmd+9"), "Ctrl+Cmd+9");
+        }
+
+        #[test]
+        fn converts_special_keys() {
+            assert_eq!(shortcut_to_accelerator("shift+Escape"), "Shift+Escape");
+            assert_eq!(shortcut_to_accelerator("cmd+="), "Cmd+=");
+            assert_eq!(shortcut_to_accelerator("cmd+-"), "Cmd+-");
+        }
+    }
+
+    mod shortcut {
+        use super::*;
+
+        #[test]
+        fn universal_returns_same_for_all_platforms() {
+            let shortcut = Shortcut::Universal("ctrl+`".to_string());
+            assert_eq!(shortcut.for_current_platform(), "ctrl+`");
+            assert_eq!(shortcut.to_accelerator(), "Ctrl+`");
+        }
+
+        #[test]
+        fn platform_specific_returns_correct_variant() {
+            let shortcut = Shortcut::Platform {
+                mac: "cmd+n".to_string(),
+                other: "ctrl+n".to_string(),
+            };
+
+            // The platform check happens at runtime
+            let result = shortcut.for_current_platform();
+            #[cfg(target_os = "macos")]
+            assert_eq!(result, "cmd+n");
+            #[cfg(not(target_os = "macos"))]
+            assert_eq!(result, "ctrl+n");
+        }
+
+        #[test]
+        fn deserializes_universal_shortcut() {
+            let json = r#""ctrl+`""#;
+            let shortcut: Shortcut = serde_json::from_str(json).unwrap();
+            assert!(matches!(shortcut, Shortcut::Universal(_)));
+            assert_eq!(shortcut.for_current_platform(), "ctrl+`");
+        }
+
+        #[test]
+        fn deserializes_platform_specific_shortcut() {
+            let json = r#"{"mac": "cmd+n", "other": "ctrl+n"}"#;
+            let shortcut: Shortcut = serde_json::from_str(json).unwrap();
+            assert!(matches!(shortcut, Shortcut::Platform { .. }));
+        }
+
+        #[test]
+        fn serializes_universal_shortcut() {
+            let shortcut = Shortcut::Universal("F2".to_string());
+            let json = serde_json::to_string(&shortcut).unwrap();
+            assert_eq!(json, r#""F2""#);
+        }
+
+        #[test]
+        fn serializes_platform_specific_shortcut() {
+            let shortcut = Shortcut::Platform {
+                mac: "cmd+q".to_string(),
+                other: "ctrl+q".to_string(),
+            };
+            let json = serde_json::to_string(&shortcut).unwrap();
+            assert!(json.contains("mac"));
+            assert!(json.contains("other"));
+        }
+    }
+
+    mod mappings_config {
+        use super::*;
+
+        #[test]
+        fn default_has_all_required_fields() {
+            let mappings = MappingsConfig::default();
+
+            // App actions
+            assert!(!mappings.quit.for_current_platform().is_empty());
+            assert!(!mappings.add_project.for_current_platform().is_empty());
+            assert!(!mappings.project_switcher.for_current_platform().is_empty());
+
+            // Session/Tab actions
+            assert!(!mappings.new_workspace.for_current_platform().is_empty());
+            assert!(!mappings.new_scratch_terminal.for_current_platform().is_empty());
+            assert!(!mappings.new_tab.for_current_platform().is_empty());
+            assert!(!mappings.close_tab.for_current_platform().is_empty());
+
+            // Navigation
+            assert!(!mappings.worktree_prev.for_current_platform().is_empty());
+            assert!(!mappings.worktree_next.for_current_platform().is_empty());
+
+            // Session navigation
+            assert!(!mappings.session1.for_current_platform().is_empty());
+            assert!(!mappings.session9.for_current_platform().is_empty());
+        }
+
+        #[test]
+        fn worktree_nav_uses_ctrl_cmd_on_mac() {
+            let mappings = MappingsConfig::default();
+
+            if let Shortcut::Platform { mac, .. } = &mappings.worktree_next {
+                assert!(mac.contains("ctrl+cmd"), "Expected ctrl+cmd in mac shortcut, got: {}", mac);
+            } else {
+                panic!("Expected Platform shortcut for worktree_next");
+            }
+        }
+
+        #[test]
+        fn deserializes_from_json() {
+            let json = r#"{
+                "quit": "cmd+q",
+                "addProject": { "mac": "cmd+o", "other": "ctrl+o" }
+            }"#;
+
+            let mappings: MappingsConfig = serde_json::from_str(json).unwrap();
+            assert_eq!(mappings.quit.for_current_platform(), "cmd+q");
+        }
+
+        #[test]
+        fn defaults_missing_fields() {
+            let json = r#"{}"#;
+            let mappings: MappingsConfig = serde_json::from_str(json).unwrap();
+
+            // Should have default values
+            assert!(!mappings.quit.for_current_platform().is_empty());
+            assert!(!mappings.command_palette.for_current_platform().is_empty());
+        }
+    }
 }

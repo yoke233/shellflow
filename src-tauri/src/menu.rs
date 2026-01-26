@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use tauri::menu::{MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager};
 
+use crate::config::MappingsConfig;
+
 /// Holds references to menu items that can be dynamically enabled/disabled.
 pub struct DynamicMenuItems {
     items: HashMap<String, MenuItem<tauri::Wry>>,
@@ -33,13 +35,13 @@ impl DynamicMenuItems {
 pub static MENU_ITEMS: RwLock<Option<DynamicMenuItems>> = RwLock::new(None);
 
 /// Initialize and build the application menu
-pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+pub fn setup_menu(app: &tauri::App, mappings: &MappingsConfig) -> Result<(), Box<dyn std::error::Error>> {
     let mut dynamic_items = DynamicMenuItems::new();
 
     // === App Menu (Shellflow) ===
     let about_item = PredefinedMenuItem::about(app, Some("About Shellflow"), None)?;
     let quit_item = MenuItemBuilder::with_id("quit", "Quit Shellflow")
-        .accelerator("CmdOrCtrl+Q")
+        .accelerator(mappings.quit.to_accelerator())
         .build(app)?;
 
     let app_submenu = SubmenuBuilder::new(app, "Shellflow")
@@ -54,36 +56,36 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // === File Menu ===
     let add_project = MenuItemBuilder::with_id("add_project", "Add Project…")
-        .accelerator("CmdOrCtrl+O")
+        .accelerator(mappings.add_project.to_accelerator())
         .build(app)?;
     // add_project is always enabled, no need to track it
 
     let switch_project = MenuItemBuilder::with_id("switch_project", "Switch Project…")
-        .accelerator("CmdOrCtrl+Shift+O")
+        .accelerator(mappings.project_switcher.to_accelerator())
         .build(app)?;
     // switch_project is always enabled, no need to track it
 
     let new_worktree = MenuItemBuilder::with_id("new_worktree", "New Worktree")
-        .accelerator("CmdOrCtrl+N")
+        .accelerator(mappings.new_workspace.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("new_worktree", new_worktree.clone());
 
     let new_scratch_terminal =
         MenuItemBuilder::with_id("new_scratch_terminal", "New Scratch Terminal")
-            .accelerator("CmdOrCtrl+Shift+N")
+            .accelerator(mappings.new_scratch_terminal.to_accelerator())
             .enabled(false)
             .build(app)?;
     dynamic_items.insert("new_scratch_terminal", new_scratch_terminal.clone());
 
     let new_tab = MenuItemBuilder::with_id("new_tab", "New Tab")
-        .accelerator("CmdOrCtrl+T")
+        .accelerator(mappings.new_tab.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("new_tab", new_tab.clone());
 
     let close_tab = MenuItemBuilder::with_id("close_tab", "Close")
-        .accelerator("CmdOrCtrl+W")
+        .accelerator(mappings.close_tab.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("close_tab", close_tab.clone());
@@ -138,37 +140,37 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // === View Menu ===
     let toggle_drawer = MenuItemBuilder::with_id("toggle_drawer", "Toggle Drawer")
-        .accelerator("Ctrl+`")
+        .accelerator(mappings.toggle_drawer.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("toggle_drawer", toggle_drawer.clone());
 
     let toggle_right_panel =
         MenuItemBuilder::with_id("toggle_right_panel", "Toggle Changed Files")
-            .accelerator("CmdOrCtrl+B")
+            .accelerator(mappings.toggle_right_panel.to_accelerator())
             .enabled(false)
             .build(app)?;
     dynamic_items.insert("toggle_right_panel", toggle_right_panel.clone());
 
     let expand_drawer = MenuItemBuilder::with_id("expand_drawer", "Expand Drawer")
-        .accelerator("Shift+Escape")
+        .accelerator(mappings.expand_drawer.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("expand_drawer", expand_drawer.clone());
 
     let command_palette = MenuItemBuilder::with_id("command_palette", "Command Palette…")
-        .accelerator("CmdOrCtrl+Shift+P")
+        .accelerator(mappings.command_palette.to_accelerator())
         .build(app)?;
     // command_palette is always enabled, no need to track it
 
     let zoom_in = MenuItemBuilder::with_id("zoom_in", "Zoom In")
-        .accelerator("CmdOrCtrl+=")
+        .accelerator(mappings.zoom_in.to_accelerator())
         .build(app)?;
     let zoom_out = MenuItemBuilder::with_id("zoom_out", "Zoom Out")
-        .accelerator("CmdOrCtrl+-")
+        .accelerator(mappings.zoom_out.to_accelerator())
         .build(app)?;
     let zoom_reset = MenuItemBuilder::with_id("zoom_reset", "Reset Zoom")
-        .accelerator("CmdOrCtrl+Shift+0")
+        .accelerator(mappings.zoom_reset.to_accelerator())
         .build(app)?;
 
     let view_submenu = SubmenuBuilder::new(app, "View")
@@ -185,86 +187,86 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // === Worktree Menu ===
     let prev_worktree = MenuItemBuilder::with_id("worktree_prev", "Previous Worktree")
-        .accelerator("CmdOrCtrl+K")
+        .accelerator(mappings.worktree_prev.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("worktree_prev", prev_worktree.clone());
 
     let next_worktree = MenuItemBuilder::with_id("worktree_next", "Next Worktree")
-        .accelerator("CmdOrCtrl+J")
+        .accelerator(mappings.worktree_next.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("worktree_next", next_worktree.clone());
 
     let previous_view = MenuItemBuilder::with_id("previous_view", "Previous View")
-        .accelerator("CmdOrCtrl+'")
+        .accelerator(mappings.previous_view.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("previous_view", previous_view.clone());
 
     let switch_focus = MenuItemBuilder::with_id("switch_focus", "Switch Focus")
-        .accelerator("Ctrl+\\")
+        .accelerator(mappings.switch_focus.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("switch_focus", switch_focus.clone());
 
-    // Worktree 1-9
-    let worktree1 = MenuItemBuilder::with_id("worktree1", "Worktree 1")
-        .accelerator("CmdOrCtrl+1")
+    // Session 1-9 (sidebar navigation)
+    let entity1 = MenuItemBuilder::with_id("worktree1", "Session 1")
+        .accelerator(mappings.session1.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree1", worktree1.clone());
+    dynamic_items.insert("worktree1", entity1.clone());
 
-    let worktree2 = MenuItemBuilder::with_id("worktree2", "Worktree 2")
-        .accelerator("CmdOrCtrl+2")
+    let entity2 = MenuItemBuilder::with_id("worktree2", "Session 2")
+        .accelerator(mappings.session2.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree2", worktree2.clone());
+    dynamic_items.insert("worktree2", entity2.clone());
 
-    let worktree3 = MenuItemBuilder::with_id("worktree3", "Worktree 3")
-        .accelerator("CmdOrCtrl+3")
+    let entity3 = MenuItemBuilder::with_id("worktree3", "Session 3")
+        .accelerator(mappings.session3.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree3", worktree3.clone());
+    dynamic_items.insert("worktree3", entity3.clone());
 
-    let worktree4 = MenuItemBuilder::with_id("worktree4", "Worktree 4")
-        .accelerator("CmdOrCtrl+4")
+    let entity4 = MenuItemBuilder::with_id("worktree4", "Session 4")
+        .accelerator(mappings.session4.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree4", worktree4.clone());
+    dynamic_items.insert("worktree4", entity4.clone());
 
-    let worktree5 = MenuItemBuilder::with_id("worktree5", "Worktree 5")
-        .accelerator("CmdOrCtrl+5")
+    let entity5 = MenuItemBuilder::with_id("worktree5", "Session 5")
+        .accelerator(mappings.session5.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree5", worktree5.clone());
+    dynamic_items.insert("worktree5", entity5.clone());
 
-    let worktree6 = MenuItemBuilder::with_id("worktree6", "Worktree 6")
-        .accelerator("CmdOrCtrl+6")
+    let entity6 = MenuItemBuilder::with_id("worktree6", "Session 6")
+        .accelerator(mappings.session6.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree6", worktree6.clone());
+    dynamic_items.insert("worktree6", entity6.clone());
 
-    let worktree7 = MenuItemBuilder::with_id("worktree7", "Worktree 7")
-        .accelerator("CmdOrCtrl+7")
+    let entity7 = MenuItemBuilder::with_id("worktree7", "Session 7")
+        .accelerator(mappings.session7.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree7", worktree7.clone());
+    dynamic_items.insert("worktree7", entity7.clone());
 
-    let worktree8 = MenuItemBuilder::with_id("worktree8", "Worktree 8")
-        .accelerator("CmdOrCtrl+8")
+    let entity8 = MenuItemBuilder::with_id("worktree8", "Session 8")
+        .accelerator(mappings.session8.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree8", worktree8.clone());
+    dynamic_items.insert("worktree8", entity8.clone());
 
-    let worktree9 = MenuItemBuilder::with_id("worktree9", "Worktree 9")
-        .accelerator("CmdOrCtrl+9")
+    let entity9 = MenuItemBuilder::with_id("worktree9", "Session 9")
+        .accelerator(mappings.session9.to_accelerator())
         .enabled(false)
         .build(app)?;
-    dynamic_items.insert("worktree9", worktree9.clone());
+    dynamic_items.insert("worktree9", entity9.clone());
 
     let rename_branch = MenuItemBuilder::with_id("rename_branch", "Rename Branch…")
-        .accelerator("F2")
+        .accelerator(mappings.rename_branch.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("rename_branch", rename_branch.clone());
@@ -279,22 +281,22 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
     dynamic_items.insert("delete_worktree", delete_worktree.clone());
 
-    let worktree_submenu = SubmenuBuilder::new(app, "Worktree")
+    let worktree_submenu = SubmenuBuilder::new(app, "Navigate")
         .item(&prev_worktree)
         .item(&next_worktree)
         .separator()
         .item(&previous_view)
         .item(&switch_focus)
         .separator()
-        .item(&worktree1)
-        .item(&worktree2)
-        .item(&worktree3)
-        .item(&worktree4)
-        .item(&worktree5)
-        .item(&worktree6)
-        .item(&worktree7)
-        .item(&worktree8)
-        .item(&worktree9)
+        .item(&entity1)
+        .item(&entity2)
+        .item(&entity3)
+        .item(&entity4)
+        .item(&entity5)
+        .item(&entity6)
+        .item(&entity7)
+        .item(&entity8)
+        .item(&entity9)
         .separator()
         .item(&rename_branch)
         .item(&merge_worktree)
@@ -303,13 +305,13 @@ pub fn setup_menu(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // === Tasks Menu ===
     let run_task = MenuItemBuilder::with_id("run_task", "Run Task")
-        .accelerator("CmdOrCtrl+R")
+        .accelerator(mappings.run_task.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("run_task", run_task.clone());
 
     let task_switcher = MenuItemBuilder::with_id("task_switcher", "Task Switcher")
-        .accelerator("CmdOrCtrl+;")
+        .accelerator(mappings.task_switcher.to_accelerator())
         .enabled(false)
         .build(app)?;
     dynamic_items.insert("task_switcher", task_switcher.clone());

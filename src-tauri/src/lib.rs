@@ -1566,8 +1566,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(app_state)
         .setup(|app| {
+            // Load config for menu shortcuts
+            let config = config::load_config();
+
             // Set up application menu
-            menu::setup_menu(app)?;
+            menu::setup_menu(app, &config.mappings)?;
 
             // Start file watchers for worktrees in active projects only
             // This enables detection of externally deleted worktree folders
