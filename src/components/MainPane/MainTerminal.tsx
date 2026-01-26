@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Loader2, Play, RotateCcw, Terminal as TerminalIcon } from 'lucide-react';
+import { Loader2, RotateCcw, Terminal as TerminalIcon } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
@@ -29,6 +29,7 @@ function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T 
     timeout = setTimeout(() => fn(...args), ms);
   }) as T;
 }
+
 
 interface MainTerminalProps {
   entityId: string;
@@ -583,34 +584,6 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     await spawn(spawnId, 'shell', cols, rows);
   }, [spawn, spawnId]);
 
-  // Launch main task handler for when the user wants to switch from shell to main command
-  const handleLaunchMain = useCallback(async () => {
-    const terminal = terminalRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!terminal || !fitAddon) return;
-
-    // Reset state
-    setHasExited(false);
-    setIsReady(type === 'project'); // Main command needs to signal ready, project is ready immediately
-    setExitInfo(null);
-    setCurrentMode(type);
-    isActivityThinkingRef.current = false;
-    isOscThinkingRef.current = false;
-    if (activityTimeoutRef.current) {
-      clearTimeout(activityTimeoutRef.current);
-      activityTimeoutRef.current = null;
-    }
-
-    // Clear terminal
-    terminal.clear();
-
-    // Spawn main command with current terminal size
-    const cols = terminal.cols;
-    const rows = terminal.rows;
-    spawnedAtRef.current = Date.now();
-    await spawn(spawnId, type, cols, rows);
-  }, [spawn, spawnId, type]);
-
   // Store resize function in ref to avoid dependency issues
   const resizeRef = useRef(resize);
   const ptyIdRef = useRef(ptyId);
@@ -708,15 +681,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
                 <RotateCcw size={16} />
                 <span>Restart</span>
               </button>
-              {currentMode === 'shell' ? (
-                <button
-                  onClick={handleLaunchMain}
-                  className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
-                >
-                  <Play size={16} />
-                  <span>Main</span>
-                </button>
-              ) : (
+              {currentMode === 'main' && (
                 <button
                   onClick={handleLaunchShell}
                   className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-200 transition-colors"
