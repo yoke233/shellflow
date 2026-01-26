@@ -58,7 +58,7 @@ export function DrawerTerminal({ id, entityId, directory, isActive, shouldAutoFo
     }
   }, []);
 
-  const { ptyId, spawnShell, write, resize, interrupt, kill } = usePty(handleOutput);
+  const { ptyId, spawnShell, write, resize, kill } = usePty(handleOutput);
 
   // Store spawnShell/kill in refs so they're stable for the effect
   const spawnShellRef = useRef(spawnShell);
@@ -68,13 +68,11 @@ export function DrawerTerminal({ id, entityId, directory, isActive, shouldAutoFo
     killRef.current = kill;
   }, [spawnShell, kill]);
 
-  // Store write and interrupt functions in refs so handlers can use them immediately
+  // Store write function in ref so handlers can use it immediately
   const writeRef = useRef(write);
-  const interruptRef = useRef(interrupt);
   useEffect(() => {
     writeRef.current = write;
-    interruptRef.current = interrupt;
-  }, [write, interrupt]);
+  }, [write]);
 
   // Enable file drag-and-drop when PTY is ready and terminal is active
   const { isDragOver } = useTerminalFileDrop(containerRef, (data) => writeRef.current(data), isActive && !!ptyId);
@@ -173,8 +171,8 @@ export function DrawerTerminal({ id, entityId, directory, isActive, shouldAutoFo
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Attach custom keyboard handlers (Ctrl+C for interrupt, Shift+Enter for newline)
-    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data), () => interruptRef.current());
+    // Attach custom keyboard handlers (Shift+Enter for newline)
+    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data));
 
     // Create copy/paste functions for the terminal registry
     const copyPasteFns = createTerminalCopyPaste(terminal, (data) => writeRef.current(data));

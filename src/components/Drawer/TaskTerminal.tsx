@@ -8,7 +8,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { attachKeyboardHandlers, createTerminalCopyPaste, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal } from '../../lib/terminalRegistry';
-import { spawnTask, ptyWrite, ptyResize, ptyInterrupt, ptyKill } from '../../lib/tauri';
+import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
 import '@xterm/xterm/css/xterm.css';
 
 // Fix for xterm.js not handling 5-part colon-separated RGB sequences.
@@ -150,15 +150,8 @@ export function TaskTerminal({
       }
     };
 
-    // Interrupt function for Ctrl+C
-    const interruptPty = () => {
-      if (ptyIdRef.current) {
-        ptyInterrupt(ptyIdRef.current);
-      }
-    };
-
-    // Attach custom keyboard handlers (Ctrl+C for interrupt, Shift+Enter for newline)
-    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, writeToPty, interruptPty);
+    // Attach custom keyboard handlers (Shift+Enter for newline)
+    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, writeToPty);
 
     // Create copy/paste functions for the terminal registry
     const copyPasteFns = createTerminalCopyPaste(terminal, writeToPty);

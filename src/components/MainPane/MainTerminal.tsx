@@ -148,7 +148,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     setIsReady(true);
   }, []);
 
-  const { ptyId, spawn, write, resize, interrupt, kill } = usePty(handleOutput, handleReady);
+  const { ptyId, spawn, write, resize, kill } = usePty(handleOutput, handleReady);
 
   // Listen for pty-exit event
   useEffect(() => {
@@ -176,12 +176,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
   // Store write function in ref so onData handler can use it immediately
   const writeRef = useRef(write);
-  const interruptRef = useRef(interrupt);
   useEffect(() => {
     writeRef.current = write;
     writeForDropRef.current = write;
-    interruptRef.current = interrupt;
-  }, [write, interrupt]);
+  }, [write]);
 
   // Enable file drag-and-drop when terminal is ready, active, and not exited
   const { isDragOver } = useTerminalFileDrop(containerRef, (data) => writeForDropRef.current(data), isActive && isReady && !hasExited);
@@ -335,8 +333,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Attach custom keyboard handlers (Ctrl+C for interrupt, Shift+Enter for newline)
-    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data), () => interruptRef.current());
+    // Attach custom keyboard handlers (Shift+Enter for newline)
+    const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data));
 
     // Create copy/paste functions for the terminal registry
     const copyPasteFns = createTerminalCopyPaste(terminal, (data) => writeRef.current(data));
