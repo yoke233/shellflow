@@ -29,7 +29,7 @@
 
 > [!WARNING]
 >
-> - This project is in early development.
+> - This project is in early development. Things might break.
 > - It's written with heavy AI assistance.
 > - It should work on all platforms but only MacOS is supported at the moment.
 
