@@ -1497,6 +1497,48 @@ fn open_in_editor(
     open_with_app(path, &editor)
 }
 
+/// Ensure a shellflow config file exists and return its path.
+/// Creates the file with a schema reference if it doesn't exist.
+/// - `file_type`: "settings" or "mappings"
+#[tauri::command]
+fn get_config_file_path(file_type: &str) -> Result<String> {
+    use std::fs;
+    use std::path::PathBuf;
+
+    let (path, default_content): (PathBuf, &str) = match file_type {
+        "settings" => (
+            config::get_config_path(),
+            r#"{
+  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/config.schema.json"
+}
+"#,
+        ),
+        "mappings" => (
+            mappings::get_mappings_path(),
+            r#"{
+  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/mappings.schema.json",
+  "bindings": []
+}
+"#,
+        ),
+        _ => return Err(format!("Unknown config file type: {}", file_type)),
+    };
+
+    // Ensure parent directory exists
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    // Create file with default content if it doesn't exist
+    if !path.exists() {
+        fs::write(&path, default_content)
+            .map_err(|e| format!("Failed to create config file: {}", e))?;
+    }
+
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// Launch a terminal running a specific command.
 /// Used for TUI apps (editors, etc.) that need to run inside a terminal.
 /// Supports `{{ path }}` template substitution. If not present, path is appended.
@@ -1816,6 +1858,7 @@ pub fn run() {
             open_with_app,
             open_in_terminal,
             open_in_editor,
+            get_config_file_path,
             open_in_file_manager,
             open_default,
             spawn_main,

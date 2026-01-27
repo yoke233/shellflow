@@ -2492,6 +2492,68 @@ function App() {
         });
       }
     },
+    openSettings: () => {
+      (async () => {
+        const command = getAppCommand(config.apps.editor);
+        const target = config.apps.editor ? getAppTarget(config.apps.editor) : getAppTarget(undefined, 'terminal');
+        const terminalCommand = getAppCommand(config.apps.terminal);
+
+        try {
+          const path = await invoke<string>('get_config_file_path', { fileType: 'settings' });
+
+          if (!command) {
+            console.error('No editor configured');
+            return;
+          }
+
+          if (target === 'drawer') {
+            handleOpenInDrawer(path, substitutePathTemplate(command, path));
+          } else if (target === 'tab') {
+            handleOpenInTab(path, substitutePathTemplate(command, path));
+          } else {
+            invoke('open_in_editor', {
+              path,
+              app: command,
+              target,
+              terminalApp: terminalCommand ?? null,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to open settings:', err);
+        }
+      })();
+    },
+    openMappings: () => {
+      (async () => {
+        const command = getAppCommand(config.apps.editor);
+        const target = config.apps.editor ? getAppTarget(config.apps.editor) : getAppTarget(undefined, 'terminal');
+        const terminalCommand = getAppCommand(config.apps.terminal);
+
+        try {
+          const path = await invoke<string>('get_config_file_path', { fileType: 'mappings' });
+
+          if (!command) {
+            console.error('No editor configured');
+            return;
+          }
+
+          if (target === 'drawer') {
+            handleOpenInDrawer(path, substitutePathTemplate(command, path));
+          } else if (target === 'tab') {
+            handleOpenInTab(path, substitutePathTemplate(command, path));
+          } else {
+            invoke('open_in_editor', {
+              path,
+              app: command,
+              target,
+              terminalApp: terminalCommand ?? null,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to open mappings:', err);
+        }
+      })();
+    },
     closeProject: () => {
       if (activeProjectId && !activeWorktreeId) {
         handleCloseProject(activeProjectId);

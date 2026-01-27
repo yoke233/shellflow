@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
@@ -750,19 +750,62 @@ export function Sidebar({
         />
       )}
 
-      {optionsMenu && (
-        <ContextMenu
-          x={optionsMenu.x}
-          y={optionsMenu.y}
-          items={[
-            {
-              label: 'hi mom',
-              onClick: () => setOptionsMenu(null),
-            },
-          ]}
-          onClose={() => setOptionsMenu(null)}
-        />
-      )}
+      {optionsMenu && (() => {
+        const editorCommand = getAppCommand(appsConfig.editor);
+        const editorTarget = getAppTarget(appsConfig.editor, 'terminal');
+        const terminalCommand = getAppCommand(appsConfig.terminal);
+
+        const handleOpenConfigFile = async (fileType: 'settings' | 'mappings') => {
+          setOptionsMenu(null);
+
+          try {
+            // Get the config file path (creates file if it doesn't exist)
+            const path = await invoke<string>('get_config_file_path', { fileType });
+
+            if (!editorCommand) {
+              console.error('No editor configured');
+              return;
+            }
+
+            // Use the same opening logic as the folder menu's "Open in Editor"
+            if (editorTarget === 'drawer') {
+              onOpenInDrawer(path, substitutePathTemplate(editorCommand, path));
+            } else if (editorTarget === 'tab') {
+              onOpenInTab(path, substitutePathTemplate(editorCommand, path));
+            } else {
+              // External or terminal target - handled by backend
+              invoke('open_in_editor', {
+                path,
+                app: editorCommand,
+                target: editorTarget,
+                terminalApp: terminalCommand ?? null,
+              });
+            }
+          } catch (err) {
+            console.error('Failed to open config file:', err);
+          }
+        };
+
+        return (
+          <ContextMenu
+            x={optionsMenu.x}
+            y={optionsMenu.y}
+            items={[
+              {
+                label: 'Open Settings',
+                icon: <Settings size={14} />,
+                onClick: () => handleOpenConfigFile('settings'),
+              },
+              {
+                label: 'Open Mappings',
+                icon: <Keyboard size={14} />,
+                onClick: () => handleOpenConfigFile('mappings'),
+              },
+            ]}
+            onClose={() => setOptionsMenu(null)}
+          />
+        );
+      })()}
 
       {/* Folder path display - shows for worktrees, projects, and scratch */}
       {activePath && (() => {

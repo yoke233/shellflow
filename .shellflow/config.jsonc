@@ -1,5 +1,5 @@
 {
-  "$schema": "../src-tauri/src/config.schema.json",
+  "$schema": "../schemas/config.schema.json",
   "tasks": [
     {
       "name": "Dev",

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/src-tauri/src/config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/config.schema.json",
   // Shellflow Default Configuration
   // https://github.com/shkm/shellflow/blob/main/src-tauri/src/default_config.jsonc
 

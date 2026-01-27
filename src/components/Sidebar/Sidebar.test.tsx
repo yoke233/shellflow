@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { Sidebar } from './Sidebar';
 import { createTestProject, createTestWorktree, resetMocks } from '../../test/setup';
 import type { Project, Worktree, ScratchTerminal, RunningTask } from '../../types';
-import type { TaskConfig } from '../../hooks/useConfig';
+import type { TaskConfig, AppsConfig } from '../../hooks/useConfig';
 
 // Default props for Sidebar
 const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = {}) => ({
@@ -39,6 +39,7 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   terminalFontFamily: 'Menlo',
   terminalApp: 'Terminal',
   editorApp: 'VS Code',
+  appsConfig: {} as AppsConfig,
   showIdleCheck: true,
   activeScratchCwd: null,
   homeDir: '/Users/test',

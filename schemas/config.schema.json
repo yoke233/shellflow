@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/shkm/shellflow/config.schema.json",
+  "$id": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/config.schema.json",
   "title": "Shellflow Configuration",
   "description": "Configuration file for Shellflow - a Tauri desktop app for orchestrating git worktrees",
   "type": "object",

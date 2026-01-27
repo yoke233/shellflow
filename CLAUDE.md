@@ -138,4 +138,4 @@ User config is stored at `~/.config/shellflow/config.jsonc`:
 When adding new configurable options, update all three files:
 1. `src-tauri/src/config.rs` - Rust struct and defaults
 2. `src-tauri/src/default_config.jsonc` - Default config with comments
-3. `src-tauri/src/config.schema.json` - JSON Schema for validation
+3. `schemas/config.schema.json` - JSON Schema for validation

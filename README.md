@@ -171,7 +171,7 @@ The built application will be available at:
 
 Settings are stored in `~/.config/shellflow/config.jsonc`. The file is created with defaults on first run.
 
-See [default_config.jsonc](src-tauri/src/default_config.jsonc) for all available options, or use the [JSON schema](src-tauri/src/config.schema.json) for editor autocompletion.
+See [default_config.jsonc](src-tauri/src/default_config.jsonc) for all available options, or use the [JSON schema](schemas/config.schema.json) for editor autocompletion.
 
 ### Tasks
 

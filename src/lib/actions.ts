@@ -24,6 +24,8 @@ export type ActionId =
   | 'openInFinder'
   | 'openInTerminal'
   | 'openInEditor'
+  | 'openSettings'
+  | 'openMappings'
   | 'closeProject'
   // View menu
   | 'commandPalette'
@@ -89,6 +91,8 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   openInFinder: (ctx) => !!ctx.activeEntityId,
   openInTerminal: (ctx) => !!ctx.activeEntityId,
   openInEditor: (ctx) => !!ctx.activeEntityId,
+  openSettings: () => true,
+  openMappings: () => true,
   closeProject: (ctx) => !!ctx.activeProjectId && !ctx.activeWorktreeId,
 
   // View menu
@@ -140,6 +144,8 @@ const ACTION_TO_MENU_ID: Record<ActionId, string> = {
   openInFinder: 'open_in_finder',
   openInTerminal: 'open_in_terminal',
   openInEditor: 'open_in_editor',
+  openSettings: 'open_settings',
+  openMappings: 'open_mappings',
   closeProject: 'close_project',
   commandPalette: 'command_palette',
   toggleDrawer: 'toggle_drawer',
@@ -240,6 +246,8 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   openInFinder: { label: 'Open in File Manager', category: 'File', showInPalette: true },
   openInTerminal: { label: 'Open in Terminal', category: 'File', showInPalette: true },
   openInEditor: { label: 'Open in Editor', category: 'File', showInPalette: true },
+  openSettings: { label: 'Open Settings', category: 'File', showInPalette: true },
+  openMappings: { label: 'Open Mappings', category: 'File', showInPalette: true },
   closeProject: { label: 'Close Project', category: 'File', showInPalette: true },
 
   // View menu
