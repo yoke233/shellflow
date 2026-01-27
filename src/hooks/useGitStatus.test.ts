@@ -422,11 +422,16 @@ describe('useGitStatus', () => {
         useGitStatus({ id: 'worktree-1', path: '/not/a/git/repo' })
       );
 
+      // Wait for get_changed_files to be called (async setup must complete first)
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(invokeHistory.some((h) => h.command === 'get_changed_files')).toBe(true);
       });
 
-      expect(result.current.isGitRepo).toBe(false);
+      // Now wait for isGitRepo to be updated after error handling
+      await waitFor(() => {
+        expect(result.current.isGitRepo).toBe(false);
+      });
+
       expect(result.current.files).toEqual([]);
       consoleSpy.mockRestore();
     });
@@ -443,11 +448,16 @@ describe('useGitStatus', () => {
         useGitStatus({ id: 'worktree-1', path: '/not/a/git/repo' })
       );
 
+      // Wait for get_changed_files to be called (async setup must complete first)
       await waitFor(() => {
-        expect(result.current.loading).toBe(false);
+        expect(invokeHistory.some((h) => h.command === 'get_changed_files')).toBe(true);
       });
 
-      expect(result.current.isGitRepo).toBe(false);
+      // Now wait for isGitRepo to be updated after error handling
+      await waitFor(() => {
+        expect(result.current.isGitRepo).toBe(false);
+      });
+
       consoleSpy.mockRestore();
     });
 
@@ -463,7 +473,9 @@ describe('useGitStatus', () => {
         useGitStatus({ id: 'worktree-1', path: '/path/to/worktree' })
       );
 
+      // Wait for get_changed_files to be called and loading to complete
       await waitFor(() => {
+        expect(invokeHistory.some((h) => h.command === 'get_changed_files')).toBe(true);
         expect(result.current.loading).toBe(false);
       });
 

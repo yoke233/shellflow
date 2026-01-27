@@ -85,6 +85,18 @@ pub fn watch_worktree(app: AppHandle, worktree_id: String, worktree_path: String
             return;
         }
 
+        // Also watch the git index file to detect staging/unstaging changes.
+        // For regular repos, .git is a directory; for worktrees, .git is a file
+        // pointing to the actual git directory (e.g., .git/worktrees/<name>).
+        // The index file is in the git directory.
+        if let Some(git_dir) = resolve_git_dir(path) {
+            // Watch the git directory (non-recursive) to catch index changes
+            if let Err(e) = watcher.watch(&git_dir, RecursiveMode::NonRecursive) {
+                // Non-fatal: we can still watch file changes even if we can't watch the index
+                eprintln!("[Watcher] Failed to watch git dir {:?}: {}", git_dir, e);
+            }
+        }
+
         // Trailing-edge debounce: wait until no events for this duration
         let debounce_duration = Duration::from_millis(500);
         let mut pending_update = false;

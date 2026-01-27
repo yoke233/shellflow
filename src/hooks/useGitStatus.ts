@@ -98,6 +98,8 @@ export function useGitStatus(
   }, [worktree, projectPath]);
 
   // Initial load and start watcher
+  // IMPORTANT: We register the event listener BEFORE starting the watcher to avoid
+  // a race condition where events could be emitted before the listener is ready.
   useEffect(() => {
     if (!worktree) {
       setFiles([]);
@@ -107,55 +109,65 @@ export function useGitStatus(
 
     // Reset isGitRepo when target changes
     setIsGitRepo(true);
-    refresh();
 
-    // Start watching if not already watching this worktree (only for uncommitted mode)
-    if (mode === 'uncommitted' && watchingRef.current !== worktree.id) {
-      // Stop previous watcher if any
-      if (watchingRef.current) {
-        invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
+    let cancelled = false;
+    let unlistenFn: UnlistenFn | null = null;
+
+    const setup = async () => {
+      // In uncommitted mode, register listener FIRST, then start watcher
+      if (mode === 'uncommitted') {
+        // Register the event listener before starting the watcher
+        unlistenFn = await listen<FilesChanged>('files-changed', (event) => {
+          // Only update if this is for our worktree and effect hasn't been cancelled
+          if (!cancelled && event.payload.worktree_path === worktree.path) {
+            setFiles(event.payload.files);
+          }
+        });
+
+        // If cancelled during listener setup, clean up immediately
+        if (cancelled) {
+          unlistenFn();
+          return;
+        }
+
+        // Now start the watcher (listener is already ready to receive events)
+        if (watchingRef.current !== worktree.id) {
+          // Stop previous watcher if any
+          if (watchingRef.current) {
+            await invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
+          }
+          watchingRef.current = worktree.id;
+          await invoke('start_watching', {
+            worktreeId: worktree.id,
+            worktreePath: worktree.path,
+          }).catch((err) => console.error('Failed to start watching:', err));
+        }
+      } else if (mode === 'branch' && watchingRef.current) {
+        // Stop watching when in branch mode
+        await invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
+        watchingRef.current = null;
       }
-      watchingRef.current = worktree.id;
-      invoke('start_watching', {
-        worktreeId: worktree.id,
-        worktreePath: worktree.path,
-      }).catch((err) => console.error('Failed to start watching:', err));
-    } else if (mode === 'branch' && watchingRef.current) {
-      // Stop watching when in branch mode
-      invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
-      watchingRef.current = null;
-    }
 
-    // Cleanup on unmount
+      // Fetch initial data after listener is set up
+      if (!cancelled) {
+        refresh();
+      }
+    };
+
+    setup();
+
+    // Cleanup on unmount or deps change
     return () => {
+      cancelled = true;
+      if (unlistenFn) {
+        unlistenFn();
+      }
       if (watchingRef.current) {
         invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
         watchingRef.current = null;
       }
     };
   }, [worktree, refresh, mode]);
-
-  // Listen for file change events (only in uncommitted mode)
-  useEffect(() => {
-    if (!worktree || mode !== 'uncommitted') return;
-
-    let unlisten: UnlistenFn | null = null;
-
-    listen<FilesChanged>('files-changed', (event) => {
-      // Only update if this is for our worktree
-      if (event.payload.worktree_path === worktree.path) {
-        setFiles(event.payload.files);
-      }
-    }).then((fn) => {
-      unlisten = fn;
-    });
-
-    return () => {
-      if (unlisten) {
-        unlisten();
-      }
-    };
-  }, [worktree, mode]);
 
   return {
     files,
