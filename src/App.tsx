@@ -173,6 +173,7 @@ function App() {
     setActiveTab: setActiveSessionTab,
     reorderTabs: reorderSessionTabs,
     incrementCounter: incrementSessionCounter,
+    setPtyId: setSessionPtyId,
     removePtyId: removeSessionPtyId,
     setLastActiveTabId,
     updateTabLabel: updateSessionTabLabel,
@@ -3358,6 +3359,7 @@ function App() {
                   onScratchCwdChange={handleScratchCwdChange}
                   onClearNotification={clearNotification}
                   onTabTitleChange={updateSessionTabLabel}
+                  onPtyIdReady={setSessionPtyId}
                 />
               </div>
             </Panel>

@@ -40,6 +40,8 @@ interface MainPaneProps {
   onClearNotification?: (sessionId: string) => void;
   onCwdChange?: (sessionId: string, cwd: string) => void;
   onTabTitleChange?: (sessionId: string, tabId: string, title: string) => void;
+  /** Called when a tab's PTY is spawned (for cleanup tracking) */
+  onPtyIdReady?: (tabId: string, ptyId: string) => void;
 
   // Legacy props for backward compatibility during migration
   openWorktreeIds?: Set<string>;
@@ -92,6 +94,7 @@ export function MainPane({
   onClearNotification,
   onCwdChange,
   onTabTitleChange,
+  onPtyIdReady,
   // Legacy props
   onWorktreeNotification,
   onWorktreeThinkingChange,
@@ -363,6 +366,7 @@ export function MainPane({
                   onFocus={() => onFocus(session.id, tab.id)}
                   onTitleChange={handleTitleChange}
                   onClose={() => onCloseSessionTab(tab.id)}
+                  onPtyIdReady={(ptyId) => onPtyIdReady?.(tab.id, ptyId)}
                 />
               );
             } else {
@@ -383,6 +387,7 @@ export function MainPane({
                   onThinkingChange={handleThinkingChange}
                   onCwdChange={handleCwdChange}
                   onTitleChange={handleTitleChange}
+                  onPtyIdReady={(ptyId) => onPtyIdReady?.(tab.id, ptyId)}
                 />
               );
             }

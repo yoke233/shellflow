@@ -51,9 +51,11 @@ interface MainTerminalProps {
   onCwdChange?: (cwd: string) => void;
   /** Called when terminal title changes (via OSC escape codes) */
   onTitleChange?: (title: string) => void;
+  /** Called when PTY is spawned with the PTY ID (for cleanup tracking) */
+  onPtyIdReady?: (ptyId: string) => void;
 }
 
-export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange }: MainTerminalProps) {
+export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange, onPtyIdReady }: MainTerminalProps) {
   // Use sessionId for spawn if provided, otherwise fall back to entityId (for backward compatibility)
   const spawnId = sessionId ?? entityId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -219,6 +221,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   useEffect(() => {
     onTitleChangeRef.current = onTitleChange;
   }, [onTitleChange]);
+
+  // Store onPtyIdReady in ref so spawn handlers can access the latest version
+  const onPtyIdReadyRef = useRef(onPtyIdReady);
+  useEffect(() => {
+    onPtyIdReadyRef.current = onPtyIdReady;
+  }, [onPtyIdReady]);
 
   // Progress indicator logic:
   // - Activity (output/title): start timer, reset on more activity, turn off when timer expires
@@ -470,7 +478,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
       spawnedAtRef.current = Date.now();
       // Pass initialCwd for scratch terminals to start in the specified directory
-      await spawnRef.current(spawnId, type, cols, rows, type === 'scratch' ? initialCwd : undefined);
+      const newPtyId = await spawnRef.current(spawnId, type, cols, rows, type === 'scratch' ? initialCwd : undefined);
+
+      // Notify parent of the PTY ID for cleanup tracking
+      if (newPtyId && isMounted) {
+        onPtyIdReadyRef.current?.(newPtyId);
+      }
 
       // For project type, mark as ready immediately (no startup delay like main command)
       if (type === 'project' && isMounted) {
@@ -543,7 +556,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     const cols = terminal.cols;
     const rows = terminal.rows;
     spawnedAtRef.current = Date.now();
-    await spawn(spawnId, currentMode, cols, rows);
+    const newPtyId = await spawn(spawnId, currentMode, cols, rows);
+
+    // Notify parent of the new PTY ID for cleanup tracking
+    if (newPtyId) {
+      onPtyIdReadyRef.current?.(newPtyId);
+    }
   }, [spawn, spawnId, currentMode]);
 
   // Launch shell handler for when the user wants a shell instead of the main command
@@ -571,7 +589,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     const cols = terminal.cols;
     const rows = terminal.rows;
     spawnedAtRef.current = Date.now();
-    await spawn(spawnId, 'shell', cols, rows);
+    const newPtyId = await spawn(spawnId, 'shell', cols, rows);
+
+    // Notify parent of the new PTY ID for cleanup tracking
+    if (newPtyId) {
+      onPtyIdReadyRef.current?.(newPtyId);
+    }
   }, [spawn, spawnId]);
 
   // Store resize function in ref to avoid dependency issues
