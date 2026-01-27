@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/shkm/shellflow/compare/v0.9.1...v0.10.0) (2026-01-27)
+
+
+### Features
+
+* add F2 rename session for scratch terminals ([8666a93](https://github.com/shkm/shellflow/commit/8666a9338917042523b27aa5f3bacd384aa8a638))
+* add Open Settings and Open Mappings actions ([af8acdf](https://github.com/shkm/shellflow/commit/af8acdf1028335ba3ee8e0294e315816c60a6c13))
+* add per-tab indicator tracking with proper clearing behavior ([8ffaed7](https://github.com/shkm/shellflow/commit/8ffaed7f0b25a805e840d45bb839a06cfb5dee13))
+* configurable apps with target options for terminal, editor, and file manager ([d8c27c6](https://github.com/shkm/shellflow/commit/d8c27c6b2682a143602502302a2dc9785d062022))
+* make menu keyboard shortcuts configurable ([ee14549](https://github.com/shkm/shellflow/commit/ee1454966bbba6da9adf03b7ff4e2d01327466eb))
+* new terminal tabs start in the correct directory ([e7ac6aa](https://github.com/shkm/shellflow/commit/e7ac6aadc63341c32e2a6101a5b2caa121fbd68d))
+* update default hotkeys for sidebar and tab navigation ([1424a0d](https://github.com/shkm/shellflow/commit/1424a0df2422b03ac2061f46fa52d3785b36195f))
+* update tab labels from terminal title escape codes ([bc0053a](https://github.com/shkm/shellflow/commit/bc0053a275322062fbe2cc6392811e2e6d6c41cb))
+* warn about uncommitted changes and unmerged commits on worktree deletion ([9003bd6](https://github.com/shkm/shellflow/commit/9003bd61460e23e63bedd8cea3cebe6d89106266))
+
+
+### Bug Fixes
+
+* adjust folder menu position to appear closer to button ([115acb8](https://github.com/shkm/shellflow/commit/115acb8fb6e902c3227a2bb3b68622baef8b217c))
+* attach ResizeObserver after PTY is ready in TaskTerminal ([2115186](https://github.com/shkm/shellflow/commit/2115186169904c4b8454e1d98cfdcfa5b6bf2f8a))
+* hide redundant Shell button when shell process exits ([be15265](https://github.com/shkm/shellflow/commit/be152652f95287f9259b98fcc6446a85791d7d1b))
+* let Ctrl+C work through PTY line discipline ([262de0c](https://github.com/shkm/shellflow/commit/262de0ca5a29dc767d3d0b9a284bd6afa6ecf8b8))
+* pass undefined instead of null to getAppTarget ([8707da7](https://github.com/shkm/shellflow/commit/8707da77b3cdb02fbfc7fd48c6282f4562e07efc))
+* prevent terminal buffer loss when closing a project ([4be6c0f](https://github.com/shkm/shellflow/commit/4be6c0fef1d861c9c3857a2f97ea60efff6949bb))
+* stabilize layout by using overlay scrollbars and scrollbar-gutter ([8261c62](https://github.com/shkm/shellflow/commit/8261c62bccaf0e06e23cf0e6d32de3d78072b387))
+* update cwd display when switching tabs within scratch terminal ([6a8da80](https://github.com/shkm/shellflow/commit/6a8da80bd32a410600471ff96796df7708dacbfa))
+
 ## [0.9.1](https://github.com/shkm/shellflow/compare/v0.9.0...v0.9.1) (2026-01-26)
 
 
