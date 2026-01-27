@@ -601,8 +601,6 @@ function App() {
   }, [runningTasks]);
 
   // Expanded projects - persisted to localStorage
-  const hasInitialized = useRef(localStorage.getItem(EXPANDED_PROJECTS_KEY) !== null);
-
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
     try {
       const saved = localStorage.getItem(EXPANDED_PROJECTS_KEY);
@@ -615,13 +613,6 @@ function App() {
     return new Set();
   });
 
-  // Expand all projects by default on first run only
-  useEffect(() => {
-    if (!hasInitialized.current && projects.length > 0) {
-      hasInitialized.current = true;
-      setExpandedProjects(new Set(projects.map((p) => p.id)));
-    }
-  }, [projects]);
 
   // Create initial scratch terminal on startup if configured
   const hasCreatedInitialScratch = useRef(false);
@@ -1759,6 +1750,9 @@ function App() {
     setActiveScratchId(null);
     setActiveProjectId(projectId);
     setIsProjectSwitcherOpen(false);
+
+    // Expand the project in the sidebar
+    setExpandedProjects((prev) => new Set([...prev, projectId]));
   }, [projects, activateProject]);
 
   const handleTaskExit = useCallback((worktreeId: string, taskName: string, exitCode: number) => {
@@ -1941,6 +1935,8 @@ function App() {
         if (prev.has(project.id)) return prev;
         return new Set([...prev, project.id]);
       });
+      // Expand the project in the sidebar
+      setExpandedProjects((prev) => new Set([...prev, project.id]));
     }
     setOpenWorktreeIds((prev) => {
       if (prev.has(worktree.id)) return prev;
@@ -1963,6 +1959,8 @@ function App() {
     setActiveWorktreeId(null);
     setActiveScratchId(null);
     setActiveProjectId(project.id);
+    // Expand the project in the sidebar
+    setExpandedProjects((prev) => new Set([...prev, project.id]));
   }, []);
 
   // Scratch terminal handlers

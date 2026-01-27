@@ -644,6 +644,52 @@ describe('App', () => {
         expect(hasBetaResult).toBe(true);
       });
     });
+
+    it('expands project in sidebar when switched to', async () => {
+      const worktree = createTestWorktree({ id: 'wt-1', name: 'my-feature-branch' });
+      const project = createTestProject({
+        id: 'proj-1',
+        name: 'collapsed-project',
+        worktrees: [worktree],
+      });
+      mockInvokeResponses.set('list_projects', [project]);
+      mockInvokeResponses.set('touch_project', null);
+
+      // Set localStorage so the app thinks it has been initialized already,
+      // preventing the auto-expand-all behavior on first run
+      localStorage.setItem('shellflow:expandedProjects', '[]');
+
+      const user = userEvent.setup();
+      render(<App />);
+
+      // Wait for project to show in sidebar
+      await waitFor(() => {
+        expect(screen.getByText('collapsed-project')).toBeInTheDocument();
+      }, { timeout: 3000 });
+
+      // Worktree should NOT be visible because project is collapsed
+      expect(screen.queryByText('my-feature-branch')).not.toBeInTheDocument();
+
+      // Open project switcher
+      await act(async () => {
+        emitEvent('menu-action', 'palette::projectSwitcher');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Search projects...')).toBeInTheDocument();
+      });
+
+      // Select the project
+      const modalList = screen.getByTestId('modal-list');
+      const projectButton = modalList.querySelector('button');
+      expect(projectButton).toBeTruthy();
+      await user.click(projectButton!);
+
+      // Now the worktree should be visible because the project was expanded
+      await waitFor(() => {
+        expect(screen.getByText('my-feature-branch')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('Command Palette Navigation', () => {
