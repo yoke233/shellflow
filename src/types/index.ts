@@ -13,6 +13,8 @@ export interface ScratchTerminal {
   id: string;
   name: string;
   order: number;
+  /** Initial working directory for the terminal (used when spawning) */
+  initialCwd?: string;
 }
 
 // Represents what's currently selected in the main content area
@@ -33,6 +35,7 @@ export interface Session {
   order: number;
   projectId?: string;     // only for worktrees (parent reference)
   branch?: string;        // only for worktrees
+  initialCwd?: string;    // only for scratch (initial working directory when spawning)
 }
 
 // Indicator state for sessions (shown in sidebar)

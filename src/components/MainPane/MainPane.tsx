@@ -354,6 +354,7 @@ export function MainPane({
                 focusTrigger={isActiveTab ? focusTrigger : undefined}
                 terminalConfig={terminalConfig}
                 activityTimeout={activityTimeout}
+                initialCwd={tab.directory ?? (session.kind === 'scratch' && tab.isPrimary ? session.initialCwd : undefined)}
                 onFocus={() => onFocus(session.id, tab.id)}
                 onNotification={handleNotification}
                 onThinkingChange={handleThinkingChange}

@@ -8,7 +8,8 @@ export interface UseScratchTerminalsReturn {
   scratchCwds: Map<string, string>;
   homeDir: string | null;
 
-  addScratchTerminal: () => ScratchTerminal;
+  /** Add a new scratch terminal, optionally starting at a specific directory */
+  addScratchTerminal: (initialCwd?: string) => ScratchTerminal;
   closeScratchTerminal: (id: string) => void;
   renameScratchTerminal: (id: string, name: string) => void;
   reorderScratchTerminals: (ids: string[]) => void;
@@ -45,12 +46,13 @@ export function useScratchTerminals(): UseScratchTerminalsReturn {
     });
   }, [homeDir, scratchTerminals]);
 
-  const addScratchTerminal = useCallback(() => {
+  const addScratchTerminal = useCallback((initialCwd?: string) => {
     const newCounter = scratchTerminalCounter + 1;
     const newScratch: ScratchTerminal = {
       id: `scratch-${newCounter}`,
       name: `Terminal ${newCounter}`,
       order: scratchTerminals.length,
+      initialCwd,
     };
     setScratchTerminals((prev) => [...prev, newScratch]);
     setScratchTerminalCounter(newCounter);

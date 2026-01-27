@@ -57,7 +57,23 @@ describe('usePty', () => {
 
       const spawnCall = invokeHistory.find((h) => h.command === 'spawn_scratch_terminal');
       expect(spawnCall).toBeDefined();
-      expect(spawnCall?.args).toEqual({ scratchId: 'scratch-1', cols: undefined, rows: undefined });
+      expect(spawnCall?.args).toEqual({ scratchId: 'scratch-1', directory: undefined, cols: undefined, rows: undefined });
+    });
+
+    it('spawns a scratch terminal with custom directory', async () => {
+      mockInvokeResponses.set('spawn_scratch_terminal', 'pty-scratch-custom');
+
+      const { result } = renderHook(() => usePty());
+
+      await act(async () => {
+        await result.current.spawn('scratch-1', 'scratch', 80, 24, '/custom/path');
+      });
+
+      expect(result.current.ptyId).toBe('pty-scratch-custom');
+
+      const spawnCall = invokeHistory.find((h) => h.command === 'spawn_scratch_terminal');
+      expect(spawnCall).toBeDefined();
+      expect(spawnCall?.args).toEqual({ scratchId: 'scratch-1', directory: '/custom/path', cols: 80, rows: 24 });
     });
 
     it('spawns a shell terminal for worktree', async () => {

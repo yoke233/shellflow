@@ -36,7 +36,7 @@ export function usePty(onOutput?: (data: string) => void, onReady?: () => void) 
     };
   }, []);
 
-  const spawn = useCallback(async (worktreeId: string, type: PtyType, cols?: number, rows?: number) => {
+  const spawn = useCallback(async (worktreeId: string, type: PtyType, cols?: number, rows?: number, directory?: string) => {
     try {
       // Clean up any existing listeners
       if (unlistenRef.current) {
@@ -87,7 +87,7 @@ export function usePty(onOutput?: (data: string) => void, onReady?: () => void) 
         params = { projectId: worktreeId, cols, rows };
       } else if (type === 'scratch') {
         command = 'spawn_scratch_terminal';
-        params = { scratchId: worktreeId, cols, rows };
+        params = { scratchId: worktreeId, directory, cols, rows };
       } else {
         // 'shell' or 'worktree' - both spawn a terminal in the worktree directory
         command = 'spawn_terminal';

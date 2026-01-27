@@ -42,6 +42,8 @@ interface MainTerminalProps {
   focusTrigger?: number;
   terminalConfig: TerminalConfig;
   activityTimeout?: number;
+  /** Initial working directory for scratch terminals */
+  initialCwd?: string;
   onFocus?: () => void;
   onNotification?: (title: string, body: string) => void;
   onThinkingChange?: (isThinking: boolean) => void;
@@ -50,7 +52,7 @@ interface MainTerminalProps {
   onTitleChange?: (title: string) => void;
 }
 
-export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange }: MainTerminalProps) {
+export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange }: MainTerminalProps) {
   // Use sessionId for spawn if provided, otherwise fall back to entityId (for backward compatibility)
   const spawnId = sessionId ?? entityId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -485,7 +487,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       const rows = terminal.rows;
 
       spawnedAtRef.current = Date.now();
-      await spawnRef.current(spawnId, type, cols, rows);
+      // Pass initialCwd for scratch terminals to start in the specified directory
+      await spawnRef.current(spawnId, type, cols, rows, type === 'scratch' ? initialCwd : undefined);
 
       // For project type, mark as ready immediately (no startup delay like main command)
       if (type === 'project' && isMounted) {
@@ -525,7 +528,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       // 1. The pty-exit event handler (when process exits naturally)
       // 2. App.tsx cleanup when tab is explicitly closed
     };
-  }, [entityId, type]);
+  }, [entityId, type, initialCwd]);
 
   // Restart handler for when the process exits - restarts whatever was last running
   const handleRestart = useCallback(async () => {

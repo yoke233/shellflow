@@ -294,6 +294,7 @@ function App() {
         name: scratch.name,
         path: scratchCwds.get(scratch.id) ?? homeDir ?? '',
         order: order++,
+        initialCwd: scratch.initialCwd,
       });
     }
 
@@ -887,14 +888,27 @@ function App() {
   const handleAddSessionTab = useCallback(() => {
     if (!activeSessionId) return;
 
+    // Determine the working directory for the new tab:
+    // - For project/worktree sessions: always use the project/worktree path
+    // - For scratch sessions: use the current tab's cwd (inherited from active tab)
+    let directory: string | undefined;
+    if (activeSessionKind === 'scratch') {
+      // For scratch, inherit the current tab's cwd
+      directory = activeSessionTabId ? scratchCwds.get(activeSessionTabId) : undefined;
+    } else {
+      // For project/worktree, always use the entity's path
+      directory = getEntityDirectory(activeSessionId);
+    }
+
     const counter = incrementSessionCounter(activeSessionId);
     const newTab: SessionTab = {
       id: `${activeSessionId}-session-${counter}`,
       label: `Terminal ${counter}`,
       isPrimary: false, // Additional tabs are not primary (run shell, not configured command)
+      directory,
     };
     addSessionTab(activeSessionId, newTab);
-  }, [activeSessionId, incrementSessionCounter, addSessionTab]);
+  }, [activeSessionId, activeSessionKind, activeSessionTabId, scratchCwds, getEntityDirectory, incrementSessionCounter, addSessionTab]);
 
   // Will be defined after close handlers - just a placeholder reference for now
   const handleCloseSessionTabRef = useRef<(tabId: string) => void>(() => {});
@@ -1768,13 +1782,17 @@ function App() {
 
   // Scratch terminal handlers
   const handleAddScratchTerminal = useCallback(() => {
-    const newScratch = addScratchTerminal();
+    // Get the cwd of the currently active scratch tab (if any) to start the new terminal there
+    const currentCwd = activeScratchId && activeSessionTabId
+      ? scratchCwds.get(activeSessionTabId)
+      : undefined;
+    const newScratch = addScratchTerminal(currentCwd);
     // Select the new scratch terminal
     setPreviousView({ worktreeId: activeWorktreeId, projectId: activeProjectId, scratchId: activeScratchId });
     setActiveWorktreeId(null);
     setActiveProjectId(null);
     setActiveScratchId(newScratch.id);
-  }, [addScratchTerminal, activeWorktreeId, activeProjectId, activeScratchId]);
+  }, [addScratchTerminal, activeWorktreeId, activeProjectId, activeScratchId, activeSessionTabId, scratchCwds]);
 
   const handleSelectScratch = useCallback((scratchId: string) => {
     // Save current view as previous before switching

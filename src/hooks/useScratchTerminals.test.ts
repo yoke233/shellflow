@@ -66,8 +66,31 @@ describe('useScratchTerminals', () => {
         id: 'scratch-1',
         name: 'Terminal 1',
         order: 0,
+        initialCwd: undefined,
       });
       expect(result.current.scratchTerminals).toHaveLength(1);
+    });
+
+    it('creates scratch terminal with initialCwd when provided', async () => {
+      const { result } = renderHook(() =>
+        useScratchTerminals()
+      );
+
+      await waitFor(() => {
+        expect(result.current.homeDir).toBe('/Users/test');
+      });
+
+      let newTerminal;
+      act(() => {
+        newTerminal = result.current.addScratchTerminal('/custom/directory');
+      });
+
+      expect(newTerminal).toEqual({
+        id: 'scratch-1',
+        name: 'Terminal 1',
+        order: 0,
+        initialCwd: '/custom/directory',
+      });
     });
 
     it('increments counter for each new terminal', async () => {
@@ -117,7 +140,7 @@ describe('useScratchTerminals', () => {
       expect(result.current.scratchTerminals[1].order).toBe(1);
     });
 
-    it('does not initialize cwd at creation time (cwd is set per-tab via OSC 7)', async () => {
+    it('initializes session cwd to homeDir when homeDir is available', async () => {
       const { result } = renderHook(() =>
         useScratchTerminals()
       );
@@ -126,13 +149,16 @@ describe('useScratchTerminals', () => {
         expect(result.current.homeDir).toBe('/Users/test');
       });
 
-      let newTerminal;
+      let newTerminal: { id: string } | undefined;
       act(() => {
         newTerminal = result.current.addScratchTerminal();
       });
 
-      // CWD is now tracked per tab ID, not per session ID, so it's not initialized here
-      expect(result.current.scratchCwds.has(newTerminal!.id)).toBe(false);
+      // Session-level cwd is initialized to homeDir (used for sidebar display)
+      // Tab-level cwd is tracked separately via OSC 7
+      await waitFor(() => {
+        expect(result.current.scratchCwds.get(newTerminal!.id)).toBe('/Users/test');
+      });
     });
   });
 
