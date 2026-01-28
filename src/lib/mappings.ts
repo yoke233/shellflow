@@ -30,7 +30,7 @@ export type ActionNamespace =
   | 'modal'
   | 'rightPanel'
   | 'diff'
-  | 'split';
+  | 'pane';
 
 /**
  * Namespaced action identifier (e.g., "drawer::closeTab")

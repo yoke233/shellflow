@@ -192,6 +192,8 @@ function App() {
     split: splitPane,
     focusDirection: focusSplitDirection,
     hasSplits: tabHasSplits,
+    closePane: closeSplitPane,
+    getActivePaneId,
   } = useSplitActions();
 
   // Per-worktree focus state (which pane has focus)
@@ -2534,6 +2536,14 @@ function App() {
     const tabs = getTabsForSession(activeSessionId);
     const remaining = tabs.filter(t => t.id !== tabId);
 
+    // If closing the last tab, close the entire session instead
+    // Don't kill PTY here - handleCloseCurrentSession may show a confirmation modal
+    // and we don't want to kill the PTY until confirmed
+    if (remaining.length === 0) {
+      handleCloseCurrentSession();
+      return;
+    }
+
     // Kill the PTY for this tab if it exists
     const ptyId = sessionTabPtyIds.get(tabId);
     if (ptyId) {
@@ -2544,12 +2554,6 @@ function App() {
     // Clean up cwd for scratch terminal tabs (cwds are keyed by tab ID)
     if (activeScratchId) {
       removeScratchCwd(tabId);
-    }
-
-    // If closing the last tab, close the entire session instead
-    if (remaining.length === 0) {
-      handleCloseCurrentSession();
-      return;
     }
 
     removeSessionTab(activeSessionId, tabId);
@@ -3009,37 +3013,50 @@ function App() {
     onPrevChangedFile: handlePrevChangedFile,
     onToggleDiffMode: handleToggleDiffMode,
 
-    // Split actions (vim-style splits)
-    onSplitHorizontal: () => {
-      console.log('[SPLIT:App] onSplitHorizontal called', { activeSessionTabId });
+    // Pane actions (vim-style splits and navigation)
+    onPaneSplitHorizontal: () => {
+      console.log('[SPLIT:App] onPaneSplitHorizontal called', { activeSessionTabId });
       if (activeSessionTabId) {
         splitPane(activeSessionTabId, 'horizontal');
       }
     },
-    onSplitVertical: () => {
-      console.log('[SPLIT:App] onSplitVertical called', { activeSessionTabId });
+    onPaneSplitVertical: () => {
+      console.log('[SPLIT:App] onPaneSplitVertical called', { activeSessionTabId });
       if (activeSessionTabId) {
         splitPane(activeSessionTabId, 'vertical');
       }
     },
-    onSplitFocusLeft: () => {
+    onPaneFocusLeft: () => {
       if (activeSessionTabId) {
         focusSplitDirection(activeSessionTabId, 'left');
       }
     },
-    onSplitFocusDown: () => {
+    onPaneFocusDown: () => {
       if (activeSessionTabId) {
         focusSplitDirection(activeSessionTabId, 'down');
       }
     },
-    onSplitFocusUp: () => {
+    onPaneFocusUp: () => {
       if (activeSessionTabId) {
         focusSplitDirection(activeSessionTabId, 'up');
       }
     },
-    onSplitFocusRight: () => {
+    onPaneFocusRight: () => {
       if (activeSessionTabId) {
         focusSplitDirection(activeSessionTabId, 'right');
+      }
+    },
+    onPaneClose: () => {
+      if (!activeSessionTabId) return;
+      const hasSplits = tabHasSplits(activeSessionTabId);
+      if (hasSplits) {
+        const activePaneId = getActivePaneId(activeSessionTabId);
+        if (activePaneId) {
+          closeSplitPane(activeSessionTabId, activePaneId);
+        }
+      } else {
+        // No splits - close the tab
+        handleCloseSessionTab(activeSessionTabId);
       }
     },
   }), [
@@ -3054,7 +3071,7 @@ function App() {
     isCommandPaletteOpen, isTaskSwitcherOpen, isProjectSwitcherOpen,
     pendingCloseProject, pendingDeleteId, pendingMergeId,
     handleOpenDiff, handleNextChangedFile, handlePrevChangedFile, handleToggleDiffMode,
-    splitPane, focusSplitDirection,
+    splitPane, focusSplitDirection, tabHasSplits, getActivePaneId, closeSplitPane,
   ]);
 
   // Context-aware keyboard shortcuts (new system)

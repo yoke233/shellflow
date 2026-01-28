@@ -5,7 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { LigaturesAddon } from '@xterm/addon-ligatures';
 import { listen } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { Loader2, RotateCcw, Terminal as TerminalIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { usePty } from '../../hooks/usePty';
 import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
@@ -63,9 +63,11 @@ interface MainTerminalProps {
   onTitleChange?: (title: string) => void;
   /** Called when PTY is spawned with the PTY ID (for cleanup tracking) */
   onPtyIdReady?: (ptyId: string) => void;
+  /** Called when PTY process exits */
+  onExit?: () => void;
 }
 
-export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange, onPtyIdReady }: MainTerminalProps) {
+export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange, onPtyIdReady, onExit }: MainTerminalProps) {
   // Use sessionId for spawn if provided, otherwise fall back to entityId (for backward compatibility)
   const spawnId = sessionId ?? entityId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,9 +81,6 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const xtermTheme = useXtermTheme();
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
-  const [hasExited, setHasExited] = useState(false);
-  const [exitInfo, setExitInfo] = useState<{ command: string; exitCode: number | null } | null>(null);
-  const [currentMode, setCurrentMode] = useState<'main' | 'project' | 'scratch' | 'shell'>(type);
 
   // File drag-and-drop support - uses stable callback via ref
   const writeForDropRef = useRef<(data: string) => void>(() => {});
@@ -174,15 +173,14 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
     const unlisten = listen<{ ptyId: string; worktreeId: string; command: string; exitCode: number | null }>('pty-exit', (event) => {
       if (event.payload.ptyId === ptyId) {
-        setHasExited(true);
-        setExitInfo({ command: event.payload.command, exitCode: event.payload.exitCode });
+        onExit?.();
       }
     });
 
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [ptyId]);
+  }, [ptyId, onExit]);
 
   // Store spawn/kill in refs so they're stable for the effect
   const spawnRef = useRef(spawn);
@@ -199,8 +197,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     writeForDropRef.current = write;
   }, [write]);
 
-  // Enable file drag-and-drop when terminal is ready, active, and not exited
-  const { isDragOver } = useTerminalFileDrop(containerRef, (data) => writeForDropRef.current(data), isActive && isReady && !hasExited);
+  // Enable file drag-and-drop when terminal is ready and active
+  const { isDragOver } = useTerminalFileDrop(containerRef, (data) => writeForDropRef.current(data), isActive && isReady);
 
   // Store onFocus in ref for use in terminal events
   const onFocusRef = useRef(onFocus);
@@ -542,71 +540,6 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     }
   }, [xtermTheme]);
 
-  // Restart handler for when the process exits - restarts whatever was last running
-  const handleRestart = useCallback(async () => {
-    const terminal = terminalRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!terminal || !fitAddon) return;
-
-    // Reset state
-    setHasExited(false);
-    setIsReady(currentMode === 'shell' || currentMode === 'project');
-    setExitInfo(null);
-    isActivityThinkingRef.current = false;
-    isOscThinkingRef.current = false;
-    if (activityTimeoutRef.current) {
-      clearTimeout(activityTimeoutRef.current);
-      activityTimeoutRef.current = null;
-    }
-
-    // Clear terminal
-    terminal.clear();
-
-    // Spawn new PTY with current terminal size
-    const cols = terminal.cols;
-    const rows = terminal.rows;
-    spawnedAtRef.current = Date.now();
-    const newPtyId = await spawn(spawnId, currentMode, cols, rows);
-
-    // Notify parent of the new PTY ID for cleanup tracking
-    if (newPtyId) {
-      onPtyIdReadyRef.current?.(newPtyId);
-    }
-  }, [spawn, spawnId, currentMode]);
-
-  // Launch shell handler for when the user wants a shell instead of the main command
-  const handleLaunchShell = useCallback(async () => {
-    const terminal = terminalRef.current;
-    const fitAddon = fitAddonRef.current;
-    if (!terminal || !fitAddon) return;
-
-    // Reset state
-    setHasExited(false);
-    setIsReady(true); // Shell is ready immediately
-    setExitInfo(null);
-    setCurrentMode('shell');
-    isActivityThinkingRef.current = false;
-    isOscThinkingRef.current = false;
-    if (activityTimeoutRef.current) {
-      clearTimeout(activityTimeoutRef.current);
-      activityTimeoutRef.current = null;
-    }
-
-    // Clear terminal
-    terminal.clear();
-
-    // Spawn shell with current terminal size
-    const cols = terminal.cols;
-    const rows = terminal.rows;
-    spawnedAtRef.current = Date.now();
-    const newPtyId = await spawn(spawnId, 'shell', cols, rows);
-
-    // Notify parent of the new PTY ID for cleanup tracking
-    if (newPtyId) {
-      onPtyIdReadyRef.current?.(newPtyId);
-    }
-  }, [spawn, spawnId]);
-
   // Store resize function in ref to avoid dependency issues
   const resizeRef = useRef(resize);
   const ptyIdRef = useRef(ptyId);
@@ -695,7 +628,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
   return (
     <div className="relative w-full h-full overflow-hidden" data-terminal-id={entityId} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
-      {!isReady && !hasExited && (
+      {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0">
           <div className="flex flex-col items-center gap-3 text-theme-2">
             <Loader2 size={32} className="animate-spin" />
@@ -703,43 +636,9 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
           </div>
         </div>
       )}
-      {hasExited && (
-        <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0/90">
-          <div className="flex flex-col items-center gap-4 text-theme-2">
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-theme-1 font-medium">
-                {exitInfo?.command ?? (type === 'project' ? 'Shell' : 'Process')} exited
-              </span>
-              {exitInfo?.exitCode !== null && exitInfo?.exitCode !== undefined && (
-                <span className="text-sm">
-                  Exit code: {exitInfo.exitCode}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRestart}
-                className="flex items-center gap-2 px-4 py-2 bg-theme-2 hover:bg-theme-3 rounded-md text-theme-1 transition-colors"
-              >
-                <RotateCcw size={16} />
-                <span>Restart</span>
-              </button>
-              {currentMode === 'main' && (
-                <button
-                  onClick={handleLaunchShell}
-                  className="flex items-center gap-2 px-4 py-2 bg-theme-2 hover:bg-theme-3 rounded-md text-theme-1 transition-colors"
-                >
-                  <TerminalIcon size={16} />
-                  <span>Shell</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
       <div
         ref={containerRef}
-        className={`w-full h-full transition-opacity duration-200 ${isReady && !hasExited ? 'opacity-100' : 'opacity-0'}`}
+        className={`w-full h-full transition-opacity duration-200 ${isReady ? 'opacity-100' : 'opacity-0'}`}
       />
       {isResizing && (
         <div className="absolute inset-0 z-50" style={{ backgroundColor: xtermTheme.background }} />

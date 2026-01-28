@@ -96,13 +96,14 @@ export interface ActionHandlerCallbacks {
   onPrevChangedFile: () => void;
   onToggleDiffMode: () => void;
 
-  // Split actions (vim-style splits)
-  onSplitHorizontal: () => void;
-  onSplitVertical: () => void;
-  onSplitFocusLeft: () => void;
-  onSplitFocusDown: () => void;
-  onSplitFocusUp: () => void;
-  onSplitFocusRight: () => void;
+  // Pane actions (vim-style splits and navigation)
+  onPaneSplitHorizontal: () => void;
+  onPaneSplitVertical: () => void;
+  onPaneFocusLeft: () => void;
+  onPaneFocusDown: () => void;
+  onPaneFocusUp: () => void;
+  onPaneFocusRight: () => void;
+  onPaneClose: () => void;
 }
 
 /**
@@ -205,13 +206,14 @@ export function createActionHandlers(callbacks: ActionHandlerCallbacks): ActionH
     'diff::prevFile': callbacks.onPrevChangedFile,
     'diff::toggleMode': callbacks.onToggleDiffMode,
 
-    // Split actions (vim-style splits)
-    'split::horizontal': callbacks.onSplitHorizontal,
-    'split::vertical': callbacks.onSplitVertical,
-    'split::focusLeft': callbacks.onSplitFocusLeft,
-    'split::focusDown': callbacks.onSplitFocusDown,
-    'split::focusUp': callbacks.onSplitFocusUp,
-    'split::focusRight': callbacks.onSplitFocusRight,
+    // Pane actions (vim-style splits and navigation)
+    'pane::splitHorizontal': callbacks.onPaneSplitHorizontal,
+    'pane::splitVertical': callbacks.onPaneSplitVertical,
+    'pane::focusLeft': callbacks.onPaneFocusLeft,
+    'pane::focusDown': callbacks.onPaneFocusDown,
+    'pane::focusUp': callbacks.onPaneFocusUp,
+    'pane::focusRight': callbacks.onPaneFocusRight,
+    'pane::close': callbacks.onPaneClose,
   };
 }
 

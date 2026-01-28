@@ -100,6 +100,7 @@ interface TerminalTabContentProps {
   onCwdChangeFactory: ((tabId: string, cwd: string) => void) | null;
   onTitleChangeFactory: (sessionId: string, tabId: string, title: string) => void;
   onPtyIdReadyFactory: ((tabId: string, ptyId: string) => void) | null;
+  onExitFactory: (tabId: string, paneId: string, isLastPane: boolean) => void;
   renderSplitPane: (
     paneId: string,
     paneConfig: SplitPaneConfig,
@@ -111,7 +112,8 @@ interface TerminalTabContentProps {
     handleNotification: (title: string, body: string) => void,
     handleThinkingChange: (isThinking: boolean) => void,
     handleCwdChange: ((cwd: string) => void) | undefined,
-    handleTitleChange: (title: string) => void
+    handleTitleChange: (title: string) => void,
+    handleExit: (paneId: string) => void
   ) => React.ReactNode;
 }
 
@@ -134,6 +136,7 @@ const TerminalTabContent = memo(function TerminalTabContent({
   onCwdChangeFactory,
   onTitleChangeFactory,
   onPtyIdReadyFactory,
+  onExitFactory,
   renderSplitPane,
 }: TerminalTabContentProps) {
   // Fine-grained subscription: only re-renders when THIS tab's split state changes
@@ -177,6 +180,14 @@ const TerminalTabContent = memo(function TerminalTabContent({
     [splitState, tabId, setPaneReady, onPtyIdReadyFactory]
   );
 
+  const handleExit = useCallback(
+    (paneId: string) => {
+      const isLastPane = !splitState || splitState.panes.size <= 1;
+      onExitFactory(tabId, paneId, isLastPane);
+    },
+    [onExitFactory, tabId, splitState]
+  );
+
   const handlePendingSplitConsumed = useCallback(
     () => clearPendingSplit(tabId),
     [clearPendingSplit, tabId]
@@ -190,6 +201,15 @@ const TerminalTabContent = memo(function TerminalTabContent({
   const handlePaneFocus = useCallback(
     (paneId: string) => focusPane(tabId, paneId),
     [focusPane, tabId]
+  );
+
+  // For single-pane mode: get the pane ID (must be computed before conditional to keep hook order stable)
+  const singlePaneId = splitState?.activePaneId ?? tabId;
+
+  // Create bound exit handler - must be before conditional return to maintain hook order
+  const handleSinglePaneExit = useCallback(
+    () => handleExit(singlePaneId),
+    [handleExit, singlePaneId]
   );
 
   log.debug('[SPLIT:TerminalTabContent] render', {
@@ -222,7 +242,8 @@ const TerminalTabContent = memo(function TerminalTabContent({
             handleNotification,
             handleThinkingChange,
             handleCwdChange,
-            handleTitleChange
+            handleTitleChange,
+            handleExit
           )
         }
         onPaneFocus={handlePaneFocus}
@@ -231,7 +252,6 @@ const TerminalTabContent = memo(function TerminalTabContent({
   }
 
   // Single pane: render MainTerminal directly (no Gridview overhead)
-  const singlePaneId = splitState?.activePaneId ?? tabId;
   const singlePaneConfig = splitState?.panes.get(singlePaneId);
   // Map split pane types to MainTerminal types
   const rawType = singlePaneConfig?.type ?? (isPrimary ? terminalType : 'scratch');
@@ -261,6 +281,7 @@ const TerminalTabContent = memo(function TerminalTabContent({
       onCwdChange={handleCwdChange}
       onTitleChange={handleTitleChange}
       onPtyIdReady={handlePtyIdReady}
+      onExit={handleSinglePaneExit}
     />
   );
 });
@@ -305,6 +326,7 @@ export const MainPane = memo(function MainPane({
     initTab: initSplitTab,
     focusPane: focusSplitPane,
     setPaneReady: setSplitPaneReady,
+    closePane: closeSplitPane,
   } = useSplitActions();
 
   log.debug('[SPLIT:MainPane] render', {
@@ -484,7 +506,8 @@ export const MainPane = memo(function MainPane({
       handleNotification: (title: string, body: string) => void,
       handleThinkingChange: (isThinking: boolean) => void,
       handleCwdChange: ((cwd: string) => void) | undefined,
-      handleTitleChange: (title: string) => void
+      handleTitleChange: (title: string) => void,
+      handleExit: (paneId: string) => void
     ) => {
       // Map split pane type to MainTerminal type
       const terminalType = paneConfig.type === 'task' || paneConfig.type === 'action' || paneConfig.type === 'shell'
@@ -522,6 +545,7 @@ export const MainPane = memo(function MainPane({
               setSplitPaneReady(tabId, paneId, ptyId);
               onPtyIdReady?.(tabId, ptyId);
             }}
+            onExit={() => handleExit(paneId)}
           />
         </div>
       );
@@ -607,6 +631,19 @@ export const MainPane = memo(function MainPane({
       onPtyIdReady?.(tabId, ptyId);
     },
     [onPtyIdReady]
+  );
+
+  const onExitFactory = useCallback(
+    (tabId: string, paneId: string, isLastPane: boolean) => {
+      if (isLastPane) {
+        // Close the entire tab when it's the last pane
+        onCloseSessionTab(tabId);
+      } else {
+        // Close just the pane when there are multiple
+        closeSplitPane(tabId, paneId);
+      }
+    },
+    [onCloseSessionTab, closeSplitPane]
   );
 
   if (!hasOpenSessions || !activeSessionId) {
@@ -738,6 +775,7 @@ export const MainPane = memo(function MainPane({
                   onCwdChangeFactory={session.kind === 'scratch' ? onCwdChangeFactory : null}
                   onTitleChangeFactory={onTitleChangeFactory}
                   onPtyIdReadyFactory={onPtyIdReady ? onPtyIdReadyFactory : null}
+                  onExitFactory={onExitFactory}
                   renderSplitPane={renderSplitPane}
                 />
               );

@@ -76,13 +76,14 @@ export type ActionId =
   // Task actions
   | 'task::run'
   | 'task::switcher'
-  // Split actions (vim-style splits)
-  | 'split::horizontal'
-  | 'split::vertical'
-  | 'split::focusLeft'
-  | 'split::focusDown'
-  | 'split::focusUp'
-  | 'split::focusRight';
+  // Pane actions (vim-style splits and navigation)
+  | 'pane::splitHorizontal'
+  | 'pane::splitVertical'
+  | 'pane::focusLeft'
+  | 'pane::focusDown'
+  | 'pane::focusUp'
+  | 'pane::focusRight'
+  | 'pane::close';
 
 // State needed to evaluate action availability
 export interface ActionContext {
@@ -188,13 +189,14 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   'task::run': (ctx) => !!ctx.activeEntityId && !!ctx.activeSelectedTask,
   'task::switcher': (ctx) => ctx.taskCount > 0,
 
-  // Split actions (vim-style splits)
-  'split::horizontal': (ctx) => !!ctx.activeEntityId,
-  'split::vertical': (ctx) => !!ctx.activeEntityId,
-  'split::focusLeft': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
-  'split::focusDown': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
-  'split::focusUp': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
-  'split::focusRight': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  // Pane actions (vim-style splits and navigation)
+  'pane::splitHorizontal': (ctx) => !!ctx.activeEntityId,
+  'pane::splitVertical': (ctx) => !!ctx.activeEntityId,
+  'pane::focusLeft': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusDown': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusUp': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusRight': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::close': (ctx) => !!ctx.activeEntityId,
 };
 
 /**
@@ -228,7 +230,7 @@ export function getMenuAvailability(ctx: ActionContext): Record<string, boolean>
 // Action Metadata for Command Palette
 // ============================================================================
 
-export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help' | 'Splits';
+export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help' | 'Panes';
 
 export interface ActionMetadata {
   label: string;
@@ -317,13 +319,14 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   'task::run': { label: 'Run Task', category: 'Tasks', showInPalette: true },
   'task::switcher': { label: 'Task Switcher', category: 'Tasks', showInPalette: true },
 
-  // Split actions (vim-style splits)
-  'split::horizontal': { label: 'Split Horizontally', category: 'Splits', showInPalette: true },
-  'split::vertical': { label: 'Split Vertically', category: 'Splits', showInPalette: true },
-  'split::focusLeft': { label: 'Focus Left Pane', category: 'Splits', showInPalette: true },
-  'split::focusDown': { label: 'Focus Pane Below', category: 'Splits', showInPalette: true },
-  'split::focusUp': { label: 'Focus Pane Above', category: 'Splits', showInPalette: true },
-  'split::focusRight': { label: 'Focus Right Pane', category: 'Splits', showInPalette: true },
+  // Pane actions (vim-style splits and navigation)
+  'pane::splitHorizontal': { label: 'Split Horizontally', category: 'Panes', showInPalette: true },
+  'pane::splitVertical': { label: 'Split Vertically', category: 'Panes', showInPalette: true },
+  'pane::focusLeft': { label: 'Focus Left Pane', category: 'Panes', showInPalette: true },
+  'pane::focusDown': { label: 'Focus Pane Below', category: 'Panes', showInPalette: true },
+  'pane::focusUp': { label: 'Focus Pane Above', category: 'Panes', showInPalette: true },
+  'pane::focusRight': { label: 'Focus Right Pane', category: 'Panes', showInPalette: true },
+  'pane::close': { label: 'Close Pane', category: 'Panes', showInPalette: true },
 };
 
 /** Get actions that should appear in the command palette */
