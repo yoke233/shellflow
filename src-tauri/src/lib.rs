@@ -27,6 +27,12 @@ fn map_err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+// Logging command - prints to stdout so it appears in the terminal during dev
+#[tauri::command]
+fn log_to_terminal(level: &str, message: &str) {
+    println!("[{}] {}", level, message);
+}
+
 // Project commands
 #[tauri::command]
 fn add_project(state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
@@ -1858,10 +1864,10 @@ fn shutdown(app: AppHandle, state: State<'_, Arc<AppState>>) -> bool {
     has_sessions
 }
 
+use tauri_plugin_log::{Target, TargetKind, TimezoneStrategy};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
     // Clean up any orphaned processes from a previous crash
     cleanup::cleanup_orphans();
 
@@ -1881,12 +1887,29 @@ pub fn run() {
     cleanup::spawn_watchdog();
 
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    Target::new(TargetKind::Stdout),
+                    Target::new(TargetKind::LogDir { file_name: None }),
+                    Target::new(TargetKind::Webview),
+                ])
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
+                .timezone_strategy(TimezoneStrategy::UseLocal)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(app_state)
         .setup(|app| {
+            eprintln!("[setup] Shellflow starting...");
+
             // Load config for menu shortcuts
             let config = config::load_config();
 
@@ -1910,6 +1933,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            log_to_terminal,
             add_project,
             list_projects,
             hide_project,

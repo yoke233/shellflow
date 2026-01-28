@@ -26,6 +26,7 @@ import { useScratchTerminals } from './hooks/useScratchTerminals';
 import { useIndicators } from './hooks/useIndicators';
 import { useDrawerTabs } from './hooks/useDrawerTabs';
 import { useSessionTabs, SessionTab } from './hooks/useSessionTabs';
+import { useSplitActions } from './contexts/SplitContext';
 import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, touchProject } from './lib/tauri';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ActionContext, ActionId, getMenuAvailability } from './lib/actions';
@@ -183,6 +184,17 @@ function App() {
     selectTabByIndex: selectSessionTabByIndex,
     clearSessionTabs,
   } = useSessionTabs();
+
+  // Split layout actions for vim-style pane splits within tabs
+  // Using useSplitActions() instead of useSplit() prevents App from re-rendering on split state changes
+  const {
+    initTab: initSplitTab,
+    split: splitPane,
+    focusDirection: focusSplitDirection,
+    hasSplits: tabHasSplits,
+    closePane: closeSplitPane,
+    getActivePaneId,
+  } = useSplitActions();
 
   // Per-worktree focus state (which pane has focus)
   const [focusStates, setFocusStates] = useState<Map<string, FocusedPane>>(new Map());
@@ -430,6 +442,11 @@ function App() {
     const tabs = getTabsForSession(activeSessionId);
     if (tabs.length > 0) return;
 
+    // Determine terminal type based on session kind
+    const session = sessions.find(s => s.id === activeSessionId);
+    const type = session?.kind === 'worktree' ? 'main' : session?.kind === 'project' ? 'project' : 'scratch';
+    const directory = session?.kind === 'scratch' ? session.initialCwd : undefined;
+
     // Create the primary tab (runs the configured command)
     const counter = incrementSessionCounter(activeSessionId);
     const newTab: SessionTab = {
@@ -438,7 +455,10 @@ function App() {
       isPrimary: true,
     };
     addSessionTab(activeSessionId, newTab);
-  }, [activeSessionId, getTabsForSession, incrementSessionCounter, addSessionTab]);
+
+    // Initialize split state for the new tab
+    initSplitTab(newTab.id, { type, directory });
+  }, [activeSessionId, sessions, getTabsForSession, incrementSessionCounter, addSessionTab, initSplitTab]);
 
   // Track last active tab when switching away from a session
   const prevActiveSessionIdRef = useRef<string | null>(null);
@@ -1089,7 +1109,10 @@ function App() {
       directory,
     };
     addSessionTab(activeSessionId, newTab);
-  }, [activeSessionId, activeSessionKind, activeSessionTabId, scratchCwds, getEntityDirectory, incrementSessionCounter, addSessionTab]);
+
+    // Initialize split state for the new tab (non-primary tabs always use 'scratch' type for shell)
+    initSplitTab(newTab.id, { type: 'scratch', directory });
+  }, [activeSessionId, activeSessionKind, activeSessionTabId, scratchCwds, getEntityDirectory, incrementSessionCounter, addSessionTab, initSplitTab]);
 
   // Will be defined after close handlers - just a placeholder reference for now
   const handleCloseSessionTabRef = useRef<(tabId: string) => void>(() => {});
@@ -2513,6 +2536,14 @@ function App() {
     const tabs = getTabsForSession(activeSessionId);
     const remaining = tabs.filter(t => t.id !== tabId);
 
+    // If closing the last tab, close the entire session instead
+    // Don't kill PTY here - handleCloseCurrentSession may show a confirmation modal
+    // and we don't want to kill the PTY until confirmed
+    if (remaining.length === 0) {
+      handleCloseCurrentSession();
+      return;
+    }
+
     // Kill the PTY for this tab if it exists
     const ptyId = sessionTabPtyIds.get(tabId);
     if (ptyId) {
@@ -2523,12 +2554,6 @@ function App() {
     // Clean up cwd for scratch terminal tabs (cwds are keyed by tab ID)
     if (activeScratchId) {
       removeScratchCwd(tabId);
-    }
-
-    // If closing the last tab, close the entire session instead
-    if (remaining.length === 0) {
-      handleCloseCurrentSession();
-      return;
     }
 
     removeSessionTab(activeSessionId, tabId);
@@ -2557,7 +2582,8 @@ function App() {
     taskCount: config.tasks.length,
     isViewingDiff: activeDiffState.isViewingDiff,
     changedFilesCount: changedFiles.length,
-  }), [activeProjectId, activeWorktreeId, activeScratchId, activeEntityId, isDrawerOpen, activeFocusState, activeDrawerTabId, openEntitiesInOrder.length, canGoBack, canGoForward, activeSelectedTask, config.tasks.length, activeDiffState.isViewingDiff, changedFiles.length]);
+    hasSplits: activeSessionTabId ? tabHasSplits(activeSessionTabId) : false,
+  }), [activeProjectId, activeWorktreeId, activeScratchId, activeEntityId, isDrawerOpen, activeFocusState, activeDrawerTabId, openEntitiesInOrder.length, canGoBack, canGoForward, activeSelectedTask, config.tasks.length, activeDiffState.isViewingDiff, changedFiles.length, activeSessionTabId, tabHasSplits]);
 
   // Dynamic labels for command palette based on configured apps and state
   const commandPaletteLabelOverrides = useMemo(() => {
@@ -2986,6 +3012,53 @@ function App() {
     onNextChangedFile: handleNextChangedFile,
     onPrevChangedFile: handlePrevChangedFile,
     onToggleDiffMode: handleToggleDiffMode,
+
+    // Pane actions (vim-style splits and navigation)
+    onPaneSplitHorizontal: () => {
+      console.log('[SPLIT:App] onPaneSplitHorizontal called', { activeSessionTabId });
+      if (activeSessionTabId) {
+        splitPane(activeSessionTabId, 'horizontal');
+      }
+    },
+    onPaneSplitVertical: () => {
+      console.log('[SPLIT:App] onPaneSplitVertical called', { activeSessionTabId });
+      if (activeSessionTabId) {
+        splitPane(activeSessionTabId, 'vertical');
+      }
+    },
+    onPaneFocusLeft: () => {
+      if (activeSessionTabId) {
+        focusSplitDirection(activeSessionTabId, 'left');
+      }
+    },
+    onPaneFocusDown: () => {
+      if (activeSessionTabId) {
+        focusSplitDirection(activeSessionTabId, 'down');
+      }
+    },
+    onPaneFocusUp: () => {
+      if (activeSessionTabId) {
+        focusSplitDirection(activeSessionTabId, 'up');
+      }
+    },
+    onPaneFocusRight: () => {
+      if (activeSessionTabId) {
+        focusSplitDirection(activeSessionTabId, 'right');
+      }
+    },
+    onPaneClose: () => {
+      if (!activeSessionTabId) return;
+      const hasSplits = tabHasSplits(activeSessionTabId);
+      if (hasSplits) {
+        const activePaneId = getActivePaneId(activeSessionTabId);
+        if (activePaneId) {
+          closeSplitPane(activeSessionTabId, activePaneId);
+        }
+      } else {
+        // No splits - close the tab
+        handleCloseSessionTab(activeSessionTabId);
+      }
+    },
   }), [
     activeDrawerTabId, activeDrawerTabs, isDrawerOpen, activeScratchId, activeWorktreeId, activeProjectId,
     activeSessionTabId,
@@ -2998,6 +3071,7 @@ function App() {
     isCommandPaletteOpen, isTaskSwitcherOpen, isProjectSwitcherOpen,
     pendingCloseProject, pendingDeleteId, pendingMergeId,
     handleOpenDiff, handleNextChangedFile, handlePrevChangedFile, handleToggleDiffMode,
+    splitPane, focusSplitDirection, tabHasSplits, getActivePaneId, closeSplitPane,
   ]);
 
   // Context-aware keyboard shortcuts (new system)
@@ -3022,6 +3096,7 @@ function App() {
         canGoBack,
         canGoForward,
         isDiffViewOpen: activeDiffState.isViewingDiff,
+        hasSplits: activeSessionTabId ? tabHasSplits(activeSessionTabId) : false,
       };
 
       // Get active contexts
@@ -3052,6 +3127,7 @@ function App() {
     isDrawerOpen, isRightPanelOpen, isCommandPaletteOpen, isTaskSwitcherOpen, isProjectSwitcherOpen,
     pendingCloseProject, pendingDeleteId, pendingMergeId,
     openEntitiesInOrder.length, canGoBack, canGoForward,
+    activeSessionTabId, tabHasSplits,
     resolveKeyEvent, contextActionHandlers,
   ]);
 

@@ -132,7 +132,7 @@
       "context": "mainFocused && !pickerOpen && !modalOpen",
       "bindings": {
         "cmd-t": "session::newTab",
-        "cmd-w": "session::closeTab",
+        "cmd-w": "pane::close",
         "cmd-shift-w": "session::closeSession",
         "cmd-ctrl-h": "session::prevTab",
         "cmd-ctrl-l": "session::nextTab",
@@ -210,6 +210,21 @@
       "bindings": {
         "cmd-c": "terminal::copy",
         "cmd-v": "terminal::paste"
+      }
+    },
+
+    // ============================================================
+    // Pane actions (vim-style splits and navigation)
+    // ============================================================
+    {
+      "context": "!pickerOpen && !modalOpen",
+      "bindings": {
+        "ctrl-shift-\\": "pane::splitHorizontal",
+        "ctrl-shift--": "pane::splitVertical",
+        "ctrl-shift-h": "pane::focusLeft",
+        "ctrl-shift-j": "pane::focusDown",
+        "ctrl-shift-k": "pane::focusUp",
+        "ctrl-shift-l": "pane::focusRight"
       }
     }
   ]

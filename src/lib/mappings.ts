@@ -29,7 +29,8 @@ export type ActionNamespace =
   | 'terminal'
   | 'modal'
   | 'rightPanel'
-  | 'diff';
+  | 'diff'
+  | 'pane';
 
 /**
  * Namespaced action identifier (e.g., "drawer::closeTab")
@@ -380,6 +381,24 @@ export function formatKeyString(keyString: string): string {
 // ============================================================
 
 /**
+ * Map of event.code to normalized key name for keys that produce
+ * control characters when pressed with modifiers.
+ */
+const CODE_TO_KEY_MAP: Record<string, string> = {
+  'Backslash': '\\',
+  'Slash': '/',
+  'BracketLeft': '[',
+  'BracketRight': ']',
+  'Backquote': '`',
+  'Quote': "'",
+  'Minus': '-',
+  'Equal': '=',
+  'Semicolon': ';',
+  'Comma': ',',
+  'Period': '.',
+};
+
+/**
  * Convert a KeyboardEvent to a normalized key string.
  *
  * @param event - Browser KeyboardEvent
@@ -397,6 +416,13 @@ export function keyEventToString(event: KeyboardEvent): string {
   // Add the key itself
   // Handle special keys
   let key = event.key;
+
+  // For keys that produce control characters with modifiers, use event.code
+  // to get the actual key (e.g., Ctrl+\ produces a control character, not '\')
+  const codeKey = CODE_TO_KEY_MAP[event.code];
+  if (codeKey && (event.ctrlKey || event.metaKey || event.altKey)) {
+    key = codeKey;
+  }
 
   // Normalize some key names
   switch (key) {

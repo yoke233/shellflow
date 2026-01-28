@@ -319,6 +319,26 @@ describe('keyEventToString', () => {
     expect(keyEventToString(new KeyboardEvent('keydown', { key: 'Meta' }))).toBe('');
     expect(keyEventToString(new KeyboardEvent('keydown', { key: 'Control' }))).toBe('');
   });
+
+  it('handles special keys with modifiers (uses event.code for control characters)', () => {
+    // Ctrl+\ normally produces a control character, but we should get the actual key
+    const backslashEvent = new KeyboardEvent('keydown', {
+      key: '\x1c', // Control character produced by Ctrl+\
+      code: 'Backslash',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(keyEventToString(backslashEvent)).toBe('ctrl-shift-\\');
+
+    // Ctrl+- should also work
+    const minusEvent = new KeyboardEvent('keydown', {
+      key: '-',
+      code: 'Minus',
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(keyEventToString(minusEvent)).toBe('ctrl-shift--');
+  });
 });
 
 describe('isValidActionId', () => {

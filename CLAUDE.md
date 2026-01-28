@@ -33,7 +33,7 @@ npm install
 npm run tauri dev
 ```
 
-**Important**: Do not run the app. The user will always run and test the app themselves.
+**Important**: Do not run the app unless asked to verify logs or test specific behavior. The user will typically run and test the app themselves.
 
 ## Actions
 
@@ -155,6 +155,76 @@ Version is defined in three places that release-please keeps in sync:
 - `package.json` - `version` field
 - `src-tauri/Cargo.toml` - `version` field
 - `src-tauri/tauri.conf.json` - `version` field
+
+## Logging
+
+All logs (Rust backend + TypeScript frontend) are unified for easy debugging.
+
+### Log Outputs
+
+| Source | Terminal (stdout) | Log File | Browser DevTools |
+|--------|-------------------|----------|------------------|
+| Rust `log::info!()` | ❌ | ✅ | ✅ |
+| Rust `eprintln!()` | ✅ (stderr) | ❌ | ❌ |
+| TS `log.info()` | ✅ | ✅ | ✅ |
+| TS `console.log()` | ❌ | ❌ | ✅ |
+
+**Use `log.info()` for TypeScript logs** - they appear everywhere.
+
+### Log Location
+
+```bash
+# Live tail during development
+tail -f ~/Library/Logs/com.shellflow.desktop/shellflow.log
+
+# Read full log
+cat ~/Library/Logs/com.shellflow.desktop/shellflow.log
+```
+
+### Adding Logs
+
+**Rust** - Use the `log` crate macros (goes to file + browser):
+```rust
+use log::{info, warn, error, debug, trace};
+
+info!("[function_name] Starting operation...");
+error!("[function_name] Failed: {}", e);
+```
+
+**TypeScript** - Use the `log` utility (goes to terminal + file + browser):
+```typescript
+import { log } from '../lib/log';
+
+log.info('[ComponentName] Mounting with props:', props);
+log.warn('[ComponentName] Unexpected state:', state);
+log.error('[ComponentName] Failed to fetch:', error);
+```
+
+### Logging Guidelines
+
+1. **Always prefix with context** - Use `[function_name]` or `[ComponentName]` prefix
+2. **Log timing for operations** - Wrap slow operations with `Instant::now()` / `performance.now()`
+3. **Log state transitions** - When important state changes, log before/after
+4. **Log errors with context** - Include relevant IDs, paths, or parameters
+5. **Use appropriate levels**:
+   - `log.error` / `error!` - Failures that need attention
+   - `log.warn` / `warn!` - Unexpected but recoverable situations
+   - `log.info` / `info!` - Key operations and timing
+   - `log.debug` / `debug!` - Detailed debugging (not shown by default)
+
+### Performance Logging Pattern
+
+```rust
+let start = std::time::Instant::now();
+// ... operation ...
+info!("[operation_name] took {:?}", start.elapsed());
+```
+
+```typescript
+const start = performance.now();
+// ... operation ...
+log.info(`[operationName] took ${performance.now() - start}ms`);
+```
 
 ## Configuration
 

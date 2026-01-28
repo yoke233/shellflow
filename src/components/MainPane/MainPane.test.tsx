@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MainPane } from './MainPane';
-import { Session, SessionTab } from '../../types';
+import { Session, SessionTab, TabSplitState, SplitPaneConfig } from '../../types';
 import { resetMocks, mockInvokeResponses, defaultTestConfig } from '../../test/setup';
 
 // Mock the MainTerminal component to avoid xterm complexity
@@ -18,6 +18,46 @@ vi.mock('./SessionTabBar', () => ({
   SessionTabBar: vi.fn(() => null),
 }));
 
+// Shared split state that persists across tests within a test case
+let mockSplitStates: Map<string, TabSplitState>;
+
+// Mock split context hooks to return predictable IDs based on tab IDs
+// This ensures test assertions can find terminals by their tab ID
+const mockSplitActions = {
+  initTab: (tabId: string, config: Omit<SplitPaneConfig, 'id'>) => {
+    // Use tabId as the pane ID for predictable testing
+    const paneId = tabId;
+    if (!mockSplitStates.has(tabId)) {
+      mockSplitStates.set(tabId, {
+        panes: new Map([[paneId, { id: paneId, ...config }]]),
+        activePaneId: paneId,
+      });
+    }
+    return paneId;
+  },
+  focusPane: vi.fn(),
+  setPaneReady: vi.fn(),
+  getActivePaneId: (tabId: string) => mockSplitStates.get(tabId)?.activePaneId ?? null,
+  clearPendingSplit: vi.fn(),
+  split: vi.fn(),
+  closePane: vi.fn(),
+  focusDirection: vi.fn(),
+  getTabPtyIds: vi.fn(() => []),
+  clearTab: vi.fn(),
+  hasSplits: vi.fn(() => false),
+  getPaneConfig: vi.fn(),
+  getPaneIds: vi.fn(() => []),
+};
+
+vi.mock('../../contexts/SplitContext', () => ({
+  useSplit: () => ({
+    splitStates: mockSplitStates,
+    ...mockSplitActions,
+  }),
+  useSplitActions: () => mockSplitActions,
+  useSplitForTab: (tabId: string) => mockSplitStates.get(tabId),
+}));
+
 describe('MainPane', () => {
   // Helper to create a default session tab
   const createSessionTab = (sessionId: string, index: number = 1, isPrimary: boolean = true): SessionTab => ({
@@ -26,6 +66,7 @@ describe('MainPane', () => {
     isPrimary,
   });
 
+  // Props without split layout (now provided via SplitContext)
   const defaultProps = {
     sessions: [] as Session[],
     openSessionIds: new Set<string>(),
@@ -39,6 +80,7 @@ describe('MainPane', () => {
     onAddSessionTab: vi.fn(),
     onReorderSessionTabs: vi.fn(),
     terminalConfig: defaultTestConfig.main,
+    editorConfig: defaultTestConfig.main,
     activityTimeout: 250,
     shouldAutoFocus: false,
     configErrors: [],
@@ -69,6 +111,8 @@ describe('MainPane', () => {
     mockInvokeResponses.set('spawn_main', 'pty-main-123');
     mockInvokeResponses.set('spawn_project_shell', 'pty-project-123');
     mockInvokeResponses.set('spawn_scratch_terminal', 'pty-scratch-123');
+    // Reset mock split states for each test
+    mockSplitStates = new Map();
   });
 
   describe('empty state', () => {
@@ -88,7 +132,7 @@ describe('MainPane', () => {
           sessions={sessions}
           openSessionIds={new Set()}
           activeSessionId={null}
-        />
+        />,
       );
 
       expect(screen.getByText('Shellflow')).toBeInTheDocument();
@@ -103,7 +147,7 @@ describe('MainPane', () => {
           sessions={sessions}
           openSessionIds={new Set(['scratch-1'])}
           activeSessionId={null}
-        />
+        />,
       );
 
       expect(screen.getByText('Shellflow')).toBeInTheDocument();
@@ -123,7 +167,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       const terminal = screen.getByTestId(`terminal-${sessionTabs[0].id}`);
@@ -144,7 +188,7 @@ describe('MainPane', () => {
           activeSessionId="proj-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       const terminal = screen.getByTestId(`terminal-${sessionTabs[0].id}`);
@@ -174,7 +218,7 @@ describe('MainPane', () => {
           activeSessionId="wt-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       const terminal = screen.getByTestId(`terminal-${sessionTabs[0].id}`);
@@ -197,7 +241,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toBeInTheDocument();
@@ -226,7 +270,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={allTabs}
           activeSessionTabId={session1Tabs[0].id}
-        />
+        />,
       );
 
       // Both sessions' tabs are rendered (to keep terminals alive)
@@ -255,7 +299,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-active', 'true');
@@ -277,7 +321,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-active', 'true');
@@ -290,7 +334,7 @@ describe('MainPane', () => {
           activeSessionId="scratch-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[1].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-active', 'false');
@@ -311,7 +355,7 @@ describe('MainPane', () => {
           activeSessionId="s-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-type', 'scratch');
@@ -329,7 +373,7 @@ describe('MainPane', () => {
           activeSessionId="p-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-type', 'project');
@@ -349,7 +393,7 @@ describe('MainPane', () => {
           activeSessionId="w-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-type', 'main');
@@ -372,7 +416,7 @@ describe('MainPane', () => {
           activeSessionId="w-1"
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
-        />
+        />,
       );
 
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toHaveAttribute('data-type', 'main');
@@ -395,7 +439,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           onFocus={onFocus}
-        />
+        />,
       );
 
       // Verify the terminal is rendered with expected attributes
@@ -421,7 +465,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           configErrors={configErrors}
-        />
+        />,
       );
 
       // Terminal should still be rendered when there are config errors
@@ -447,7 +491,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           sessionLastActiveTabIds={new Map([['scratch-1', sessionTabs[1].id]])}
-        />
+        />,
       );
 
       // Both terminals should render
@@ -468,7 +512,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           sessionLastActiveTabIds={new Map()}
-        />
+        />,
       );
 
       // Terminal should render
@@ -494,7 +538,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           onSelectSessionTab={onSelectSessionTab}
-        />
+        />,
       );
 
       // Both terminals render
@@ -519,7 +563,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           onCloseSessionTab={onCloseSessionTab}
-        />
+        />,
       );
 
       // Terminals render
@@ -543,7 +587,7 @@ describe('MainPane', () => {
           allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
           activeSessionTabId={sessionTabs[0].id}
           onAddSessionTab={onAddSessionTab}
-        />
+        />,
       );
 
       // Terminals render
@@ -577,7 +621,7 @@ describe('MainPane', () => {
           activeSessionId="session-1"
           allSessionTabs={allTabs}
           activeSessionTabId={session1Tabs[0].id}
-        />
+        />,
       );
 
       // Both terminals should be rendered (one visible, one hidden)
@@ -597,7 +641,7 @@ describe('MainPane', () => {
           activeSessionId="session-2"
           allSessionTabs={allTabs}
           activeSessionTabId={session2Tabs[0].id}
-        />
+        />,
       );
 
       // Both terminals should still exist (not recreated)
@@ -613,7 +657,7 @@ describe('MainPane', () => {
           activeSessionId="session-1"
           allSessionTabs={allTabs}
           activeSessionTabId={session1Tabs[0].id}
-        />
+        />,
       );
 
       // Original session-1 terminal should still be there (same DOM element)
@@ -647,7 +691,7 @@ describe('MainPane', () => {
           activeSessionId="session-1"
           allSessionTabs={allTabs}
           activeSessionTabId={session1Tabs[0].id}
-        />
+        />,
       );
 
       // Get reference to the terminal DOM element
@@ -663,7 +707,7 @@ describe('MainPane', () => {
           activeSessionId="session-2"
           allSessionTabs={allTabs}
           activeSessionTabId={session2Tabs[0].id}
-        />
+        />,
       );
 
       // Session-1 terminal should still exist but be inactive
@@ -679,7 +723,7 @@ describe('MainPane', () => {
           activeSessionId="session-1"
           allSessionTabs={allTabs}
           activeSessionTabId={session1Tabs[0].id}
-        />
+        />,
       );
 
       // Session-1 terminal should be active again - same element preserved

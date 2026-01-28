@@ -75,7 +75,15 @@ export type ActionId =
   | 'diff::toggleMode'
   // Task actions
   | 'task::run'
-  | 'task::switcher';
+  | 'task::switcher'
+  // Pane actions (vim-style splits and navigation)
+  | 'pane::splitHorizontal'
+  | 'pane::splitVertical'
+  | 'pane::focusLeft'
+  | 'pane::focusDown'
+  | 'pane::focusUp'
+  | 'pane::focusRight'
+  | 'pane::close';
 
 // State needed to evaluate action availability
 export interface ActionContext {
@@ -98,6 +106,8 @@ export interface ActionContext {
   isViewingDiff: boolean;
   /** Number of files in the changed files list */
   changedFilesCount: number;
+  /** Whether the active tab has splits */
+  hasSplits: boolean;
 }
 
 // Availability predicates - THE source of truth for "can this action run?"
@@ -178,6 +188,15 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   // Task actions
   'task::run': (ctx) => !!ctx.activeEntityId && !!ctx.activeSelectedTask,
   'task::switcher': (ctx) => ctx.taskCount > 0,
+
+  // Pane actions (vim-style splits and navigation)
+  'pane::splitHorizontal': (ctx) => !!ctx.activeEntityId,
+  'pane::splitVertical': (ctx) => !!ctx.activeEntityId,
+  'pane::focusLeft': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusDown': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusUp': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::focusRight': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'pane::close': (ctx) => !!ctx.activeEntityId,
 };
 
 /**
@@ -211,7 +230,7 @@ export function getMenuAvailability(ctx: ActionContext): Record<string, boolean>
 // Action Metadata for Command Palette
 // ============================================================================
 
-export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help';
+export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help' | 'Panes';
 
 export interface ActionMetadata {
   label: string;
@@ -299,6 +318,15 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   // Task actions
   'task::run': { label: 'Run Task', category: 'Tasks', showInPalette: true },
   'task::switcher': { label: 'Task Switcher', category: 'Tasks', showInPalette: true },
+
+  // Pane actions (vim-style splits and navigation)
+  'pane::splitHorizontal': { label: 'Split Horizontally', category: 'Panes', showInPalette: true },
+  'pane::splitVertical': { label: 'Split Vertically', category: 'Panes', showInPalette: true },
+  'pane::focusLeft': { label: 'Focus Left Pane', category: 'Panes', showInPalette: true },
+  'pane::focusDown': { label: 'Focus Pane Below', category: 'Panes', showInPalette: true },
+  'pane::focusUp': { label: 'Focus Pane Above', category: 'Panes', showInPalette: true },
+  'pane::focusRight': { label: 'Focus Right Pane', category: 'Panes', showInPalette: true },
+  'pane::close': { label: 'Close Pane', category: 'Panes', showInPalette: true },
 };
 
 /** Get actions that should appear in the command palette */

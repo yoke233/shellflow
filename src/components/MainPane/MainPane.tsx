@@ -1,12 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { GitBranch, FolderPlus, Terminal, Keyboard } from 'lucide-react';
 import { MainTerminal } from './MainTerminal';
 import { DrawerTerminal } from '../Drawer/DrawerTerminal';
 import { DiffViewer } from '../DiffViewer';
+import { SplitContainer } from '../SplitContainer';
 import { SessionTabBar } from './SessionTabBar';
 import { TerminalConfig, ConfigError } from '../../hooks/useConfig';
 import { ConfigErrorBanner } from '../ConfigErrorBanner';
 import { Session, SessionKind, SessionTab, TabIndicators } from '../../types';
+import { SplitPaneConfig } from '../../lib/splitTypes';
+import { useSplitActions, useSplitForTab } from '../../contexts/SplitContext';
+import { log } from '../../lib/log';
 
 interface MainPaneProps {
   // Unified session props
@@ -70,7 +74,219 @@ function getTerminalType(kind: SessionKind): 'main' | 'project' | 'scratch' {
   }
 }
 
-export function MainPane({
+// ============================================================================
+// TerminalTabContent - Uses fine-grained split state subscription
+// Only re-renders when THIS tab's split state changes (not all tabs)
+// Receives callback factories to maintain stable props across parent re-renders
+// ============================================================================
+
+interface TerminalTabContentProps {
+  tabId: string;
+  sessionId: string;
+  isActiveTab: boolean;
+  shouldAutoFocus: boolean;
+  focusTrigger: number | undefined;
+  terminalConfig: TerminalConfig;
+  activityTimeout: number;
+  terminalType: 'main' | 'project' | 'scratch';
+  tabDirectory: string | undefined;
+  sessionKind: SessionKind;
+  sessionInitialCwd: string | undefined;
+  isPrimary: boolean;
+  // Callback factories - stable references that take IDs as params
+  onFocusFactory: (sessionId: string, tabId: string) => void;
+  onNotificationFactory: (sessionId: string, tabId: string, title: string, body: string) => void;
+  onThinkingChangeFactory: (tabId: string, isThinking: boolean) => void;
+  onCwdChangeFactory: ((tabId: string, cwd: string) => void) | null;
+  onTitleChangeFactory: (sessionId: string, tabId: string, title: string) => void;
+  onPtyIdReadyFactory: ((tabId: string, ptyId: string) => void) | null;
+  onExitFactory: (tabId: string, paneId: string, isLastPane: boolean) => void;
+  renderSplitPane: (
+    paneId: string,
+    paneConfig: SplitPaneConfig,
+    isActivePane: boolean,
+    tabId: string,
+    sessionId: string,
+    isActiveTab: boolean,
+    hasSplits: boolean,
+    handleNotification: (title: string, body: string) => void,
+    handleThinkingChange: (isThinking: boolean) => void,
+    handleCwdChange: ((cwd: string) => void) | undefined,
+    handleTitleChange: (title: string) => void,
+    handleExit: (paneId: string) => void
+  ) => React.ReactNode;
+}
+
+const TerminalTabContent = memo(function TerminalTabContent({
+  tabId,
+  sessionId,
+  isActiveTab,
+  shouldAutoFocus,
+  focusTrigger,
+  terminalConfig,
+  activityTimeout,
+  terminalType,
+  tabDirectory,
+  sessionKind,
+  sessionInitialCwd,
+  isPrimary,
+  onFocusFactory,
+  onNotificationFactory,
+  onThinkingChangeFactory,
+  onCwdChangeFactory,
+  onTitleChangeFactory,
+  onPtyIdReadyFactory,
+  onExitFactory,
+  renderSplitPane,
+}: TerminalTabContentProps) {
+  // Fine-grained subscription: only re-renders when THIS tab's split state changes
+  const splitState = useSplitForTab(tabId);
+  const { focusPane, setPaneReady, getActivePaneId, clearPendingSplit, clearPendingFocusDirection } = useSplitActions();
+
+  // Create stable bound callbacks using this tab's IDs
+  const handleFocus = useCallback(
+    () => onFocusFactory(sessionId, tabId),
+    [onFocusFactory, sessionId, tabId]
+  );
+
+  const handleNotification = useCallback(
+    (title: string, body: string) => onNotificationFactory(sessionId, tabId, title, body),
+    [onNotificationFactory, sessionId, tabId]
+  );
+
+  const handleThinkingChange = useCallback(
+    (isThinking: boolean) => onThinkingChangeFactory(tabId, isThinking),
+    [onThinkingChangeFactory, tabId]
+  );
+
+  const handleCwdChange = useMemo(
+    () => (onCwdChangeFactory ? (cwd: string) => onCwdChangeFactory(tabId, cwd) : undefined),
+    [onCwdChangeFactory, tabId]
+  );
+
+  const handleTitleChange = useCallback(
+    (title: string) => onTitleChangeFactory(sessionId, tabId, title),
+    [onTitleChangeFactory, sessionId, tabId]
+  );
+
+  const handlePtyIdReady = useCallback(
+    (ptyId: string) => {
+      if (splitState) {
+        const paneId = splitState.activePaneId ?? tabId;
+        setPaneReady(tabId, paneId, ptyId);
+      }
+      onPtyIdReadyFactory?.(tabId, ptyId);
+    },
+    [splitState, tabId, setPaneReady, onPtyIdReadyFactory]
+  );
+
+  const handleExit = useCallback(
+    (paneId: string) => {
+      const isLastPane = !splitState || splitState.panes.size <= 1;
+      onExitFactory(tabId, paneId, isLastPane);
+    },
+    [onExitFactory, tabId, splitState]
+  );
+
+  const handlePendingSplitConsumed = useCallback(
+    () => clearPendingSplit(tabId),
+    [clearPendingSplit, tabId]
+  );
+
+  const handlePendingFocusDirectionConsumed = useCallback(
+    () => clearPendingFocusDirection(tabId),
+    [clearPendingFocusDirection, tabId]
+  );
+
+  const handlePaneFocus = useCallback(
+    (paneId: string) => focusPane(tabId, paneId),
+    [focusPane, tabId]
+  );
+
+  // For single-pane mode: get the pane ID (must be computed before conditional to keep hook order stable)
+  const singlePaneId = splitState?.activePaneId ?? tabId;
+
+  // Create bound exit handler - must be before conditional return to maintain hook order
+  const handleSinglePaneExit = useCallback(
+    () => handleExit(singlePaneId),
+    [handleExit, singlePaneId]
+  );
+
+  log.debug('[SPLIT:TerminalTabContent] render', {
+    tabId,
+    hasSplitState: !!splitState,
+    paneCount: splitState?.panes.size ?? 0,
+    hasPendingSplit: !!splitState?.pendingSplit,
+  });
+
+  if (splitState && splitState.panes.size > 1) {
+    // Multi-pane: use SplitContainer
+    const activePaneId = getActivePaneId(tabId);
+    return (
+      <SplitContainer
+        panes={splitState.panes}
+        activePaneId={activePaneId}
+        pendingSplit={splitState.pendingSplit}
+        onPendingSplitConsumed={handlePendingSplitConsumed}
+        pendingFocusDirection={splitState.pendingFocusDirection}
+        onPendingFocusDirectionConsumed={handlePendingFocusDirectionConsumed}
+        renderPane={(paneId, paneConfig, isActivePane) =>
+          renderSplitPane(
+            paneId,
+            paneConfig,
+            isActivePane,
+            tabId,
+            sessionId,
+            isActiveTab,
+            true, // hasSplits
+            handleNotification,
+            handleThinkingChange,
+            handleCwdChange,
+            handleTitleChange,
+            handleExit
+          )
+        }
+        onPaneFocus={handlePaneFocus}
+      />
+    );
+  }
+
+  // Single pane: render MainTerminal directly (no Gridview overhead)
+  const singlePaneConfig = splitState?.panes.get(singlePaneId);
+  // Map split pane types to MainTerminal types
+  const rawType = singlePaneConfig?.type ?? (isPrimary ? terminalType : 'scratch');
+  const singlePaneType =
+    rawType === 'task' || rawType === 'action' || rawType === 'shell'
+      ? ('scratch' as const)
+      : rawType;
+  const singlePaneCwd =
+    singlePaneConfig?.directory ??
+    tabDirectory ??
+    (sessionKind === 'scratch' && isPrimary ? sessionInitialCwd : undefined);
+
+  return (
+    <MainTerminal
+      entityId={singlePaneId}
+      sessionId={sessionId}
+      type={singlePaneType}
+      isActive={isActiveTab}
+      shouldAutoFocus={isActiveTab && shouldAutoFocus}
+      focusTrigger={isActiveTab ? focusTrigger : undefined}
+      terminalConfig={terminalConfig}
+      activityTimeout={activityTimeout}
+      initialCwd={singlePaneCwd}
+      onFocus={handleFocus}
+      onNotification={handleNotification}
+      onThinkingChange={handleThinkingChange}
+      onCwdChange={handleCwdChange}
+      onTitleChange={handleTitleChange}
+      onPtyIdReady={handlePtyIdReady}
+      onExit={handleSinglePaneExit}
+    />
+  );
+});
+
+export const MainPane = memo(function MainPane({
   sessions,
   openSessionIds,
   activeSessionId,
@@ -104,6 +320,21 @@ export function MainPane({
   onScratchThinkingChange,
   onScratchCwdChange,
 }: MainPaneProps) {
+  // Use only actions from split context - state is handled by TerminalTabContent
+  // This prevents MainPane from re-rendering when split state changes
+  const {
+    initTab: initSplitTab,
+    focusPane: focusSplitPane,
+    setPaneReady: setSplitPaneReady,
+    closePane: closeSplitPane,
+  } = useSplitActions();
+
+  log.debug('[SPLIT:MainPane] render', {
+    activeSessionId,
+    activeSessionTabId,
+    allSessionTabsSize: allSessionTabs.size,
+  });
+
   const hasOpenSessions = openSessionIds.size > 0;
 
   // Per-tab indicator state (for tab bar display)
@@ -127,6 +358,9 @@ export function MainPane({
   // Track last propagated states per session to avoid redundant updates
   const lastPropagatedThinkingRef = useRef<Map<string, boolean>>(new Map());
   const lastPropagatedNotifiedRef = useRef<Map<string, boolean>>(new Map());
+
+  // Track which tabs have been initialized for split state (prevents effect cascade)
+  const initializedSplitTabsRef = useRef<Set<string>>(new Set());
 
   // Effect to propagate thinking and notification state to sidebar when relevant state changes
   // This ensures sidebar gets updated when sessionLastActiveTabIds changes after a session switch
@@ -205,6 +439,213 @@ export function MainPane({
     onScratchThinkingChange,
   ]);
 
+  // Initialize split state for regular terminal tabs that don't have it yet
+  useEffect(() => {
+    let initializedCount = 0;
+    let skippedCount = 0;
+
+    for (const [sessionId, tabs] of allSessionTabs.entries()) {
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session) continue;
+
+      const terminalType = getTerminalType(session.kind);
+
+      for (const tab of tabs) {
+        // Skip non-terminal tabs (diff, command tabs)
+        if (tab.diff || tab.command) continue;
+
+        // Skip if we've already initialized this tab (using ref, not state)
+        if (initializedSplitTabsRef.current.has(tab.id)) {
+          skippedCount++;
+          continue;
+        }
+
+        // Mark as initialized BEFORE calling initSplitTab to prevent double-init
+        initializedSplitTabsRef.current.add(tab.id);
+
+        const type = tab.isPrimary ? terminalType : 'scratch';
+        const directory = tab.directory ?? (session.kind === 'scratch' && tab.isPrimary ? session.initialCwd : undefined);
+        log.debug('[SPLIT:MainPane] initializing split state for tab', { tabId: tab.id, type, directory });
+        initSplitTab(tab.id, { type, directory });
+        initializedCount++;
+      }
+    }
+
+    log.debug('[SPLIT:MainPane] init effect complete', { initializedCount, skippedCount, refSize: initializedSplitTabsRef.current.size });
+  }, [allSessionTabs, sessions, initSplitTab]);  // ← Removed splitStates
+
+  // Clean up tracking ref when tabs are closed
+  useEffect(() => {
+    const currentTabIds = new Set<string>();
+    for (const [, tabs] of allSessionTabs.entries()) {
+      for (const tab of tabs) {
+        if (!tab.diff && !tab.command) {
+          currentTabIds.add(tab.id);
+        }
+      }
+    }
+
+    // Remove closed tabs from our tracking ref
+    for (const tabId of initializedSplitTabsRef.current) {
+      if (!currentTabIds.has(tabId)) {
+        initializedSplitTabsRef.current.delete(tabId);
+      }
+    }
+  }, [allSessionTabs]);
+
+  // Render a pane for SplitContainer - uses MainTerminal directly
+  const renderSplitPane = useCallback(
+    (
+      paneId: string,
+      paneConfig: SplitPaneConfig,
+      isActivePane: boolean,
+      tabId: string,
+      sessionId: string,
+      isActiveTab: boolean,
+      hasSplits: boolean,
+      handleNotification: (title: string, body: string) => void,
+      handleThinkingChange: (isThinking: boolean) => void,
+      handleCwdChange: ((cwd: string) => void) | undefined,
+      handleTitleChange: (title: string) => void,
+      handleExit: (paneId: string) => void
+    ) => {
+      // Map split pane type to MainTerminal type
+      const terminalType = paneConfig.type === 'task' || paneConfig.type === 'action' || paneConfig.type === 'shell'
+        ? 'scratch'
+        : paneConfig.type;
+
+      // Terminal is fully active only when both pane and tab are active
+      const isActive = isActivePane && isActiveTab;
+
+      return (
+        <div key={paneId} className="w-full h-full relative">
+          {/* Active pane indicator - shown when pane is active but tab is not focused */}
+          {hasSplits && isActivePane && !isActive && (
+            <div className="absolute inset-0 border-2 border-theme-accent/30 pointer-events-none z-10 rounded" />
+          )}
+          <MainTerminal
+            entityId={paneId}
+            sessionId={sessionId}
+            type={terminalType}
+            isActive={isActive}
+            shouldAutoFocus={isActive && shouldAutoFocus}
+            focusTrigger={isActive ? focusTrigger : undefined}
+            terminalConfig={terminalConfig}
+            activityTimeout={activityTimeout}
+            initialCwd={paneConfig.directory}
+            onFocus={() => {
+              focusSplitPane(tabId, paneId);
+              onFocus(sessionId, tabId);
+            }}
+            onNotification={handleNotification}
+            onThinkingChange={handleThinkingChange}
+            onCwdChange={handleCwdChange}
+            onTitleChange={handleTitleChange}
+            onPtyIdReady={(ptyId) => {
+              setSplitPaneReady(tabId, paneId, ptyId);
+              onPtyIdReady?.(tabId, ptyId);
+            }}
+            onExit={() => handleExit(paneId)}
+          />
+        </div>
+      );
+    },
+    [shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout, focusSplitPane, onFocus, setSplitPaneReady, onPtyIdReady]
+  );
+
+  // ============================================================================
+  // Stable callback factories for TerminalTabContent
+  // These are memoized so TerminalTabContent's React.memo can work effectively
+  // ============================================================================
+
+  const onFocusFactory = useCallback(
+    (sessionId: string, tabId: string) => {
+      onFocus(sessionId, tabId);
+    },
+    [onFocus]
+  );
+
+  const onNotificationFactory = useCallback(
+    (sessionId: string, tabId: string, title: string, body: string) => {
+      // Update per-tab indicator state
+      setTabIndicators((prev) => {
+        const current = prev.get(tabId) ?? { notified: false, thinking: false, idle: false };
+        const next = new Map(prev);
+        next.set(tabId, { ...current, notified: true });
+        return next;
+      });
+
+      // Propagate to sidebar with actual title/body for OS notification
+      if (onNotification) {
+        onNotification(sessionId, tabId, title, body);
+      } else {
+        // Legacy handlers - find session to determine kind
+        const session = sessions.find((s) => s.id === sessionId);
+        if (session?.kind === 'worktree') {
+          onWorktreeNotification?.(sessionId, title, body);
+        } else if (session?.kind === 'project') {
+          onProjectNotification?.(sessionId, title, body);
+        } else {
+          onScratchNotification?.(sessionId, title, body);
+        }
+      }
+    },
+    [onNotification, sessions, onWorktreeNotification, onProjectNotification, onScratchNotification]
+  );
+
+  const onThinkingChangeFactory = useCallback((tabId: string, isThinking: boolean) => {
+    setTabIndicators((prev) => {
+      const current = prev.get(tabId) ?? { notified: false, thinking: false, idle: false };
+      const next = new Map(prev);
+      if (isThinking) {
+        // Clear idle when thinking starts
+        next.set(tabId, { ...current, thinking: true, idle: false });
+      } else {
+        // Set idle when thinking stops (only if was thinking)
+        next.set(tabId, { ...current, thinking: false, idle: current.thinking });
+      }
+      return next;
+    });
+  }, []);
+
+  const onCwdChangeFactory = useCallback(
+    (tabId: string, cwd: string) => {
+      if (onCwdChange) {
+        onCwdChange(tabId, cwd);
+      } else {
+        onScratchCwdChange?.(tabId, cwd);
+      }
+    },
+    [onCwdChange, onScratchCwdChange]
+  );
+
+  const onTitleChangeFactory = useCallback(
+    (sessionId: string, tabId: string, title: string) => {
+      onTabTitleChange?.(sessionId, tabId, title);
+    },
+    [onTabTitleChange]
+  );
+
+  const onPtyIdReadyFactory = useCallback(
+    (tabId: string, ptyId: string) => {
+      onPtyIdReady?.(tabId, ptyId);
+    },
+    [onPtyIdReady]
+  );
+
+  const onExitFactory = useCallback(
+    (tabId: string, paneId: string, isLastPane: boolean) => {
+      if (isLastPane) {
+        // Close the entire tab when it's the last pane
+        onCloseSessionTab(tabId);
+      } else {
+        // Close just the pane when there are multiple
+        closeSplitPane(tabId, paneId);
+      }
+    },
+    [onCloseSessionTab, closeSplitPane]
+  );
+
   if (!hasOpenSessions || !activeSessionId) {
     return (
       <div className="flex flex-col h-full bg-theme-0 text-theme-2 select-none items-center justify-center px-8">
@@ -278,65 +719,6 @@ export function MainPane({
           return tabs.map((tab) => {
             const isActiveTab = isActiveSession && tab.id === activeSessionTabId;
 
-            // Handle notifications - update tab state (effect handles sidebar propagation)
-            const handleNotification = (title: string, body: string) => {
-              // Update per-tab indicator state
-              setTabIndicators((prev) => {
-                const current = prev.get(tab.id) ?? { notified: false, thinking: false, idle: false };
-                const next = new Map(prev);
-                next.set(tab.id, { ...current, notified: true });
-                return next;
-              });
-
-              // Propagate to sidebar with actual title/body for OS notification
-              // (effect handles syncing the notified state, this is for immediate OS notification)
-              if (onNotification) {
-                onNotification(session.id, tab.id, title, body);
-              } else {
-                // Legacy handlers
-                if (session.kind === 'worktree') {
-                  onWorktreeNotification?.(session.id, title, body);
-                } else if (session.kind === 'project') {
-                  onProjectNotification?.(session.id, title, body);
-                } else {
-                  onScratchNotification?.(session.id, title, body);
-                }
-              }
-            };
-
-            // Handle thinking changes - update tab state (effect handles sidebar propagation)
-            const handleThinkingChange = (isThinking: boolean) => {
-              setTabIndicators((prev) => {
-                const current = prev.get(tab.id) ?? { notified: false, thinking: false, idle: false };
-                const next = new Map(prev);
-                if (isThinking) {
-                  // Clear idle when thinking starts
-                  next.set(tab.id, { ...current, thinking: true, idle: false });
-                } else {
-                  // Set idle when thinking stops (only if was thinking)
-                  next.set(tab.id, { ...current, thinking: false, idle: current.thinking });
-                }
-                return next;
-              });
-            };
-
-            // Handle cwd changes - only for scratch terminals
-            // Store by tab ID so switching tabs updates the displayed cwd
-            const handleCwdChange = session.kind === 'scratch'
-              ? (cwd: string) => {
-                  if (onCwdChange) {
-                    onCwdChange(tab.id, cwd);
-                  } else {
-                    onScratchCwdChange?.(tab.id, cwd);
-                  }
-                }
-              : undefined;
-
-            // Handle title changes - for tab label updates
-            const handleTitleChange = (title: string) => {
-              onTabTitleChange?.(session.id, tab.id, title);
-            };
-
             // Determine which element to render based on tab type
             let tabElement: React.ReactNode;
 
@@ -364,30 +746,37 @@ export function MainPane({
                   shouldAutoFocus={isActiveTab && shouldAutoFocus}
                   terminalConfig={terminalConfig}
                   onFocus={() => onFocus(session.id, tab.id)}
-                  onTitleChange={handleTitleChange}
+                  onTitleChange={(title) => onTitleChangeFactory(session.id, tab.id, title)}
                   onClose={() => onCloseSessionTab(tab.id)}
                   onPtyIdReady={(ptyId) => onPtyIdReady?.(tab.id, ptyId)}
                 />
               );
             } else {
-              // Regular terminal tab (MainTerminal)
+              // Regular terminal tab - use TerminalTabContent for fine-grained split state subscription
+              // TerminalTabContent only re-renders when THIS tab's split state changes
+              // All callbacks are stable factories - TerminalTabContent binds them internally
               tabElement = (
-                <MainTerminal
-                  entityId={tab.id}
+                <TerminalTabContent
+                  tabId={tab.id}
                   sessionId={session.id}
-                  type={tab.isPrimary ? terminalType : 'scratch'}
-                  isActive={isActiveTab}
-                  shouldAutoFocus={isActiveTab && shouldAutoFocus}
-                  focusTrigger={isActiveTab ? focusTrigger : undefined}
+                  isActiveTab={isActiveTab}
+                  shouldAutoFocus={shouldAutoFocus}
+                  focusTrigger={focusTrigger}
                   terminalConfig={terminalConfig}
                   activityTimeout={activityTimeout}
-                  initialCwd={tab.directory ?? (session.kind === 'scratch' && tab.isPrimary ? session.initialCwd : undefined)}
-                  onFocus={() => onFocus(session.id, tab.id)}
-                  onNotification={handleNotification}
-                  onThinkingChange={handleThinkingChange}
-                  onCwdChange={handleCwdChange}
-                  onTitleChange={handleTitleChange}
-                  onPtyIdReady={(ptyId) => onPtyIdReady?.(tab.id, ptyId)}
+                  terminalType={terminalType}
+                  tabDirectory={tab.directory}
+                  sessionKind={session.kind}
+                  sessionInitialCwd={session.initialCwd}
+                  isPrimary={tab.isPrimary}
+                  onFocusFactory={onFocusFactory}
+                  onNotificationFactory={onNotificationFactory}
+                  onThinkingChangeFactory={onThinkingChangeFactory}
+                  onCwdChangeFactory={session.kind === 'scratch' ? onCwdChangeFactory : null}
+                  onTitleChangeFactory={onTitleChangeFactory}
+                  onPtyIdReadyFactory={onPtyIdReady ? onPtyIdReadyFactory : null}
+                  onExitFactory={onExitFactory}
+                  renderSplitPane={renderSplitPane}
                 />
               );
             }
@@ -409,4 +798,4 @@ export function MainPane({
       </div>
     </div>
   );
-}
+});

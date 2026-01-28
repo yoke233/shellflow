@@ -95,6 +95,15 @@ export interface ActionHandlerCallbacks {
   onNextChangedFile: () => void;
   onPrevChangedFile: () => void;
   onToggleDiffMode: () => void;
+
+  // Pane actions (vim-style splits and navigation)
+  onPaneSplitHorizontal: () => void;
+  onPaneSplitVertical: () => void;
+  onPaneFocusLeft: () => void;
+  onPaneFocusDown: () => void;
+  onPaneFocusUp: () => void;
+  onPaneFocusRight: () => void;
+  onPaneClose: () => void;
 }
 
 /**
@@ -196,6 +205,15 @@ export function createActionHandlers(callbacks: ActionHandlerCallbacks): ActionH
     'diff::nextFile': callbacks.onNextChangedFile,
     'diff::prevFile': callbacks.onPrevChangedFile,
     'diff::toggleMode': callbacks.onToggleDiffMode,
+
+    // Pane actions (vim-style splits and navigation)
+    'pane::splitHorizontal': callbacks.onPaneSplitHorizontal,
+    'pane::splitVertical': callbacks.onPaneSplitVertical,
+    'pane::focusLeft': callbacks.onPaneFocusLeft,
+    'pane::focusDown': callbacks.onPaneFocusDown,
+    'pane::focusUp': callbacks.onPaneFocusUp,
+    'pane::focusRight': callbacks.onPaneFocusRight,
+    'pane::close': callbacks.onPaneClose,
   };
 }
 

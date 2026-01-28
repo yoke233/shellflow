@@ -24,6 +24,7 @@ const emptyState: ContextState = {
   canGoBack: false,
   canGoForward: false,
   isDiffViewOpen: false,
+  hasSplits: false,
 };
 
 describe('getActiveContexts', () => {
@@ -269,6 +270,24 @@ describe('getActiveContexts', () => {
         isDiffViewOpen: true,
       });
       expect(contexts.has('diffViewOpen')).toBe(true);
+    });
+  });
+
+  describe('splits', () => {
+    it('includes hasSplits when splits are active', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        hasSplits: true,
+      });
+      expect(contexts.has('hasSplits')).toBe(true);
+    });
+
+    it('does not include hasSplits when no splits', () => {
+      const contexts = getActiveContexts({
+        ...emptyState,
+        hasSplits: false,
+      });
+      expect(contexts.has('hasSplits')).toBe(false);
     });
   });
 });
