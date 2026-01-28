@@ -3322,6 +3322,9 @@ function App() {
               showIdleCheck={config.indicators.showIdleCheck}
               activeScratchCwd={activeScratchId && activeSessionTabId ? scratchCwds.get(activeSessionTabId) ?? null : null}
               homeDir={homeDir}
+              branchInfo={branchInfo}
+              changedFilesCount={changedFiles.length}
+              changedFilesMode={changedFilesMode}
               autoEditWorktreeId={autoEditWorktreeId}
               editingScratchId={editingScratchId}
               focusToRestoreRef={focusToRestoreRef}

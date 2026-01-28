@@ -1,5 +1,5 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard } from 'lucide-react';
-import { Project, Worktree, RunningTask, ScratchTerminal } from '../../types';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard } from 'lucide-react';
+import { Project, Worktree, RunningTask, ScratchTerminal, BranchInfo, ChangedFilesViewMode } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
 import { useState, useEffect } from 'react';
@@ -72,6 +72,9 @@ interface SidebarProps {
   showIdleCheck: boolean;
   activeScratchCwd: string | null;
   homeDir: string | null;
+  branchInfo: BranchInfo | null;
+  changedFilesCount: number;
+  changedFilesMode: ChangedFilesViewMode;
   /** Worktree ID that should auto-enter edit mode for its name */
   autoEditWorktreeId: string | null;
   /** Scratch ID that should enter edit mode for its name (triggered by F2) */
@@ -146,6 +149,9 @@ export function Sidebar({
   showIdleCheck,
   activeScratchCwd,
   homeDir,
+  branchInfo,
+  changedFilesCount,
+  changedFilesMode,
   autoEditWorktreeId,
   editingScratchId,
   focusToRestoreRef,
@@ -834,6 +840,39 @@ export function Sidebar({
               <bdi>{displayPath}</bdi>
             </span>
           </button>
+        );
+      })()}
+
+      {/* Git status bar - shows branch and changed files for projects/worktrees */}
+      {!activeScratchId && branchInfo && (() => {
+        const isWorktree = !branchInfo.isOnBaseBranch;
+        const showBranchDiff = isWorktree && changedFilesMode === 'branch';
+        const tooltip = isWorktree
+          ? "⇡ = commits ahead of base, ~ = files changed vs base, * = uncommitted"
+          : "* = uncommitted changes";
+
+        return (
+          <div
+            className="h-6 px-2 border-t border-sidebar text-xs flex items-center justify-between w-full"
+            title={tooltip}
+          >
+            <span className="flex items-center gap-1 overflow-hidden text-theme-4">
+              <GitBranch size={12} className="shrink-0" />
+              <span className="truncate" style={{ fontFamily: terminalFontFamily }}>{branchInfo.currentBranch}</span>
+            </span>
+            <span className="flex items-center gap-2 shrink-0" style={{ fontFamily: terminalFontFamily }}>
+              {/* For worktrees: show commits ahead */}
+              {isWorktree && branchInfo.commitsAhead > 0 && (
+                <span className="text-cyan-500/60">⇡{branchInfo.commitsAhead}</span>
+              )}
+              {/* Files changed vs base (cyan) or uncommitted (amber) */}
+              {changedFilesCount > 0 && (
+                showBranchDiff
+                  ? <span className="text-cyan-500/60">~{changedFilesCount}</span>
+                  : <span className="text-amber-500/60">*{changedFilesCount}</span>
+              )}
+            </span>
+          </div>
         );
       })()}
 

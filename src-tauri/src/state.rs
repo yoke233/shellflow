@@ -58,6 +58,7 @@ pub struct BranchInfo {
     pub current_branch: String,
     pub base_branch: String,
     pub is_on_base_branch: bool,
+    pub commits_ahead: u32,
 }
 
 /// Content for diff viewer

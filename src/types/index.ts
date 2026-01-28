@@ -95,6 +95,7 @@ export interface BranchInfo {
   currentBranch: string;
   baseBranch: string;
   isOnBaseBranch: boolean;
+  commitsAhead: number;
 }
 
 export interface DiffContent {

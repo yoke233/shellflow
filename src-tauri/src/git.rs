@@ -308,15 +308,38 @@ pub fn get_changed_files(worktree_path: &Path) -> Result<Vec<FileChange>, GitErr
 
 /// Get information about the current branch relative to a base branch
 pub fn get_branch_info(worktree_path: &Path, base_branch: &BaseBranch) -> Result<crate::state::BranchInfo, GitError> {
+    use std::process::Command;
+
     let repo = Repository::open(worktree_path)?;
     let current_branch = get_current_branch(&repo)?;
     let base = resolve_target_branch(&repo, base_branch)?;
     let is_on_base_branch = current_branch == base;
 
+    // Count commits ahead of base branch using git rev-list
+    let commits_ahead = if is_on_base_branch {
+        0
+    } else {
+        let output = Command::new("git")
+            .args(["rev-list", "--count", &format!("{}..HEAD", base)])
+            .current_dir(worktree_path)
+            .output();
+
+        match output {
+            Ok(o) if o.status.success() => {
+                String::from_utf8_lossy(&o.stdout)
+                    .trim()
+                    .parse::<u32>()
+                    .unwrap_or(0)
+            }
+            _ => 0,
+        }
+    };
+
     Ok(crate::state::BranchInfo {
         current_branch,
         base_branch: base,
         is_on_base_branch,
+        commits_ahead,
     })
 }
 
@@ -1236,5 +1259,35 @@ mod tests {
         let name = "a".repeat(250);
         let result = validate_branch_name(&name);
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn branch_info_serializes_with_commits_ahead() {
+        let info = crate::state::BranchInfo {
+            current_branch: "feature-x".to_string(),
+            base_branch: "main".to_string(),
+            is_on_base_branch: false,
+            commits_ahead: 5,
+        };
+
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["currentBranch"], "feature-x");
+        assert_eq!(json["baseBranch"], "main");
+        assert_eq!(json["isOnBaseBranch"], false);
+        assert_eq!(json["commitsAhead"], 5);
+    }
+
+    #[test]
+    fn branch_info_on_base_branch_has_zero_commits_ahead() {
+        let info = crate::state::BranchInfo {
+            current_branch: "main".to_string(),
+            base_branch: "main".to_string(),
+            is_on_base_branch: true,
+            commits_ahead: 0,
+        };
+
+        let json = serde_json::to_value(&info).unwrap();
+        assert_eq!(json["isOnBaseBranch"], true);
+        assert_eq!(json["commitsAhead"], 0);
     }
 }
