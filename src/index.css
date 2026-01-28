@@ -237,9 +237,9 @@ textarea,
   border-radius: 4px !important;
 }
 
-/* Hide vertical scrollbar in diff editor but keep overview ruler (diff markers) */
-.monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical {
-  display: none !important;
+/* Make diff editor vertical scrollbar transparent but still functional/grabbable */
+.monaco-diff-editor .monaco-scrollable-element > .scrollbar.vertical > .slider {
+  background: transparent !important;
 }
 
 /* Hide decorations overview ruler (not the diff markers) */

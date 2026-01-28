@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { DiffEditor, loader } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 import { getFileDiffContent } from '../../lib/tauri';
 import type { DiffContent, ChangedFilesViewMode } from '../../types';
 import { TerminalConfig } from '../../hooks/useConfig';
@@ -142,9 +143,17 @@ export function DiffViewer({
           modified={diffContent.modified}
           language={diffContent.language}
           theme={themeRegistered ? SHELLFLOW_THEME_NAME : (theme?.type === 'light' ? 'vs' : 'vs-dark')}
+          onMount={(diffEditor: editor.IStandaloneDiffEditor) => {
+            // Ensure word wrap is applied to both editors
+            diffEditor.getOriginalEditor().updateOptions({ wordWrap: 'on' });
+            diffEditor.getModifiedEditor().updateOptions({ wordWrap: 'on' });
+          }}
           options={{
             readOnly: true,
             renderSideBySide: viewMode === 'split',
+            // Required for word wrap to work on the original (left) side in split view
+            // See: https://github.com/microsoft/monaco-editor/discussions/4454
+            useInlineViewWhenSpaceIsLimited: false,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             fontSize: terminalConfig?.fontSize ?? 13,
@@ -152,13 +161,14 @@ export function DiffViewer({
             lineNumbers: 'on',
             renderWhitespace: 'trailing',
             wordWrap: 'on',
-            diffWordWrap: 'on',
+            diffWordWrap: 'inherit',
             // Hide indicators (the +/- symbols in the gutter)
             renderIndicators: false,
             // Keep overview ruler for diff markers but hide its border
             overviewRulerBorder: false,
             scrollbar: {
-              vertical: 'hidden',
+              vertical: 'auto',
+              verticalScrollbarSize: 1,
               horizontal: 'auto',
               horizontalScrollbarSize: 8,
               useShadows: false,
