@@ -1263,13 +1263,16 @@ mod tests {
         #[test]
         fn deserializes_from_json() {
             let json = r#"{
-                "app::quit": "cmd+q",
+                "app::quit": { "mac": "cmd+q", "other": "alt+shift+q" },
                 "app::addProject": { "mac": "cmd+o", "other": "ctrl+o" }
             }"#;
 
             let mappings: MappingsConfig = serde_json::from_str(json).unwrap();
-            // Universal shortcut returns the string as-is on all platforms
+
+            #[cfg(target_os = "macos")]
             assert_eq!(mappings.quit.for_current_platform(), "cmd+q");
+            #[cfg(not(target_os = "macos"))]
+            assert_eq!(mappings.quit.for_current_platform(), "alt+shift+q");
         }
 
         #[test]
