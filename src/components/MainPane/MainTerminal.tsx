@@ -22,13 +22,23 @@ function fixColorSequences(data: string): string {
   return data.replace(/([34]8:2):(\d+):(\d+):(\d+)(?!:\d)/g, '$1::$2:$3:$4');
 }
 
-// Debounce helper
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  let timeout: ReturnType<typeof setTimeout>;
-  return ((...args: unknown[]) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), ms);
-  }) as T;
+// Debounce helper with cancel support
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T & { cancel: () => void } {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const debounced = ((...args: unknown[]) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      timeout = null;
+      fn(...args);
+    }, ms);
+  }) as T & { cancel: () => void };
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+  return debounced;
 }
 
 
@@ -613,15 +623,27 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     if (!terminal || !fitAddon || !ptyIdRef.current) return;
     if (Date.now() - spawnedAtRef.current < 1000) return;
 
+    // Cancel any pending debounced resize since we're handling it now
+    debouncedResizeRef.current?.cancel();
+
+    // Check if dimensions would actually change before doing expensive reflow
+    const proposed = fitAddon.proposeDimensions();
+    if (!proposed || (proposed.cols === terminal.cols && proposed.rows === terminal.rows)) {
+      return; // No change needed
+    }
+
     fitAddon.fit();
     resizeRef.current(terminal.cols, terminal.rows);
   }, []);
 
   // Debounced resize handler (for drag operations)
-  const debouncedResize = useMemo(
-    () => debounce(immediateResize, 150),
-    [immediateResize]
-  );
+  // Store in ref so immediateResize can cancel it
+  const debouncedResizeRef = useRef<ReturnType<typeof debounce> | null>(null);
+  const debouncedResize = useMemo(() => {
+    const fn = debounce(immediateResize, 150);
+    debouncedResizeRef.current = fn;
+    return fn;
+  }, [immediateResize]);
 
   // Fit on active change
   useEffect(() => {
@@ -644,16 +666,24 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     return () => resizeObserver.disconnect();
   }, [ptyId, isActive, debouncedResize]);
 
-  // Listen for panel toggle completion to resize immediately
+  // Show overlay during panel resize to hide stretched terminal
+  const [isResizing, setIsResizing] = useState(false);
+
   useEffect(() => {
     if (!ptyId || !isActive) return;
 
-    const handlePanelResizeComplete = () => {
+    const handleStart = () => setIsResizing(true);
+    const handleComplete = () => {
       immediateResize();
+      setTimeout(() => setIsResizing(false), 50);
     };
 
-    window.addEventListener('panel-resize-complete', handlePanelResizeComplete);
-    return () => window.removeEventListener('panel-resize-complete', handlePanelResizeComplete);
+    window.addEventListener('panel-resize-start', handleStart);
+    window.addEventListener('panel-resize-complete', handleComplete);
+    return () => {
+      window.removeEventListener('panel-resize-start', handleStart);
+      window.removeEventListener('panel-resize-complete', handleComplete);
+    };
   }, [ptyId, isActive, immediateResize]);
 
   // Focus terminal when shouldAutoFocus is true or when focusTrigger changes
@@ -664,7 +694,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   }, [shouldAutoFocus, focusTrigger]);
 
   return (
-    <div className="relative w-full h-full" style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding }}>
+    <div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
       {!isReady && !hasExited && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0">
           <div className="flex flex-col items-center gap-3 text-theme-2">
@@ -711,6 +741,9 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         ref={containerRef}
         className={`w-full h-full transition-opacity duration-200 ${isReady && !hasExited ? 'opacity-100' : 'opacity-0'}`}
       />
+      {isResizing && (
+        <div className="absolute inset-0 z-50" style={{ backgroundColor: xtermTheme.background }} />
+      )}
       {isDragOver && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0/60 pointer-events-none border-2 border-dashed border-theme-2 rounded">
           <span className="text-theme-1 text-sm">Drop files to insert path</span>

@@ -17,13 +17,23 @@ function fixColorSequences(data: string): string {
   return data.replace(/([34]8:2):(\d+):(\d+):(\d+)(?!:\d)/g, '$1::$2:$3:$4');
 }
 
-// Debounce helper
-function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
-  let timeout: ReturnType<typeof setTimeout>;
-  return ((...args: unknown[]) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), ms);
-  }) as T;
+// Debounce helper with cancel support
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T & { cancel: () => void } {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const debounced = ((...args: unknown[]) => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      timeout = null;
+      fn(...args);
+    }, ms);
+  }) as T & { cancel: () => void };
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+  return debounced;
 }
 
 interface PtyOutput {
@@ -323,15 +333,27 @@ export function ActionTerminal({
     const fitAddon = fitAddonRef.current;
     if (!terminal || !fitAddon || !ptyIdRef.current) return;
 
+    // Cancel any pending debounced resize since we're handling it now
+    debouncedResizeRef.current?.cancel();
+
+    // Check if dimensions would actually change before doing expensive reflow
+    const proposed = fitAddon.proposeDimensions();
+    if (!proposed || (proposed.cols === terminal.cols && proposed.rows === terminal.rows)) {
+      return; // No change needed
+    }
+
     fitAddon.fit();
     ptyResize(ptyIdRef.current, terminal.cols, terminal.rows);
   }, []);
 
   // Debounced resize handler
-  const debouncedResize = useMemo(
-    () => debounce(immediateResize, 100),
-    [immediateResize]
-  );
+  // Store in ref so immediateResize can cancel it
+  const debouncedResizeRef = useRef<ReturnType<typeof debounce> | null>(null);
+  const debouncedResize = useMemo(() => {
+    const fn = debounce(immediateResize, 100);
+    debouncedResizeRef.current = fn;
+    return fn;
+  }, [immediateResize]);
 
   // ResizeObserver for container size changes
   useEffect(() => {
@@ -346,17 +368,24 @@ export function ActionTerminal({
     return () => resizeObserver.disconnect();
   }, [isActive, isPtyReady, debouncedResize]);
 
-  // Listen for panel toggle completion
+  // Show overlay during panel resize to hide stretched terminal
+  const [isResizing, setIsResizing] = useState(false);
+
   useEffect(() => {
     if (!isPtyReady || !isActive) return;
 
-    const handlePanelResizeComplete = () => {
+    const handleStart = () => setIsResizing(true);
+    const handleComplete = () => {
       immediateResize();
+      setTimeout(() => setIsResizing(false), 50);
     };
 
-    window.addEventListener('panel-resize-complete', handlePanelResizeComplete);
-    return () =>
-      window.removeEventListener('panel-resize-complete', handlePanelResizeComplete);
+    window.addEventListener('panel-resize-start', handleStart);
+    window.addEventListener('panel-resize-complete', handleComplete);
+    return () => {
+      window.removeEventListener('panel-resize-start', handleStart);
+      window.removeEventListener('panel-resize-complete', handleComplete);
+    };
   }, [isActive, isPtyReady, immediateResize]);
 
   // Fit on active change
@@ -411,8 +440,11 @@ export function ActionTerminal({
   }, [xtermTheme]);
 
   return (
-    <div className="w-full h-full flex flex-col" style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding }}>
+    <div className="relative w-full h-full flex flex-col" style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
       <div ref={containerRef} className="w-full flex-1 min-h-0" />
+      {isResizing && (
+        <div className="absolute inset-0 z-50" style={{ backgroundColor: xtermTheme.background }} />
+      )}
       {isMergeComplete && (
         <div
           className="px-3 py-2 bg-green-900/30 border-t border-green-700/50 text-sm"

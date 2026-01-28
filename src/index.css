@@ -211,6 +211,12 @@ textarea,
   flex-shrink: 0;
 }
 
+/* Prevent xterm canvas from being scaled during resize */
+.xterm .xterm-screen {
+  contain: strict;
+  overflow: hidden;
+}
+
 /* xterm.js scrollbar - style to look like native macOS overlay */
 .xterm .xterm-scrollable-element > .scrollbar {
   width: 8px !important;

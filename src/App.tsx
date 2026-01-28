@@ -767,9 +767,22 @@ function App() {
     handleFileClick(changedFiles[0].path);
   }, [changedFiles, handleFileClick]);
 
-  // Dispatch event to trigger immediate terminal resize after panel toggle
+  // Dispatch events to coordinate terminal resize during panel toggle
+  const dispatchPanelResize = useCallback((doResize: () => void) => {
+    // Notify terminals to capture snapshot before resize
+    window.dispatchEvent(new Event('panel-resize-start'));
+
+    // Do the resize
+    doResize();
+
+    // After layout settles, notify terminals to refit and remove snapshot
+    requestAnimationFrame(() => {
+      window.dispatchEvent(new Event('panel-resize-complete'));
+    });
+  }, []);
+
+  // Legacy function for cases that just need the complete event
   const dispatchPanelResizeComplete = useCallback(() => {
-    // Use requestAnimationFrame to let the DOM update first
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('panel-resize-complete'));
     });
@@ -783,18 +796,21 @@ function App() {
     const mainPanel = mainPanelRef.current;
     const willOpen = !isDrawerOpen;
 
-    if (panel) {
-      if (willOpen) {
-        panel.resize(lastDrawerSize.current);
-      } else {
-        panel.collapse();
-        // Restore main panel if it was collapsed due to expansion
-        if (isDrawerExpanded && mainPanel) {
-          mainPanel.resize(200); // Restore to a reasonable default
+    // Wrap panel resize in dispatchPanelResize to prevent visual stretch
+    dispatchPanelResize(() => {
+      if (panel) {
+        if (willOpen) {
+          panel.resize(lastDrawerSize.current);
+        } else {
+          panel.collapse();
+          // Restore main panel if it was collapsed due to expansion
+          if (isDrawerExpanded && mainPanel) {
+            mainPanel.resize(200); // Restore to a reasonable default
+          }
+          setIsDrawerExpanded(false);
         }
-        setIsDrawerExpanded(false);
       }
-    }
+    });
 
     // Create first tab if opening drawer with no tabs for this entity
     if (willOpen) {
@@ -835,9 +851,7 @@ function App() {
       next.set(activeEntityId, target);
       return next;
     });
-
-    dispatchPanelResizeComplete();
-  }, [activeEntityId, isDrawerOpen, isDrawerExpanded, drawerTabs, drawerTabCounters, dispatchPanelResizeComplete]);
+  }, [activeEntityId, isDrawerOpen, isDrawerExpanded, drawerTabs, drawerTabCounters, dispatchPanelResize]);
 
   // Toggle drawer expansion handler (maximize/restore within main area)
   const handleToggleDrawerExpand = useCallback(() => {
@@ -846,13 +860,18 @@ function App() {
     const drawerPanel = drawerPanelRef.current;
     if (!drawerPanel) return;
 
+    // Notify terminals to capture snapshot before resize
+    window.dispatchEvent(new Event('panel-resize-start'));
+
     if (isDrawerExpanded) {
       // Restore to previous size
       setIsDrawerExpanded(false);
       // Use setTimeout to let maxSize update before resizing
       setTimeout(() => {
         drawerPanel.resize(preExpandDrawerSize.current);
-        dispatchPanelResizeComplete();
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('panel-resize-complete'));
+        });
       }, 0);
     } else {
       // Save current size and expand to cover main area
@@ -868,10 +887,12 @@ function App() {
       // Use setTimeout to let maxSize update before resizing
       setTimeout(() => {
         drawerPanel.resize("100%");
-        dispatchPanelResizeComplete();
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event('panel-resize-complete'));
+        });
       }, 0);
     }
-  }, [activeEntityId, isDrawerOpen, isDrawerExpanded, dispatchPanelResizeComplete]);
+  }, [activeEntityId, isDrawerOpen, isDrawerExpanded]);
 
   // Toggle right panel handler
   const handleToggleRightPanel = useCallback(() => {
@@ -880,17 +901,19 @@ function App() {
     const panel = rightPanelRef.current;
     const willOpen = !isRightPanelOpen;
 
-    if (panel) {
-      if (willOpen) {
-        panel.resize(lastRightPanelSize.current);
-      } else {
-        panel.collapse();
+    // Wrap panel resize in dispatchPanelResize to prevent visual stretch
+    dispatchPanelResize(() => {
+      if (panel) {
+        if (willOpen) {
+          panel.resize(lastRightPanelSize.current);
+        } else {
+          panel.collapse();
+        }
       }
-    }
+    });
 
     setIsRightPanelOpen(willOpen);
-    dispatchPanelResizeComplete();
-  }, [activeEntityId, isRightPanelOpen, dispatchPanelResizeComplete]);
+  }, [activeEntityId, isRightPanelOpen, dispatchPanelResize]);
 
 
   // Sync state when right panel is collapsed/expanded via dragging
