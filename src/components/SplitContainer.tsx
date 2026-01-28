@@ -196,8 +196,19 @@ export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerPro
             },
           });
 
-          // Restore focus to the original pane (vim behavior: focus stays after split)
-          refPane.focus();
+          // Focus the new pane after split
+          // Use requestAnimationFrame to ensure this happens after React renders and xterm.js initializes
+          const newPanel = api.getPanel(paneId);
+          requestAnimationFrame(() => {
+            newPanel?.focus();
+            // Directly focus the terminal textarea in the new pane
+            const textarea = document.querySelector(
+              `[data-terminal-id="${paneId}"] textarea.xterm-helper-textarea`
+            ) as HTMLTextAreaElement | null;
+            if (textarea) {
+              textarea.focus();
+            }
+          });
 
           // Clear the pending split
           log.debug('[SPLIT:Container] sync: calling onPendingSplitConsumed');

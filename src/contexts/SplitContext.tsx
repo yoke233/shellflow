@@ -232,6 +232,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
           ...state,
           panes: newPanes,
           pendingSplit,
+          activePaneId: newPaneId,  // Focus the new pane
         });
 
         wasAdded = true;

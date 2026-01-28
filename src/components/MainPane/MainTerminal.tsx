@@ -694,7 +694,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   }, [shouldAutoFocus, focusTrigger]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden" style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
+    <div className="relative w-full h-full overflow-hidden" data-terminal-id={entityId} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
       {!isReady && !hasExited && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0">
           <div className="flex flex-col items-center gap-3 text-theme-2">
