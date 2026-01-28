@@ -211,6 +211,21 @@
         "cmd-c": "terminal::copy",
         "cmd-v": "terminal::paste"
       }
+    },
+
+    // ============================================================
+    // Split actions (vim-style splits)
+    // ============================================================
+    {
+      "context": "!pickerOpen && !modalOpen",
+      "bindings": {
+        "ctrl-shift-\\": "split::horizontal",
+        "ctrl-shift--": "split::vertical",
+        "ctrl-shift-h": "split::focusLeft",
+        "ctrl-shift-j": "split::focusDown",
+        "ctrl-shift-k": "split::focusUp",
+        "ctrl-shift-l": "split::focusRight"
+      }
     }
   ]
 }

@@ -7,7 +7,9 @@ import { SplitContainer } from '../SplitContainer';
 import { SessionTabBar } from './SessionTabBar';
 import { TerminalConfig, ConfigError } from '../../hooks/useConfig';
 import { ConfigErrorBanner } from '../ConfigErrorBanner';
-import { Session, SessionKind, SessionTab, TabIndicators, TabSplitState, SplitPaneConfig } from '../../types';
+import { Session, SessionKind, SessionTab, TabIndicators } from '../../types';
+import { SplitPaneConfig } from '../../lib/splitTypes';
+import { useSplit } from '../../contexts/SplitContext';
 import { log } from '../../lib/log';
 
 interface MainPaneProps {
@@ -44,20 +46,6 @@ interface MainPaneProps {
   onTabTitleChange?: (sessionId: string, tabId: string, title: string) => void;
   /** Called when a tab's PTY is spawned (for cleanup tracking) */
   onPtyIdReady?: (tabId: string, ptyId: string) => void;
-
-  // Split layout props
-  /** Split states for each tab */
-  splitStates: Map<string, TabSplitState>;
-  /** Initialize split state for a tab */
-  initSplitTab: (tabId: string, config: Omit<SplitPaneConfig, 'id'>) => string;
-  /** Focus a specific pane */
-  focusSplitPane: (tabId: string, paneId: string) => void;
-  /** Mark a pane as ready with PTY ID */
-  setSplitPaneReady: (tabId: string, paneId: string, ptyId: string) => void;
-  /** Get the active pane ID for a tab */
-  getActiveSplitPaneId: (tabId: string) => string | null;
-  /** Clear pending split after it's consumed */
-  clearPendingSplit: (tabId: string) => void;
 
   // Legacy props for backward compatibility during migration
   openWorktreeIds?: Set<string>;
@@ -111,13 +99,6 @@ export const MainPane = memo(function MainPane({
   onCwdChange,
   onTabTitleChange,
   onPtyIdReady,
-  // Split layout props
-  splitStates,
-  initSplitTab,
-  focusSplitPane,
-  setSplitPaneReady,
-  getActiveSplitPaneId,
-  clearPendingSplit,
   // Legacy props
   onWorktreeNotification,
   onWorktreeThinkingChange,
@@ -127,7 +108,18 @@ export const MainPane = memo(function MainPane({
   onScratchThinkingChange,
   onScratchCwdChange,
 }: MainPaneProps) {
-  log.debug('[SPLIT:MainPane] render', {
+  // Get split state from context instead of props
+  // This prevents MainPane from re-rendering when App re-renders for unrelated reasons
+  const {
+    splitStates,
+    initTab: initSplitTab,
+    focusPane: focusSplitPane,
+    setPaneReady: setSplitPaneReady,
+    getActivePaneId: getActiveSplitPaneId,
+    clearPendingSplit,
+  } = useSplit();
+
+  log.info('[SPLIT:MainPane] render', {
     activeSessionId,
     activeSessionTabId,
     splitStatesSize: splitStates.size,
@@ -264,13 +256,13 @@ export const MainPane = memo(function MainPane({
 
         const type = tab.isPrimary ? terminalType : 'scratch';
         const directory = tab.directory ?? (session.kind === 'scratch' && tab.isPrimary ? session.initialCwd : undefined);
-        log.debug('[SPLIT:MainPane] initializing split state for tab', { tabId: tab.id, type, directory });
+        log.info('[SPLIT:MainPane] initializing split state for tab', { tabId: tab.id, type, directory });
         initSplitTab(tab.id, { type, directory });
         initializedCount++;
       }
     }
 
-    log.debug('[SPLIT:MainPane] init effect complete', { initializedCount, skippedCount, refSize: initializedSplitTabsRef.current.size });
+    log.info('[SPLIT:MainPane] init effect complete', { initializedCount, skippedCount, refSize: initializedSplitTabsRef.current.size });
   }, [allSessionTabs, sessions, initSplitTab]);  // ← Removed splitStates
 
   // Clean up tracking ref when tabs are closed
@@ -517,7 +509,7 @@ export const MainPane = memo(function MainPane({
             } else {
               // Regular terminal tab - use SplitContainer for split support
               const splitState = splitStates.get(tab.id);
-              log.debug('[SPLIT:MainPane] rendering terminal tab', { tabId: tab.id, hasSplitState: !!splitState, paneCount: splitState?.panes.size ?? 0, hasPendingSplit: !!splitState?.pendingSplit });
+              log.info('[SPLIT:MainPane] rendering terminal tab', { tabId: tab.id, hasSplitState: !!splitState, paneCount: splitState?.panes.size ?? 0, hasPendingSplit: !!splitState?.pendingSplit });
 
               if (splitState && splitState.panes.size > 1) {
                 // Only use SplitContainer when there are actual splits (more than 1 pane)

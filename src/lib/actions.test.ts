@@ -25,6 +25,7 @@ const emptyContext: ActionContext = {
   taskCount: 0,
   isViewingDiff: false,
   changedFilesCount: 0,
+  hasSplits: false,
 };
 
 describe('isActionAvailable', () => {
@@ -160,6 +161,55 @@ describe('isActionAvailable', () => {
     it('task::switcher requires taskCount > 0', () => {
       expect(isActionAvailable('task::switcher', emptyContext)).toBe(false);
       expect(isActionAvailable('task::switcher', { ...emptyContext, taskCount: 1 })).toBe(true);
+    });
+  });
+
+  describe('split actions', () => {
+    it('split::horizontal requires activeEntityId', () => {
+      expect(isActionAvailable('split::horizontal', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::horizontal', { ...emptyContext, activeEntityId: 'e1' })).toBe(true);
+    });
+
+    it('split::vertical requires activeEntityId', () => {
+      expect(isActionAvailable('split::vertical', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::vertical', { ...emptyContext, activeEntityId: 'e1' })).toBe(true);
+    });
+
+    it('split::focusLeft requires activeEntityId and hasSplits', () => {
+      expect(isActionAvailable('split::focusLeft', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::focusLeft', { ...emptyContext, activeEntityId: 'e1' })).toBe(false);
+      expect(isActionAvailable('split::focusLeft', {
+        ...emptyContext,
+        activeEntityId: 'e1',
+        hasSplits: true
+      })).toBe(true);
+    });
+
+    it('split::focusDown requires activeEntityId and hasSplits', () => {
+      expect(isActionAvailable('split::focusDown', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::focusDown', {
+        ...emptyContext,
+        activeEntityId: 'e1',
+        hasSplits: true
+      })).toBe(true);
+    });
+
+    it('split::focusUp requires activeEntityId and hasSplits', () => {
+      expect(isActionAvailable('split::focusUp', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::focusUp', {
+        ...emptyContext,
+        activeEntityId: 'e1',
+        hasSplits: true
+      })).toBe(true);
+    });
+
+    it('split::focusRight requires activeEntityId and hasSplits', () => {
+      expect(isActionAvailable('split::focusRight', emptyContext)).toBe(false);
+      expect(isActionAvailable('split::focusRight', {
+        ...emptyContext,
+        activeEntityId: 'e1',
+        hasSplits: true
+      })).toBe(true);
     });
   });
 });

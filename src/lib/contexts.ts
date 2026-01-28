@@ -40,6 +40,9 @@ export type ContextFlag =
 
   // Diff view
   | 'diffViewOpen'
+
+  // Splits
+  | 'hasSplits'
   ;
 
 /**
@@ -85,6 +88,9 @@ export interface ContextState {
 
   // Diff view
   isDiffViewOpen: boolean;
+
+  // Splits
+  hasSplits: boolean;
 }
 
 /**
@@ -172,6 +178,11 @@ export function getActiveContexts(state: ContextState): ActiveContexts {
   // Diff view
   if (state.isDiffViewOpen) {
     contexts.add('diffViewOpen');
+  }
+
+  // Splits
+  if (state.hasSplits) {
+    contexts.add('hasSplits');
   }
 
   return contexts;

@@ -95,6 +95,14 @@ export interface ActionHandlerCallbacks {
   onNextChangedFile: () => void;
   onPrevChangedFile: () => void;
   onToggleDiffMode: () => void;
+
+  // Split actions (vim-style splits)
+  onSplitHorizontal: () => void;
+  onSplitVertical: () => void;
+  onSplitFocusLeft: () => void;
+  onSplitFocusDown: () => void;
+  onSplitFocusUp: () => void;
+  onSplitFocusRight: () => void;
 }
 
 /**
@@ -196,6 +204,14 @@ export function createActionHandlers(callbacks: ActionHandlerCallbacks): ActionH
     'diff::nextFile': callbacks.onNextChangedFile,
     'diff::prevFile': callbacks.onPrevChangedFile,
     'diff::toggleMode': callbacks.onToggleDiffMode,
+
+    // Split actions (vim-style splits)
+    'split::horizontal': callbacks.onSplitHorizontal,
+    'split::vertical': callbacks.onSplitVertical,
+    'split::focusLeft': callbacks.onSplitFocusLeft,
+    'split::focusDown': callbacks.onSplitFocusDown,
+    'split::focusUp': callbacks.onSplitFocusUp,
+    'split::focusRight': callbacks.onSplitFocusRight,
   };
 }
 

@@ -75,7 +75,14 @@ export type ActionId =
   | 'diff::toggleMode'
   // Task actions
   | 'task::run'
-  | 'task::switcher';
+  | 'task::switcher'
+  // Split actions (vim-style splits)
+  | 'split::horizontal'
+  | 'split::vertical'
+  | 'split::focusLeft'
+  | 'split::focusDown'
+  | 'split::focusUp'
+  | 'split::focusRight';
 
 // State needed to evaluate action availability
 export interface ActionContext {
@@ -98,6 +105,8 @@ export interface ActionContext {
   isViewingDiff: boolean;
   /** Number of files in the changed files list */
   changedFilesCount: number;
+  /** Whether the active tab has splits */
+  hasSplits: boolean;
 }
 
 // Availability predicates - THE source of truth for "can this action run?"
@@ -178,6 +187,14 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   // Task actions
   'task::run': (ctx) => !!ctx.activeEntityId && !!ctx.activeSelectedTask,
   'task::switcher': (ctx) => ctx.taskCount > 0,
+
+  // Split actions (vim-style splits)
+  'split::horizontal': (ctx) => !!ctx.activeEntityId,
+  'split::vertical': (ctx) => !!ctx.activeEntityId,
+  'split::focusLeft': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'split::focusDown': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'split::focusUp': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
+  'split::focusRight': (ctx) => !!ctx.activeEntityId && ctx.hasSplits,
 };
 
 /**
@@ -211,7 +228,7 @@ export function getMenuAvailability(ctx: ActionContext): Record<string, boolean>
 // Action Metadata for Command Palette
 // ============================================================================
 
-export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help';
+export type ActionCategory = 'File' | 'View' | 'Navigate' | 'Diff' | 'Tasks' | 'Help' | 'Splits';
 
 export interface ActionMetadata {
   label: string;
@@ -299,6 +316,14 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   // Task actions
   'task::run': { label: 'Run Task', category: 'Tasks', showInPalette: true },
   'task::switcher': { label: 'Task Switcher', category: 'Tasks', showInPalette: true },
+
+  // Split actions (vim-style splits)
+  'split::horizontal': { label: 'Split Horizontally', category: 'Splits', showInPalette: true },
+  'split::vertical': { label: 'Split Vertically', category: 'Splits', showInPalette: true },
+  'split::focusLeft': { label: 'Focus Left Pane', category: 'Splits', showInPalette: true },
+  'split::focusDown': { label: 'Focus Pane Below', category: 'Splits', showInPalette: true },
+  'split::focusUp': { label: 'Focus Pane Above', category: 'Splits', showInPalette: true },
+  'split::focusRight': { label: 'Focus Right Pane', category: 'Splits', showInPalette: true },
 };
 
 /** Get actions that should appear in the command palette */

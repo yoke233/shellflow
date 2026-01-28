@@ -33,7 +33,7 @@ npm install
 npm run tauri dev
 ```
 
-**Important**: Do not run the app. The user will always run and test the app themselves.
+**Important**: Do not run the app unless asked to verify logs or test specific behavior. The user will typically run and test the app themselves.
 
 ## Actions
 

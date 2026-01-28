@@ -195,3 +195,16 @@ export interface RunningTask {
   worktreeId: string;
   exitCode?: number;
 }
+
+// Re-export split types
+export type {
+  SplitPaneConfig,
+  TabSplitState,
+  SplitDirection,
+  SplitOrientation,
+  PendingSplit,
+} from '../lib/splitTypes';
+export {
+  generatePaneId,
+  createDefaultSplitState,
+} from '../lib/splitTypes';

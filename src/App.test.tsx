@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
+import { SplitProvider } from './contexts/SplitContext';
 import {
   resetMocks,
   setupDefaultMocks,
@@ -19,6 +20,11 @@ vi.mock('./hooks/useGitStatus', () => ({
   useGitStatus: () => ({ files: [], loading: false, error: null }),
 }));
 
+// Wrapper to provide SplitContext for App tests
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <SplitProvider>{children}</SplitProvider>
+);
+
 describe('App', () => {
   beforeEach(() => {
     resetMocks();
@@ -29,7 +35,7 @@ describe('App', () => {
 
   describe('Initial Render', () => {
     it('renders without crashing', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Should show something on screen
       await waitFor(() => {
@@ -40,7 +46,7 @@ describe('App', () => {
     });
 
     it('loads projects on startup', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(invokeHistory.some((h) => h.command === 'list_projects')).toBe(true);
@@ -48,7 +54,7 @@ describe('App', () => {
     });
 
     it('loads configuration on startup', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(invokeHistory.some((h) => h.command === 'get_config')).toBe(true);
@@ -58,7 +64,7 @@ describe('App', () => {
 
   describe('Scratch Terminal on Launch', () => {
     it('spawns a scratch terminal when startOnLaunch is true', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for config to load and scratch terminal to be created
       await waitFor(
@@ -76,7 +82,7 @@ describe('App', () => {
       // 2. Unit tests for the config hook
 
       // Verify config is loaded
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(invokeHistory.some((h) => h.command === 'get_config')).toBe(true);
@@ -97,7 +103,7 @@ describe('App', () => {
       const project = createTestProject({ id: 'proj-1', name: 'my-awesome-project' });
       mockInvokeResponses.set('list_projects', [project]);
 
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(
         () => {
@@ -112,7 +118,7 @@ describe('App', () => {
       const closedProject = createTestProject({ id: 'proj-2', name: 'closed-project', isActive: false });
       mockInvokeResponses.set('list_projects', [activeProject, closedProject]);
 
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(
         () => {
@@ -135,7 +141,7 @@ describe('App', () => {
       mockInvokeResponses.set('list_projects', [project]);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to appear
       await waitFor(
@@ -162,7 +168,7 @@ describe('App', () => {
       mockInvokeResponses.set('touch_project', null);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(
         () => {
@@ -190,7 +196,7 @@ describe('App', () => {
       mockInvokeResponses.set('touch_project', null);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for initial render - closed project should NOT be in sidebar
       await waitFor(
@@ -248,7 +254,7 @@ describe('App', () => {
       mockInvokeResponses.set('touch_project', null);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to load and expand
       await waitFor(
@@ -289,7 +295,7 @@ describe('App', () => {
 
   describe('Keyboard Shortcuts', () => {
     it('supports keyboard event handling', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for initial scratch terminal
       await waitFor(
@@ -308,7 +314,7 @@ describe('App', () => {
 
   describe('Config Reloading', () => {
     it('reloads config when config-changed event fires', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('Terminal 1')).toBeInTheDocument();
@@ -337,7 +343,7 @@ describe('App', () => {
       ];
       mockInvokeResponses.set('list_projects', projects);
 
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(
         () => {
@@ -374,7 +380,7 @@ describe('App', () => {
       });
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to appear and select worktree
       await waitFor(() => {
@@ -425,7 +431,7 @@ describe('App', () => {
       });
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Select worktree to set activeEntityId
       await waitFor(() => {
@@ -479,7 +485,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_main', 'pty-main-789');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to appear
       await waitFor(() => {
@@ -519,7 +525,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_project_shell', 'pty-proj-shell-123');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to appear
       await waitFor(() => {
@@ -552,7 +558,7 @@ describe('App', () => {
       );
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('my-project')).toBeInTheDocument();
@@ -581,7 +587,7 @@ describe('App', () => {
       mockInvokeResponses.set('list_projects', [project1, project2]);
       mockInvokeResponses.set('touch_project', null);
 
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for app to load
       await waitFor(() => {
@@ -613,7 +619,7 @@ describe('App', () => {
       mockInvokeResponses.set('touch_project', null);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('alpha-project')).toBeInTheDocument();
@@ -660,7 +666,7 @@ describe('App', () => {
       localStorage.setItem('shellflow:expandedProjects', '[]');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to show in sidebar
       await waitFor(() => {
@@ -704,7 +710,7 @@ describe('App', () => {
       mockInvokeResponses.set('touch_project', null);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('my-project')).toBeInTheDocument();
@@ -741,7 +747,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_main', 'pty-main-123');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('my-project')).toBeInTheDocument();
@@ -786,7 +792,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_project_shell', 'pty-proj-123');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('my-project')).toBeInTheDocument();
@@ -819,7 +825,7 @@ describe('App', () => {
 
   describe('Session Tabs', () => {
     it('creates initial tab when scratch terminal starts', async () => {
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for scratch terminal with initial tab
       await waitFor(
@@ -847,7 +853,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_main', 'pty-main-789');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to appear
       await waitFor(() => {
@@ -885,7 +891,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_main', 'pty-main-789');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // First, scratch terminal starts with Terminal 1
       await waitFor(
@@ -925,7 +931,7 @@ describe('App', () => {
       mockInvokeResponses.set('spawn_main', 'pty-main-xyz');
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
         expect(screen.getByText('my-project')).toBeInTheDocument();
@@ -952,7 +958,7 @@ describe('App', () => {
   describe('Open In Actions', () => {
     it('openInFinder works with scratch terminal using cwd', async () => {
       // Setup: scratch.startOnLaunch is true by default, home dir is /Users/test
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for scratch terminal to be created and spawned
       await waitFor(() => {
@@ -999,7 +1005,7 @@ describe('App', () => {
       mockInvokeResponses.set('list_projects', [project]);
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for project to load and expand it
       await waitFor(() => {
@@ -1046,7 +1052,7 @@ describe('App', () => {
       }));
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for scratch terminal to be spawned
       await waitFor(() => {
@@ -1084,7 +1090,7 @@ describe('App', () => {
       }));
 
       const user = userEvent.setup();
-      render(<App />);
+      render(<App />, { wrapper: TestWrapper });
 
       // Wait for scratch terminal to be spawned
       await waitFor(() => {
