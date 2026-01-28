@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/shkm/shellflow/compare/v0.10.0...v0.11.0) (2026-01-28)
+
+
+### Features
+
+* add action to open diff view ([726cf61](https://github.com/shkm/shellflow/commit/726cf6189e2d2e315be1e67433107e0ac147ff6d))
+* add diff viewer with branch toggle and file navigation ([acdcdad](https://github.com/shkm/shellflow/commit/acdcdadbefb88d11a4ecc77fff47d11f296c3488))
+* add VSCode theme support with border style options ([f88c6f8](https://github.com/shkm/shellflow/commit/f88c6f8d277450c34da343a4e717400bc0bdaf10))
+* expand project in sidebar when selected ([a2d9017](https://github.com/shkm/shellflow/commit/a2d9017c113b2da8b03240a717118c534ea9eade))
+* unify action system with namespaced IDs ([ca04b87](https://github.com/shkm/shellflow/commit/ca04b872172537cda853b92db486d353bfe2672b))
+
+
+### Bug Fixes
+
+* prevent menu actions from firing multiple times ([2b8b8b8](https://github.com/shkm/shellflow/commit/2b8b8b8a87e9fb0a3e20cc4464426aa839fd1d49))
+* register session tab PTY IDs for cleanup on tab close ([c4192e0](https://github.com/shkm/shellflow/commit/c4192e0b1401b092091ca403e77116c252d1821f))
+* resolve race condition and git staging detection in changes sidebar ([b7810b7](https://github.com/shkm/shellflow/commit/b7810b76a6b6eca85f09e8032938db236efda232))
+* use correct serde rename key in mappings config test ([18a0cfa](https://github.com/shkm/shellflow/commit/18a0cfa72b414c9d08b51eb3bcf41fa3941be652))
+* use full ActionId key for cycleBorderStyle override ([b63b0cb](https://github.com/shkm/shellflow/commit/b63b0cb12e997fb8fd422936e4405f2802ccdc33))
+
 ## [0.10.0](https://github.com/shkm/shellflow/compare/v0.9.1...v0.10.0) (2026-01-27)
 
 
