@@ -73,6 +73,9 @@ export interface SplitActions {
 
   /** Clear pending split after it's been consumed by SplitContainer */
   clearPendingSplit: (tabId: string) => void;
+
+  /** Clear pending focus direction after it's been consumed by SplitContainer */
+  clearPendingFocusDirection: (tabId: string) => void;
 }
 
 export interface SplitState {
@@ -288,8 +291,18 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       }, tabId);
     };
 
-    const focusDirection = (_tabId: string, _direction: SplitDirection) => {
-      // Direction-based navigation is implemented by SplitContainer
+    const focusDirection = (tabId: string, direction: SplitDirection) => {
+      store.setState((prev) => {
+        const state = prev.get(tabId);
+        if (!state || state.panes.size <= 1) return prev;
+
+        const next = new Map(prev);
+        next.set(tabId, {
+          ...state,
+          pendingFocusDirection: direction,
+        });
+        return next;
+      }, tabId);
     };
 
     const setPaneReady = (tabId: string, paneId: string, ptyId: string) => {
@@ -371,6 +384,20 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       }, tabId);
     };
 
+    const clearPendingFocusDirection = (tabId: string) => {
+      store.setState((prev) => {
+        const state = prev.get(tabId);
+        if (!state || !state.pendingFocusDirection) return prev;
+
+        const next = new Map(prev);
+        next.set(tabId, {
+          ...state,
+          pendingFocusDirection: undefined,
+        });
+        return next;
+      }, tabId);
+    };
+
     return {
       initTab,
       split,
@@ -385,6 +412,7 @@ export function SplitProvider({ children }: { children: ReactNode }) {
       getPaneConfig,
       getPaneIds,
       clearPendingSplit,
+      clearPendingFocusDirection,
     };
   }, [store]);
 

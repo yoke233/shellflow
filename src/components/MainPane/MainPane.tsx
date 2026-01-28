@@ -138,7 +138,7 @@ const TerminalTabContent = memo(function TerminalTabContent({
 }: TerminalTabContentProps) {
   // Fine-grained subscription: only re-renders when THIS tab's split state changes
   const splitState = useSplitForTab(tabId);
-  const { focusPane, setPaneReady, getActivePaneId, clearPendingSplit } = useSplitActions();
+  const { focusPane, setPaneReady, getActivePaneId, clearPendingSplit, clearPendingFocusDirection } = useSplitActions();
 
   // Create stable bound callbacks using this tab's IDs
   const handleFocus = useCallback(
@@ -182,6 +182,11 @@ const TerminalTabContent = memo(function TerminalTabContent({
     [clearPendingSplit, tabId]
   );
 
+  const handlePendingFocusDirectionConsumed = useCallback(
+    () => clearPendingFocusDirection(tabId),
+    [clearPendingFocusDirection, tabId]
+  );
+
   const handlePaneFocus = useCallback(
     (paneId: string) => focusPane(tabId, paneId),
     [focusPane, tabId]
@@ -203,6 +208,8 @@ const TerminalTabContent = memo(function TerminalTabContent({
         activePaneId={activePaneId}
         pendingSplit={splitState.pendingSplit}
         onPendingSplitConsumed={handlePendingSplitConsumed}
+        pendingFocusDirection={splitState.pendingFocusDirection}
+        onPendingFocusDirectionConsumed={handlePendingFocusDirectionConsumed}
         renderPane={(paneId, paneConfig, isActivePane) =>
           renderSplitPane(
             paneId,

@@ -54,6 +54,8 @@ export interface TabSplitState {
   activePaneId: string | null;
   /** Pending split operation (consumed by SplitContainer when adding the pane) */
   pendingSplit?: PendingSplit;
+  /** Pending focus direction (consumed by SplitContainer to navigate panes) */
+  pendingFocusDirection?: SplitDirection;
 }
 
 /**

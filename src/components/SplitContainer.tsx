@@ -30,6 +30,10 @@ interface SplitContainerProps {
   pendingSplit?: PendingSplit;
   /** Called when pending split is consumed */
   onPendingSplitConsumed?: () => void;
+  /** Pending focus direction (from useSplitActions) */
+  pendingFocusDirection?: SplitDirection;
+  /** Called when pending focus direction is consumed */
+  onPendingFocusDirectionConsumed?: () => void;
 }
 
 export interface SplitContainerHandle {
@@ -77,10 +81,10 @@ const components = {
 
 export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerProps>(
   function SplitContainer(
-    { panes, activePaneId, renderPane, onPaneFocus, pendingSplit, onPendingSplitConsumed },
+    { panes, activePaneId, renderPane, onPaneFocus, pendingSplit, onPendingSplitConsumed, pendingFocusDirection, onPendingFocusDirectionConsumed },
     ref
   ) {
-    log.debug('[SPLIT:Container] render', { paneCount: panes.size, paneIds: Array.from(panes.keys()), activePaneId, hasPendingSplit: !!pendingSplit });
+    log.debug('[SPLIT:Container] render', { paneCount: panes.size, paneIds: Array.from(panes.keys()), activePaneId, hasPendingSplit: !!pendingSplit, hasPendingFocusDirection: !!pendingFocusDirection });
 
     const apiRef = useRef<GridviewApi | null>(null);
 
@@ -95,6 +99,8 @@ export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerPro
     activePaneIdRef.current = activePaneId;
     const pendingSplitRef = useRef(pendingSplit);
     pendingSplitRef.current = pendingSplit;
+    const onPendingFocusDirectionConsumedRef = useRef(onPendingFocusDirectionConsumed);
+    onPendingFocusDirectionConsumedRef.current = onPendingFocusDirectionConsumed;
 
     // Handle Gridview ready event - add the first pane
     const handleReady = useCallback((event: GridviewReadyEvent) => {
@@ -257,6 +263,114 @@ export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerPro
 
       return () => disposable.dispose();
     }, [onPaneFocus]);
+
+    // Handle pending focus direction from context
+    useEffect(() => {
+      if (!pendingFocusDirection) return;
+
+      const api = apiRef.current;
+      const currentActivePaneId = activePaneIdRef.current;
+      if (!api || !currentActivePaneId) {
+        onPendingFocusDirectionConsumedRef.current?.();
+        return;
+      }
+
+      const panels = api.panels;
+      if (panels.length <= 1) {
+        onPendingFocusDirectionConsumedRef.current?.();
+        return;
+      }
+
+      // Get current pane's DOM element and bounds
+      const currentElement = document.querySelector(`[data-terminal-id="${currentActivePaneId}"]`);
+      if (!currentElement) {
+        onPendingFocusDirectionConsumedRef.current?.();
+        return;
+      }
+      const currentRect = currentElement.getBoundingClientRect();
+
+      // Find the best candidate panel in the requested direction
+      // Algorithm: prioritize panels that have overlap in the perpendicular axis
+      let bestPanel: typeof panels[0] | null = null;
+      let bestScore = -Infinity;
+
+      for (const panel of panels) {
+        if (panel.id === currentActivePaneId) continue;
+
+        const element = document.querySelector(`[data-terminal-id="${panel.id}"]`);
+        if (!element) continue;
+
+        const rect = element.getBoundingClientRect();
+
+        // Calculate overlap in perpendicular axis
+        const horizontalOverlap = Math.max(0,
+          Math.min(currentRect.right, rect.right) - Math.max(currentRect.left, rect.left)
+        );
+        const verticalOverlap = Math.max(0,
+          Math.min(currentRect.bottom, rect.bottom) - Math.max(currentRect.top, rect.top)
+        );
+
+        let isValidCandidate = false;
+        let score = 0;
+
+        switch (pendingFocusDirection) {
+          case 'left':
+            // Panel's right edge must be to the left of (or at) current panel's left edge
+            if (rect.right <= currentRect.left + 1) {
+              isValidCandidate = true;
+              // Prefer panels with vertical overlap, then by horizontal proximity
+              const proximity = currentRect.left - rect.right;
+              score = verticalOverlap * 1000 - proximity;
+            }
+            break;
+          case 'right':
+            // Panel's left edge must be to the right of (or at) current panel's right edge
+            if (rect.left >= currentRect.right - 1) {
+              isValidCandidate = true;
+              const proximity = rect.left - currentRect.right;
+              score = verticalOverlap * 1000 - proximity;
+            }
+            break;
+          case 'up':
+            // Panel's bottom edge must be above (or at) current panel's top edge
+            if (rect.bottom <= currentRect.top + 1) {
+              isValidCandidate = true;
+              const proximity = currentRect.top - rect.bottom;
+              score = horizontalOverlap * 1000 - proximity;
+            }
+            break;
+          case 'down':
+            // Panel's top edge must be below (or at) current panel's bottom edge
+            if (rect.top >= currentRect.bottom - 1) {
+              isValidCandidate = true;
+              const proximity = rect.top - currentRect.bottom;
+              score = horizontalOverlap * 1000 - proximity;
+            }
+            break;
+        }
+
+        if (isValidCandidate && score > bestScore) {
+          bestScore = score;
+          bestPanel = panel;
+        }
+      }
+
+      if (bestPanel) {
+        bestPanel.focus();
+        onPaneFocus?.(bestPanel.id);
+        // Focus the terminal textarea directly
+        requestAnimationFrame(() => {
+          const textarea = document.querySelector(
+            `[data-terminal-id="${bestPanel!.id}"] textarea.xterm-helper-textarea`
+          ) as HTMLTextAreaElement | null;
+          if (textarea) {
+            textarea.focus();
+          }
+        });
+      }
+
+      onPendingFocusDirectionConsumedRef.current?.();
+    }, [pendingFocusDirection, onPaneFocus]);
 
     // Expose imperative handle for split operations
     useImperativeHandle(ref, () => ({
