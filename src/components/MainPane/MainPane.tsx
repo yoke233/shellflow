@@ -221,9 +221,12 @@ const TerminalTabContent = memo(function TerminalTabContent({
     hasPendingSplit: !!splitState?.pendingSplit,
   });
 
-  if (splitState && splitState.panes.size > 1) {
-    // Multi-pane: use SplitContainer
+  // Always use SplitContainer, even for single pane.
+  // This keeps the component tree stable when adding splits, preventing
+  // the original terminal from being unmounted and recreated.
+  if (splitState) {
     const activePaneId = getActivePaneId(tabId);
+    const hasSplits = splitState.panes.size > 1;
     return (
       <SplitContainer
         panes={splitState.panes}
@@ -240,7 +243,7 @@ const TerminalTabContent = memo(function TerminalTabContent({
             tabId,
             sessionId,
             isActiveTab,
-            true, // hasSplits
+            hasSplits,
             handleNotification,
             handleThinkingChange,
             handleCwdChange,
@@ -253,16 +256,10 @@ const TerminalTabContent = memo(function TerminalTabContent({
     );
   }
 
-  // Single pane: render MainTerminal directly (no Gridview overhead)
-  const singlePaneConfig = splitState?.panes.get(singlePaneId);
-  // Map split pane types to MainTerminal types
-  const rawType = singlePaneConfig?.type ?? (isPrimary ? terminalType : 'scratch');
-  const singlePaneType =
-    rawType === 'task' || rawType === 'action' || rawType === 'shell'
-      ? ('scratch' as const)
-      : rawType;
-  const singlePaneCwd =
-    singlePaneConfig?.directory ??
+  // Fallback: no split state yet (should be rare, only during initialization)
+  // terminalType is already 'main' | 'project' | 'scratch', no conversion needed
+  const fallbackType = isPrimary ? terminalType : 'scratch';
+  const fallbackCwd =
     tabDirectory ??
     (sessionKind === 'scratch' && isPrimary ? sessionInitialCwd : undefined);
 
@@ -270,13 +267,13 @@ const TerminalTabContent = memo(function TerminalTabContent({
     <MainTerminal
       entityId={singlePaneId}
       sessionId={sessionId}
-      type={singlePaneType}
+      type={fallbackType}
       isActive={isActiveTab}
       shouldAutoFocus={isActiveTab && shouldAutoFocus}
       focusTrigger={isActiveTab ? focusTrigger : undefined}
       terminalConfig={terminalConfig}
       activityTimeout={activityTimeout}
-      initialCwd={singlePaneCwd}
+      initialCwd={fallbackCwd}
       onFocus={handleFocus}
       onNotification={handleNotification}
       onThinkingChange={handleThinkingChange}
