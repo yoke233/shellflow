@@ -280,7 +280,11 @@ export function SplitProvider({ children }: { children: ReactNode }) {
     const focusPane = (tabId: string, paneId: string) => {
       store.setState((prev) => {
         const state = prev.get(tabId);
-        if (!state || !state.panes.has(paneId)) return prev;
+        // Early return if pane doesn't exist or is already the active pane
+        // This prevents infinite loops when focus events fire redundantly
+        if (!state || !state.panes.has(paneId) || state.activePaneId === paneId) {
+          return prev;
+        }
 
         const next = new Map(prev);
         next.set(tabId, {
