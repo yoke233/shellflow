@@ -1910,6 +1910,27 @@ pub fn run() {
         .setup(|app| {
             eprintln!("[setup] Shellflow starting...");
 
+            // Apply platform-specific window effects for glassy appearance
+            #[cfg(target_os = "macos")]
+            {
+                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+                let window = app.get_webview_window("main").expect("main window not found");
+                match apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None) {
+                    Ok(_) => eprintln!("[setup] Applied macOS vibrancy effect"),
+                    Err(e) => eprintln!("[setup] Failed to apply vibrancy: {:?}", e),
+                }
+            }
+
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::apply_mica;
+                let window = app.get_webview_window("main").expect("main window not found");
+                match apply_mica(&window, None) {
+                    Ok(_) => eprintln!("[setup] Applied Windows Mica effect"),
+                    Err(e) => eprintln!("[setup] Failed to apply Mica: {:?}", e),
+                }
+            }
+
             // Load config for menu shortcuts
             let config = config::load_config();
 

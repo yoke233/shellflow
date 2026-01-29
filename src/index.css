@@ -114,10 +114,11 @@ body,
   margin: 0;
   padding: 0;
   overflow: hidden;
+  background: transparent;
 }
 
 body {
-  background-color: var(--body-bg);
+  background-color: transparent;
   color: var(--body-fg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -347,9 +348,10 @@ textarea,
 .border-theme-2 { border-color: var(--border-2); }
 
 /* Sidebar-specific */
-.bg-sidebar { background-color: var(--sidebar-bg); }
+.bg-sidebar { background-color: color-mix(in srgb, var(--sidebar-bg) 50%, transparent); }
 .text-sidebar { color: var(--sidebar-fg); }
 .border-sidebar { border-color: var(--sidebar-border); }
+.bg-sidebar-border { background-color: var(--sidebar-border); }
 .bg-sidebar-hover { background-color: var(--sidebar-item-hover); }
 .bg-sidebar-active { background-color: var(--sidebar-item-active); }
 

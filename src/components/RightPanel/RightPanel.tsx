@@ -27,7 +27,7 @@ export function RightPanel({
   onOpenDiff,
 }: RightPanelProps) {
   return (
-    <div className="h-full bg-theme-1 border-l border-theme-1 flex flex-col">
+    <div className="h-full bg-sidebar flex flex-col">
       <ChangedFiles
         files={changedFiles}
         isGitRepo={isGitRepo}

@@ -658,7 +658,7 @@ export const MainPane = memo(function MainPane({
 
   if (!hasOpenSessions || !activeSessionId) {
     return (
-      <div className="flex flex-col h-full bg-theme-0 text-theme-2 select-none items-center justify-center px-8">
+      <div className="flex flex-col h-full text-theme-2 select-none items-center justify-center px-8">
         <h1 className="text-2xl font-semibold text-theme-1 mb-2">Shellflow</h1>
         <p className="text-theme-3 mb-8 text-center max-w-md">
           The terminal wrapper with worktree orchestration.
@@ -701,7 +701,7 @@ export const MainPane = memo(function MainPane({
   }
 
   return (
-    <div className="h-full bg-theme-0 flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Config error banner */}
       <ConfigErrorBanner errors={configErrors} />
 

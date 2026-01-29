@@ -3223,7 +3223,7 @@ function App() {
 
   return (
     <ThemeProvider themeConfig={config.theme} borderStyle={effectiveBorderStyle}>
-    <div className="h-screen w-screen overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--body-bg)' }}>
+    <div className="h-screen w-screen overflow-hidden flex flex-col">
       {/* Shutdown screen overlay */}
       <ShutdownScreen isVisible={isShuttingDown} />
 
@@ -3363,7 +3363,7 @@ function App() {
       >
         {/* Sidebar */}
         <Panel defaultSize="200px" minSize="150px" maxSize="350px">
-          <div className="h-full w-full">
+          <div className="h-full w-full overflow-hidden">
             <Sidebar
               projects={projects}
               activeProjectId={activeProjectId}
@@ -3437,7 +3437,7 @@ function App() {
           </div>
         </Panel>
 
-        <PanelResizeHandle className="w-px bg-resize-handle hover:bg-resize-handle-hover transition-colors focus:outline-none !cursor-col-resize" />
+        <PanelResizeHandle className="w-px bg-sidebar-border hover:bg-resize-handle-hover transition-colors focus:outline-none cursor-col-resize" />
 
         {/* Main Pane with Drawer - vertical layout */}
         <Panel minSize="300px">
@@ -3485,7 +3485,7 @@ function App() {
             <PanelResizeHandle
               className={`transition-colors focus:outline-none !cursor-row-resize ${
                 isDrawerOpen && !isDrawerExpanded
-                  ? 'h-px bg-resize-handle hover:bg-resize-handle-hover'
+                  ? 'h-px bg-sidebar-border hover:bg-resize-handle-hover'
                   : 'h-0 pointer-events-none'
               }`}
             />
@@ -3604,9 +3604,9 @@ function App() {
 
         {/* Right Panel - collapsible (only for worktrees/projects, not scratch) */}
         <PanelResizeHandle
-          className={`w-px transition-colors focus:outline-none !cursor-col-resize ${
-            (activeWorktreeId || (activeProjectId && !activeScratchId)) && isRightPanelOpen
-              ? 'bg-resize-handle hover:bg-resize-handle-hover'
+          className={`w-px transition-colors focus:outline-none cursor-col-resize ${
+            isRightPanelOpen
+              ? 'bg-sidebar-border hover:bg-resize-handle-hover'
               : 'bg-transparent pointer-events-none'
           }`}
         />
