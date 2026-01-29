@@ -546,6 +546,51 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     }
   }, [xtermTheme]);
 
+  // Force terminal refresh when it becomes ready (visible)
+  // This clears xterm.js font caches and re-measures characters to ensure
+  // custom fonts are rendered correctly. The terminal may have been created
+  // before the web font finished loading, causing incorrect measurements.
+  useEffect(() => {
+    if (!isReady) return;
+    const terminal = terminalRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!terminal || !fitAddon) return;
+
+    let cancelled = false;
+
+    // Wait for fonts to be ready before measuring
+    // Use optional chaining since document.fonts may not exist in test environments
+    const fontsReady = document.fonts?.ready ?? Promise.resolve();
+    fontsReady.then(() => {
+      if (cancelled) return;
+
+      // Clear character size cache to force re-measurement
+      const core = (terminal as any)._core;
+      if (core?._charSizeService) {
+        core._charSizeService._width = 0;
+        core._charSizeService._height = 0;
+      }
+
+      // Clear texture atlas cache (WebGL and canvas renderers)
+      if (core?._renderService?._renderer) {
+        const renderer = core._renderService._renderer;
+        if (renderer._charAtlas?.clearTexture) {
+          renderer._charAtlas.clearTexture();
+        }
+        if (renderer._charAtlas?.clear) {
+          renderer._charAtlas.clear();
+        }
+      }
+
+      fitAddon.fit();
+      terminal.refresh(0, terminal.rows - 1);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isReady]);
+
   // Control cursor blink and style based on active state
   useEffect(() => {
     const terminal = terminalRef.current;

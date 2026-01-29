@@ -264,27 +264,27 @@ export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerPro
       return () => disposable.dispose();
     }, [onPaneFocus]);
 
-    // Update panel content when activePaneId changes (for opacity styling)
+    // Update panel content when activePaneId or renderPane changes
+    // This ensures panels re-render when terminal config changes (e.g., font)
     useEffect(() => {
       const api = apiRef.current;
       if (!api) return;
 
       const currentPanes = panesRef.current;
-      const currentRenderPane = renderPaneRef.current;
 
-      // Update all panels with new isActivePane value
+      // Update all panels with new content
       for (const panel of api.panels) {
         const paneConfig = currentPanes.get(panel.id);
         if (paneConfig) {
           panel.update({
             params: {
               paneId: panel.id,
-              content: currentRenderPane(panel.id, paneConfig, panel.id === activePaneId),
+              content: renderPane(panel.id, paneConfig, panel.id === activePaneId),
             },
           });
         }
       }
-    }, [activePaneId]);
+    }, [activePaneId, renderPane]);
 
     // Handle pending focus direction from context
     useEffect(() => {
