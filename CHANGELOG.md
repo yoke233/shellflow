@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/shkm/shellflow/compare/v0.11.0...v0.12.0) (2026-01-29)
+
+
+### Features
+
+* add diff::toggleMode action and change focus::switch keybinding ([5d851ba](https://github.com/shkm/shellflow/commit/5d851bad9e19047f4676345832ae375738302011))
+* add git status bar to sidebar footer ([390a99a](https://github.com/shkm/shellflow/commit/390a99afabeeac5db0ab4f2d2bf6b69ec9e67984))
+* add pane::close action and auto-close terminals on exit ([2132b4d](https://github.com/shkm/shellflow/commit/2132b4d915be02ce15f17cbeeb56d7914f136e95))
+* add transparent window with vibrancy effect ([3ac00a1](https://github.com/shkm/shellflow/commit/3ac00a1ca64fdc2d9d698a123183bb41b40fe547))
+* add unfocused opacity for main and drawer areas ([193ae65](https://github.com/shkm/shellflow/commit/193ae65f18bf33642a6f493d3a72ac45bf4bb4ba))
+* add unfocused opacity for split panes ([0e04eb5](https://github.com/shkm/shellflow/commit/0e04eb544065ed523db16fee7a6b8e9a96779469))
+* add unified logging with tauri-plugin-log ([ca0370c](https://github.com/shkm/shellflow/commit/ca0370c63db3be48f44a65fb824781ceaad61824))
+
+
+### Bug Fixes
+
+* apply custom font config to terminals on startup ([c32968c](https://github.com/shkm/shellflow/commit/c32968cc682e1c449338c316f49ca5cc1fbba127))
+* control terminal cursor blink and style based on active state ([dd28623](https://github.com/shkm/shellflow/commit/dd28623c3a0984fceaab31793afef69aaa2372b7))
+* diff editor word wrap and scrollbar issues ([c52e1f6](https://github.com/shkm/shellflow/commit/c52e1f6b878cf1afa36ab4886a7f20560f910bc2))
+* focus main terminal when closing drawer ([ffefe83](https://github.com/shkm/shellflow/commit/ffefe8399ea6bf89e99eee99f769a72f60fa5203))
+* focus new pane after split ([7de68fc](https://github.com/shkm/shellflow/commit/7de68fcab51efb793eb5b960365e5bee7d72f650))
+* implement proper spatial navigation for split panes ([b82acfc](https://github.com/shkm/shellflow/commit/b82acfcaa024f14baa20c832876fd0183c15da27))
+* make mappings config test platform-aware ([8f34369](https://github.com/shkm/shellflow/commit/8f343698f03da0f8ebaeff17271f833004cafc28))
+* only show blinking cursor in drawer when drawer is focused ([9dfaec5](https://github.com/shkm/shellflow/commit/9dfaec513a1c1171ed5116896b7d32147ba63776))
+* preserve original terminal when creating first split ([b25c2c9](https://github.com/shkm/shellflow/commit/b25c2c9f9509846d15de1e8a02fad3ddd709560b))
+* prevent inactive tabs from bleeding through transparent panes ([c41db09](https://github.com/shkm/shellflow/commit/c41db09eba9ebb06e85fc5fb36667cebfa3bdca4))
+* prevent infinite focus loop when creating multiple splits quickly ([6017791](https://github.com/shkm/shellflow/commit/6017791172a13dee380c76c069f75a42c26fd302))
+* prevent init effect cascade and add unified logging ([144169d](https://github.com/shkm/shellflow/commit/144169db9c5dc32a8c63388a6d7f56ca943f22b5))
+* prevent terminal stretch jank during panel resize ([936c856](https://github.com/shkm/shellflow/commit/936c8560c2791e0badd492dcdf4848b154c6a373))
+* remove shadow and use consistent border in diff split view ([77bf416](https://github.com/shkm/shellflow/commit/77bf41667dc454247286f7331c06c892099518e6))
+* restore left border on right panel ([d148669](https://github.com/shkm/shellflow/commit/d148669c25c71ffc6e9dfbe9d90efa4f8872e78c))
+
+
+### Performance Improvements
+
+* optimize split context to prevent cascading re-renders ([6a612aa](https://github.com/shkm/shellflow/commit/6a612aabc43510fd80f84ef85354f650d135b245))
+
 ## [0.11.0](https://github.com/shkm/shellflow/compare/v0.10.0...v0.11.0) (2026-01-28)
 
 
