@@ -227,12 +227,19 @@
       },
       "additionalProperties": false
     },
-    "unfocusedOpacity": {
-      "type": "number",
-      "description": "Opacity (0.0 to 1.0) applied to unfocused panes (main terminal or drawer). When the main terminal is focused, the drawer gets this opacity, and vice versa.",
-      "minimum": 0,
-      "maximum": 1,
-      "default": 1
+    "panes": {
+      "type": "object",
+      "description": "Configuration for split panes",
+      "properties": {
+        "unfocusedOpacity": {
+          "type": "number",
+          "description": "Opacity (0.0 to 1.0) applied to unfocused split panes",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.7
+        }
+      },
+      "additionalProperties": false
     },
     "actions": {
       "type": "object",

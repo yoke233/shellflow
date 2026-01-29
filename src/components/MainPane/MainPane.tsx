@@ -34,6 +34,8 @@ interface MainPaneProps {
   /** Editor config for diff viewer (uses base config without zoom) */
   editorConfig: TerminalConfig;
   activityTimeout: number;
+  /** Opacity (0.0 to 1.0) applied to unfocused split panes */
+  unfocusedPaneOpacity?: number;
   shouldAutoFocus: boolean;
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
@@ -301,6 +303,7 @@ export const MainPane = memo(function MainPane({
   terminalConfig,
   editorConfig,
   activityTimeout,
+  unfocusedPaneOpacity = 1,
   shouldAutoFocus,
   focusTrigger,
   configErrors,
@@ -517,8 +520,15 @@ export const MainPane = memo(function MainPane({
       // Terminal is fully active only when both pane and tab are active
       const isActive = isActivePane && isActiveTab;
 
+      // Apply opacity to unfocused panes when there are splits
+      const paneOpacity = hasSplits && !isActivePane ? unfocusedPaneOpacity : 1;
+
       return (
-        <div key={paneId} className="w-full h-full relative">
+        <div
+          key={paneId}
+          className="w-full h-full relative transition-opacity duration-150"
+          style={{ opacity: paneOpacity }}
+        >
           {/* Active pane indicator - shown when pane is active but tab is not focused */}
           {hasSplits && isActivePane && !isActive && (
             <div className="absolute inset-0 border-2 border-theme-accent/30 pointer-events-none z-10 rounded" />
@@ -550,7 +560,7 @@ export const MainPane = memo(function MainPane({
         </div>
       );
     },
-    [shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout, focusSplitPane, onFocus, setSplitPaneReady, onPtyIdReady]
+    [shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout, unfocusedPaneOpacity, focusSplitPane, onFocus, setSplitPaneReady, onPtyIdReady]
   );
 
   // ============================================================================

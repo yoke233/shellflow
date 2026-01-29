@@ -78,9 +78,11 @@
     "startOnLaunch": true
   },
 
-  // Opacity (0.0 to 1.0) applied to unfocused panes (main terminal or drawer).
-  // When the main terminal is focused, the drawer gets this opacity, and vice versa.
-  "unfocusedOpacity": 1,
+  // Split pane configuration
+  "panes": {
+    // Opacity (0.0 to 1.0) applied to unfocused split panes
+    "unfocusedOpacity": 0.7
+  },
 
   // AI-assisted actions configuration.
   // Variables: {{ worktree_dir }}, {{ worktree_name }}, {{ branch }}, {{ target_branch }}, {{ conflicted_files }}

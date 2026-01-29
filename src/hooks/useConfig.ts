@@ -100,6 +100,11 @@ export interface WorktreeConfig {
   delete: DeleteConfig;
 }
 
+export interface PanesConfig {
+  /** Opacity (0.0 to 1.0) applied to unfocused split panes */
+  unfocusedOpacity: number;
+}
+
 /** Theme configuration - can be a single theme name or light/dark object */
 export type ThemeConfig = string | { light: string; dark: string };
 
@@ -118,8 +123,7 @@ export interface Config {
   actions: ActionsConfig;
   scratch: ScratchConfig;
   worktree: WorktreeConfig;
-  /** Opacity (0.0 to 1.0) applied to unfocused panes (main terminal or drawer) */
-  unfocusedOpacity: number;
+  panes: PanesConfig;
   /** Theme configuration - can be a single theme name or light/dark object */
   theme?: ThemeConfig;
   /** How to handle borders when adapting themes */
@@ -179,7 +183,9 @@ const defaultConfig: Config = {
       deleteBranchWithWorktree: true,
     },
   },
-  unfocusedOpacity: 1,
+  panes: {
+    unfocusedOpacity: 0.95,
+  },
   themeBorderStyle: 'subtle',
 };
 

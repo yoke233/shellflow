@@ -264,6 +264,28 @@ export const SplitContainer = forwardRef<SplitContainerHandle, SplitContainerPro
       return () => disposable.dispose();
     }, [onPaneFocus]);
 
+    // Update panel content when activePaneId changes (for opacity styling)
+    useEffect(() => {
+      const api = apiRef.current;
+      if (!api) return;
+
+      const currentPanes = panesRef.current;
+      const currentRenderPane = renderPaneRef.current;
+
+      // Update all panels with new isActivePane value
+      for (const panel of api.panels) {
+        const paneConfig = currentPanes.get(panel.id);
+        if (paneConfig) {
+          panel.update({
+            params: {
+              paneId: panel.id,
+              content: currentRenderPane(panel.id, paneConfig, panel.id === activePaneId),
+            },
+          });
+        }
+      }
+    }, [activePaneId]);
+
     // Handle pending focus direction from context
     useEffect(() => {
       if (!pendingFocusDirection) return;

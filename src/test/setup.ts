@@ -41,7 +41,9 @@ export const defaultTestConfig = {
     focusNewBranchNames: false,
     merge: { strategy: 'merge', deleteWorktree: true, deleteLocalBranch: true, deleteRemoteBranch: false },
   },
-  unfocusedOpacity: 1,
+  panes: {
+    unfocusedOpacity: 0.7,
+  },
 };
 
 // Default mappings for tests

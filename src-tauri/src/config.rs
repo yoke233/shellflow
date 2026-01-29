@@ -32,8 +32,7 @@ pub struct RawConfig {
     pub actions: ActionsConfig,
     pub scratch: ScratchConfig,
     pub mappings: MappingsConfig,
-    #[serde(rename = "unfocusedOpacity")]
-    pub unfocused_opacity: f64,
+    pub panes: PanesConfig,
     /// Theme configuration. Can be a single theme name (string) or an object with light/dark themes.
     pub theme: Option<ThemeConfig>,
     /// How to handle borders when adapting themes.
@@ -54,7 +53,7 @@ impl Default for RawConfig {
             actions: ActionsConfig::default(),
             scratch: ScratchConfig::default(),
             mappings: MappingsConfig::default(),
-            unfocused_opacity: 1.0,
+            panes: PanesConfig::default(),
             theme: None, // Uses default Catppuccin themes when None
             theme_border_style: ThemeBorderStyle::default(),
         }
@@ -74,9 +73,7 @@ pub struct Config {
     pub actions: ActionsConfig,
     pub scratch: ScratchConfig,
     pub mappings: MappingsConfig,
-    /// Opacity (0.0 to 1.0) applied to unfocused panes (main terminal or drawer)
-    #[serde(rename = "unfocusedOpacity")]
-    pub unfocused_opacity: f64,
+    pub panes: PanesConfig,
     /// Theme configuration. Can be a single theme name or an object with light/dark themes.
     pub theme: Option<ThemeConfig>,
     /// How to handle borders when adapting themes.
@@ -98,7 +95,7 @@ impl Config {
             actions: raw.actions,
             scratch: raw.scratch,
             mappings: raw.mappings,
-            unfocused_opacity: raw.unfocused_opacity,
+            panes: raw.panes,
             theme: raw.theme,
             theme_border_style: raw.theme_border_style,
         }
@@ -348,6 +345,22 @@ impl Default for ScratchConfig {
     fn default() -> Self {
         Self {
             start_on_launch: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PanesConfig {
+    /// Opacity (0.0 to 1.0) applied to unfocused split panes
+    #[serde(rename = "unfocusedOpacity")]
+    pub unfocused_opacity: f64,
+}
+
+impl Default for PanesConfig {
+    fn default() -> Self {
+        Self {
+            unfocused_opacity: 0.7,
         }
     }
 }
