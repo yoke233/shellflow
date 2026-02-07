@@ -186,6 +186,7 @@ function App() {
     clearSessionTabs,
   } = useSessionTabs();
 
+
   // Split layout actions for vim-style pane splits within tabs
   // Using useSplitActions() instead of useSplit() prevents App from re-rendering on split state changes
   const {
@@ -422,6 +423,9 @@ function App() {
 
   // Get current session's active tab
   const activeSessionTabId = getActiveTabIdForSession(activeSessionId);
+  const runningTabCount = activeSessionId
+    ? getTabsForSession(activeSessionId).filter((tab) => sessionTabPtyIds.has(tab.id)).length
+    : 0;
   // Note: sessionLastActiveTabIds is passed directly to MainPane for per-session lookup
 
   // Compute current diff state (whether viewing a diff and which file)
@@ -1139,6 +1143,17 @@ function App() {
     if (!activeSessionId) return;
     reorderSessionTabs(activeSessionId, oldIndex, newIndex);
   }, [activeSessionId, reorderSessionTabs]);
+
+  const handleRenameSessionTab = useCallback((tabId: string, newLabel: string) => {
+    if (!activeSessionId) return;
+    const trimmed = newLabel.trim();
+    const tabs = getTabsForSession(activeSessionId);
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) return;
+    const nextCustomLabel = trimmed.length === 0 || trimmed === tab.label ? undefined : trimmed;
+    if (tab.customLabel === nextCustomLabel) return;
+    updateSessionTab(activeSessionId, tabId, { customLabel: nextCustomLabel });
+  }, [activeSessionId, getTabsForSession, updateSessionTab]);
 
   const handlePrevSessionTab = useCallback(() => {
     if (!activeSessionId) return;
@@ -3410,7 +3425,7 @@ function App() {
         className="flex-1"
       >
         {/* Sidebar */}
-        <Panel defaultSize="200px" minSize="150px" maxSize="350px">
+        <Panel defaultSize="230px" minSize="180px" maxSize="420px">
           <div className="h-full w-full overflow-hidden">
             <Sidebar
               projects={projects}
@@ -3514,6 +3529,7 @@ function App() {
                   onCloseSessionTab={handleCloseSessionTab}
                   onAddSessionTab={handleAddSessionTab}
                   onReorderSessionTabs={handleReorderSessionTabs}
+                  onRenameSessionTab={handleRenameSessionTab}
                   terminalConfig={mainTerminalConfig}
                   editorConfig={config.main}
                   activityTimeout={config.indicators.activityTimeout}
@@ -3698,6 +3714,7 @@ function App() {
               onFileClick={handleFileClick}
               selectedFile={activeDiffState.currentFilePath}
               onOpenDiff={handleOpenDiff}
+              runningTabCount={runningTabCount}
             />
           </div>
         </Panel>

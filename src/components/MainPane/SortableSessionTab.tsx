@@ -1,6 +1,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { X, Terminal, Loader2, BellDot, Check, Code, FileDiff } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { SessionTab } from '../../types';
 
 interface SortableSessionTabProps {
@@ -14,6 +15,7 @@ interface SortableSessionTabProps {
   isCtrlKeyHeld: boolean;
   onSelect: () => void;
   onClose: () => void;
+  onRename: (label: string) => void;
 }
 
 export function SortableSessionTab({
@@ -27,7 +29,18 @@ export function SortableSessionTab({
   isCtrlKeyHeld,
   onSelect,
   onClose,
+  onRename,
 }: SortableSessionTabProps) {
+  const displayLabel = tab.customLabel ?? tab.label;
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftLabel, setDraftLabel] = useState(displayLabel);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraftLabel(displayLabel);
+    }
+  }, [displayLabel, isEditing]);
+
   const {
     attributes,
     listeners,
@@ -35,7 +48,7 @@ export function SortableSessionTab({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tab.id });
+  } = useSortable({ id: tab.id, disabled: isEditing });
 
   // Don't apply transform to the dragged item - it's hidden and the overlay shows instead.
   // Only apply transform to OTHER items that need to move out of the way.
@@ -74,7 +87,46 @@ export function SortableSessionTab({
       ) : (
         <Terminal size={14} className="flex-shrink-0" />
       )}
-      <span className="text-sm truncate max-w-[120px]">{tab.label}</span>
+      {isEditing ? (
+        <input
+          value={draftLabel}
+          onChange={(e) => setDraftLabel(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          onBlur={() => {
+            setIsEditing(false);
+            onRename(draftLabel.trim());
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              setIsEditing(false);
+              onRename(draftLabel.trim());
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setIsEditing(false);
+              setDraftLabel(displayLabel);
+            }
+          }}
+          autoFocus
+          className="text-sm max-w-[140px] bg-transparent border border-theme-0 rounded px-1 py-0.5 outline-none focus:border-theme-2"
+          aria-label="Rename tab"
+        />
+      ) : (
+        <span
+          className="text-sm truncate max-w-[140px]"
+          title="Double click to rename"
+          onDoubleClick={(e) => {
+            if (isAnyDragging) return;
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
+        >
+          {displayLabel}
+        </span>
+      )}
       <button
         onClick={(e) => {
           e.stopPropagation();

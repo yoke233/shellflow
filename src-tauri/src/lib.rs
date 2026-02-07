@@ -790,7 +790,7 @@ fn spawn_scratch_terminal(
     };
 
     // Get the user's shell (scratch terminals just run a shell, no main command)
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let shell = pty::get_default_shell_command();
 
     // Use scratch_id as the entity ID for PTY tracking purposes
     pty::spawn_pty(&app, &state, scratch_id, &path, &shell, cols, rows, None, None).map_err(map_err)

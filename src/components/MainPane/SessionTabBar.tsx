@@ -26,6 +26,7 @@ interface SessionTabBarProps {
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
   onReorderTabs: (oldIndex: number, newIndex: number) => void;
+  onRenameTab: (tabId: string, label: string) => void;
 }
 
 export function SessionTabBar({
@@ -37,6 +38,7 @@ export function SessionTabBar({
   onCloseTab,
   onAddTab,
   onReorderTabs,
+  onRenameTab,
 }: SessionTabBarProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -98,13 +100,24 @@ export function SessionTabBar({
     onCloseTab(tabId);
   }
 
-  // Only show tab bar when there are multiple tabs
-  if (tabs.length <= 1) {
+  // Only show tab bar when there is at least one tab
+  if (tabs.length === 0) {
     return null;
   }
 
+  const getTabLabel = (tab: SessionTab) => tab.customLabel ?? tab.label;
+
   return (
     <div className="flex items-stretch h-8 bg-theme-1 border-b border-theme-0 select-none flex-shrink-0">
+      <div className="flex items-stretch border-r border-theme-0 flex-shrink-0">
+        <button
+          onClick={onAddTab}
+          className="p-2 text-theme-3 hover:text-theme-1 hover:bg-theme-2"
+          title="New tab (Cmd+T)"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -132,6 +145,7 @@ export function SessionTabBar({
                   isCtrlKeyHeld={isCtrlKeyHeld}
                   onSelect={() => onSelectTab(tab.id)}
                   onClose={() => handleCloseTab(tab.id)}
+                  onRename={(label) => onRenameTab(tab.id, label)}
                 />
               );
             })}
@@ -147,20 +161,11 @@ export function SessionTabBar({
               ) : (
                 <Terminal size={14} className="flex-shrink-0" />
               )}
-              <span className="text-sm truncate max-w-[120px]">{activeDragTab.label}</span>
+              <span className="text-sm truncate max-w-[120px]">{getTabLabel(activeDragTab)}</span>
             </div>
           )}
         </DragOverlay>
       </DndContext>
-      <div className="flex items-stretch border-l border-theme-0 flex-shrink-0">
-        <button
-          onClick={onAddTab}
-          className="p-2 text-theme-3 hover:text-theme-1 hover:bg-theme-2"
-          title="New tab (Cmd+T)"
-        >
-          <Plus size={16} />
-        </button>
-      </div>
     </div>
   );
 }

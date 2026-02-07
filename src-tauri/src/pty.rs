@@ -14,35 +14,59 @@ use uuid::Uuid;
 #[cfg(unix)]
 use std::process::Command;
 
+#[cfg(windows)]
+fn find_in_path(candidates: &[&str]) -> Option<String> {
+    let path = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path) {
+        for name in candidates {
+            let full = dir.join(name);
+            if full.is_file() {
+                return Some(full.to_string_lossy().to_string());
+            }
+        }
+    }
+    None
+}
+
 /// Get the user's PATH by running their login shell.
 /// This ensures we get the same PATH they'd have in a terminal.
 fn get_user_path() -> String {
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    eprintln!("[PTY] Using shell: {}", shell);
-
-    // Run login shell and use printenv (works consistently across bash/zsh/fish)
-    if let Ok(output) = std::process::Command::new(&shell)
-        .args(["-l", "-c", "printenv PATH"])
-        .output()
+    #[cfg(windows)]
     {
-        eprintln!("[PTY] Shell exit status: {:?}", output.status);
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    eprintln!("[PTY] Got PATH with {} chars", path.len());
-                    return path.to_string();
-                }
-            }
-        } else {
-            eprintln!("[PTY] Shell stderr: {}", String::from_utf8_lossy(&output.stderr));
-        }
+        let fallback = std::env::var("PATH").unwrap_or_default();
+        eprintln!("[PTY] Using fallback PATH: {}", fallback);
+        return fallback;
     }
 
-    // Fallback to current PATH or empty
-    let fallback = std::env::var("PATH").unwrap_or_default();
-    eprintln!("[PTY] Using fallback PATH: {}", fallback);
-    fallback
+    #[cfg(not(windows))]
+    {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        eprintln!("[PTY] Using shell: {}", shell);
+
+        // Run login shell and use printenv (works consistently across bash/zsh/fish)
+        if let Ok(output) = std::process::Command::new(&shell)
+            .args(["-l", "-c", "printenv PATH"])
+            .output()
+        {
+            eprintln!("[PTY] Shell exit status: {:?}", output.status);
+            if output.status.success() {
+                if let Ok(path) = String::from_utf8(output.stdout) {
+                    let path = path.trim();
+                    if !path.is_empty() {
+                        eprintln!("[PTY] Got PATH with {} chars", path.len());
+                        return path.to_string();
+                    }
+                }
+            } else {
+                eprintln!("[PTY] Shell stderr: {}", String::from_utf8_lossy(&output.stderr));
+            }
+        }
+
+        // Fallback to current PATH or empty
+        let fallback = std::env::var("PATH").unwrap_or_default();
+        eprintln!("[PTY] Using fallback PATH: {}", fallback);
+        fallback
+    }
 }
 
 #[derive(Error, Debug)]
@@ -116,9 +140,26 @@ fn get_cached_user_shell() -> String {
     if let Some(shell) = cache.as_ref() {
         return shell.clone();
     }
+
+    #[cfg(windows)]
+    let shell = {
+        let preferred = ["pwsh.exe", "pwsh", "powershell.exe", "powershell", "cmd.exe", "cmd"];
+        if let Some(found) = find_in_path(&preferred) {
+            found
+        } else {
+            "cmd.exe".to_string()
+        }
+    };
+
+    #[cfg(not(windows))]
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+
     *cache = Some(shell.clone());
     shell
+}
+
+pub fn get_default_shell_command() -> String {
+    get_cached_user_shell()
 }
 
 pub fn spawn_pty(
@@ -144,10 +185,6 @@ pub fn spawn_pty(
     // Get user's PATH (cached after first call)
     let user_path = get_cached_user_path();
 
-    eprintln!("[PTY] Spawning command: '{}' in '{}' (raw: '{}')", command.split_whitespace().next().unwrap_or(command), worktree_path, command);
-    eprintln!("[PTY] PATH length: {} chars", user_path.len());
-    eprintln!("[PTY] Worktree path exists: {}", std::path::Path::new(worktree_path).exists());
-
     // "shell" is a special command that spawns the user's login shell
     // Any other command is run through the shell with -c to support shell features
 
@@ -156,42 +193,101 @@ pub fn spawn_pty(
         .map(|s| s.to_string())
         .unwrap_or_else(get_cached_user_shell);
 
-    // Parse command into executable and arguments
-    let parts: Vec<&str> = command.split_whitespace().collect();
-    let (executable, args) = if parts.is_empty() {
+    // Parse command into executable and arguments.
+    // If the entire command is an existing path (common on Windows), treat it as the executable.
+    let trimmed_command = command.trim();
+    let (executable, args) = if trimmed_command.is_empty() {
         (command, vec![])
     } else {
-        (parts[0], parts[1..].to_vec())
+        let unquoted = if trimmed_command.starts_with('"') && trimmed_command.ends_with('"') && trimmed_command.len() >= 2 {
+            &trimmed_command[1..trimmed_command.len() - 1]
+        } else {
+            trimmed_command
+        };
+        if std::path::Path::new(unquoted).is_file() {
+            (unquoted, Vec::new())
+        } else {
+            let parts: Vec<&str> = trimmed_command.split_whitespace().collect();
+            if parts.is_empty() {
+                (trimmed_command, Vec::new())
+            } else {
+                (parts[0], parts[1..].to_vec())
+            }
+        }
     };
 
+    eprintln!("[PTY] Spawning command: '{}' in '{}' (raw: '{}')", executable, worktree_path, command);
+    eprintln!("[PTY] PATH length: {} chars", user_path.len());
+    eprintln!("[PTY] Worktree path exists: {}", std::path::Path::new(worktree_path).exists());
+
     // Known shell commands that should be run as login shells
+    #[cfg(windows)]
+    let shell_commands = ["pwsh", "pwsh.exe", "powershell", "powershell.exe", "cmd", "cmd.exe"];
+    #[cfg(not(windows))]
     let shell_commands = ["fish", "bash", "zsh", "sh"];
-    let is_shell_command = shell_commands.iter().any(|s| executable == *s || executable.ends_with(&format!("/{}", s)));
+
+    let is_shell_command = shell_commands
+        .iter()
+        .any(|s| executable.eq_ignore_ascii_case(*s) || executable.ends_with(&format!("/{}", s)));
+
+    let shell_lower = shell.to_lowercase();
+    let is_pwsh = shell_lower.ends_with("pwsh") || shell_lower.ends_with("pwsh.exe");
+    let is_powershell = shell_lower.ends_with("powershell") || shell_lower.ends_with("powershell.exe");
+    let is_cmd = shell_lower.ends_with("cmd") || shell_lower.ends_with("cmd.exe");
 
     let mut cmd = if command == "shell" {
         let mut cmd = CommandBuilder::new(&shell);
+        #[cfg(not(windows))]
         cmd.arg("-l");
         cmd.cwd(worktree_path);
         cmd
     } else if shell_override.is_some() {
         // When shell is explicitly specified, run the command through that shell
         let mut cmd = CommandBuilder::new(&shell);
-        cmd.arg("-c");
+        #[cfg(windows)]
+        {
+            if is_pwsh || is_powershell {
+                cmd.arg("-NoProfile");
+                cmd.arg("-Command");
+            } else if is_cmd {
+                cmd.arg("/C");
+            } else {
+                cmd.arg("-c");
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            cmd.arg("-c");
+        }
         cmd.arg(command);
         cmd.cwd(worktree_path);
-        eprintln!("[PTY] Running command via {} -c: {:?}", shell, command);
+        eprintln!("[PTY] Running command via {}: {:?}", shell, command);
         cmd
     } else if is_shell_command {
-        // Run shell commands via /usr/bin/env to avoid exec issues with portable_pty
-        // See: https://github.com/rust-lang/rust/issues/125952
-        let mut cmd = CommandBuilder::new("/usr/bin/env");
-        cmd.arg(executable);
-        for arg in &args {
-            cmd.arg(*arg);
+        #[cfg(windows)]
+        {
+            // Run shell commands directly on Windows
+            let mut cmd = CommandBuilder::new(executable);
+            for arg in &args {
+                cmd.arg(*arg);
+            }
+            cmd.cwd(worktree_path);
+            eprintln!("[PTY] Running {} with args {:?} (shell mode)", executable, args);
+            cmd
         }
-        cmd.cwd(worktree_path);
-        eprintln!("[PTY] Running {} via /usr/bin/env with args {:?} (shell mode)", executable, args);
-        cmd
+        #[cfg(not(windows))]
+        {
+            // Run shell commands via /usr/bin/env to avoid exec issues with portable_pty
+            // See: https://github.com/rust-lang/rust/issues/125952
+            let mut cmd = CommandBuilder::new("/usr/bin/env");
+            cmd.arg(executable);
+            for arg in &args {
+                cmd.arg(*arg);
+            }
+            cmd.cwd(worktree_path);
+            eprintln!("[PTY] Running {} via /usr/bin/env with args {:?} (shell mode)", executable, args);
+            cmd
+        }
     } else {
         // Run non-shell commands directly
         let mut cmd = CommandBuilder::new(executable);

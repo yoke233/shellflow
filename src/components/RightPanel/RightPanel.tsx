@@ -13,6 +13,8 @@ interface RightPanelProps {
   selectedFile?: string | null;
   /** Callback to open the diff view */
   onOpenDiff?: () => void;
+  /** Count of running main-pane tabs */
+  runningTabCount?: number;
 }
 
 export function RightPanel({
@@ -25,6 +27,7 @@ export function RightPanel({
   onFileClick,
   selectedFile,
   onOpenDiff,
+  runningTabCount,
 }: RightPanelProps) {
   return (
     <div className="h-full bg-sidebar flex flex-col">
@@ -38,6 +41,7 @@ export function RightPanel({
         onFileClick={onFileClick}
         selectedFile={selectedFile}
         onOpenDiff={onOpenDiff}
+        runningTabCount={runningTabCount}
       />
     </div>
   );

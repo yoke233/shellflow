@@ -92,6 +92,7 @@ describe('MainPane', () => {
     onCloseSessionTab: vi.fn(),
     onAddSessionTab: vi.fn(),
     onReorderSessionTabs: vi.fn(),
+    onRenameSessionTab: vi.fn(),
     terminalConfig: defaultTestConfig.main,
     editorConfig: defaultTestConfig.main,
     activityTimeout: 250,

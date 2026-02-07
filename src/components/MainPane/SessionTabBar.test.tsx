@@ -18,6 +18,7 @@ describe('SessionTabBar', () => {
     onCloseTab: vi.fn(),
     onAddTab: vi.fn(),
     onReorderTabs: vi.fn(),
+    onRenameTab: vi.fn(),
   };
 
   beforeEach(() => {
@@ -25,12 +26,13 @@ describe('SessionTabBar', () => {
   });
 
   describe('visibility', () => {
-    it('returns null when there is only one tab', () => {
+    it('renders tab bar when there is only one tab', () => {
       const tabs = [createTab('tab-1', 'Terminal 1', true)];
       const { container } = render(
         <SessionTabBar {...defaultProps} tabs={tabs} activeTabId="tab-1" />
       );
-      expect(container.firstChild).toBeNull();
+      expect(container.firstChild).not.toBeNull();
+      expect(screen.getByText('Terminal 1')).toBeInTheDocument();
     });
 
     it('returns null when there are no tabs', () => {
@@ -72,6 +74,20 @@ describe('SessionTabBar', () => {
 
       // Find button by title
       expect(screen.getByTitle('New tab (Cmd+T)')).toBeInTheDocument();
+    });
+
+    it('renders add tab button before tab labels in the DOM', () => {
+      const tabs = [
+        createTab('tab-1', 'Terminal 1'),
+        createTab('tab-2', 'Terminal 2'),
+      ];
+      render(<SessionTabBar {...defaultProps} tabs={tabs} activeTabId="tab-1" />);
+
+      const addButton = screen.getByTitle('New tab (Cmd+T)');
+      const firstTabLabel = screen.getByText('Terminal 1');
+
+      const position = addButton.compareDocumentPosition(firstTabLabel);
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
   });
 

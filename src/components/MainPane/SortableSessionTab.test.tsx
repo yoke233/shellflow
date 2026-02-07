@@ -30,6 +30,7 @@ describe('SortableSessionTab', () => {
     isCtrlKeyHeld: false,
     onSelect: vi.fn(),
     onClose: vi.fn(),
+    onRename: vi.fn(),
   };
 
   beforeEach(() => {
@@ -142,6 +143,45 @@ describe('SortableSessionTab', () => {
       fireEvent.click(closeButton);
 
       expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rename', () => {
+    it('enters edit mode on double click and calls onRename on enter', () => {
+      const onRename = vi.fn();
+      render(<SortableSessionTab {...defaultProps} onRename={onRename} />);
+
+      fireEvent.doubleClick(screen.getByText('Terminal 1'));
+      const input = screen.getByLabelText('Rename tab') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'My Tab' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+
+      expect(onRename).toHaveBeenCalledWith('My Tab');
+    });
+
+    it('calls onRename with empty string when input is cleared and blurred', () => {
+      const onRename = vi.fn();
+      render(<SortableSessionTab {...defaultProps} onRename={onRename} />);
+
+      fireEvent.doubleClick(screen.getByText('Terminal 1'));
+      const input = screen.getByLabelText('Rename tab') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: '' } });
+      fireEvent.blur(input);
+
+      expect(onRename).toHaveBeenCalledWith('');
+    });
+
+    it('cancels rename on Escape', () => {
+      const onRename = vi.fn();
+      render(<SortableSessionTab {...defaultProps} onRename={onRename} />);
+
+      fireEvent.doubleClick(screen.getByText('Terminal 1'));
+      const input = screen.getByLabelText('Rename tab') as HTMLInputElement;
+      fireEvent.change(input, { target: { value: 'Scratch' } });
+      fireEvent.keyDown(input, { key: 'Escape' });
+
+      expect(onRename).not.toHaveBeenCalled();
+      expect(screen.getByText('Terminal 1')).toBeInTheDocument();
     });
   });
 

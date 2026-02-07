@@ -529,7 +529,7 @@ export function Sidebar({
                   <SortableProject key={project.id} projectId={project.id}>
                     <div className="mb-2">
                       <div
-                        className={`group relative flex items-center py-1 pr-2 rounded active:cursor-grabbing ${
+                        className={`group relative flex items-center py-1.5 pr-2 rounded active:cursor-grabbing ${
                           isProjectSelected
                             ? 'bg-theme-3 text-theme-0'
                             : hasOpenWorktrees || isProjectOpen
@@ -540,7 +540,7 @@ export function Sidebar({
                         onContextMenu={(e) => handleProjectContextMenu(e, project)}
                       >
                         {/* Chevron/shortcut - shows shortcut number when cmd held and project is open, otherwise chevron */}
-                        <div className="w-7 flex-shrink-0 flex items-center justify-center">
+                        <div className="w-8 flex-shrink-0 flex items-center justify-center">
                           {isModifierKeyHeld && projectShortcutNumber !== null ? (
                             <span className={`text-xs font-medium ${runningTaskCounts.has(project.id) ? 'text-emerald-400' : 'text-theme-2'}`}>{projectShortcutNumber}</span>
                           ) : (

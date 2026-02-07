@@ -28,6 +28,7 @@ interface MainPaneProps {
   onCloseSessionTab: (tabId: string) => void;
   onAddSessionTab: () => void;
   onReorderSessionTabs: (oldIndex: number, newIndex: number) => void;
+  onRenameSessionTab: (tabId: string, label: string) => void;
 
   // Common props
   terminalConfig: TerminalConfig;
@@ -297,6 +298,7 @@ export const MainPane = memo(function MainPane({
   onCloseSessionTab,
   onAddSessionTab,
   onReorderSessionTabs,
+  onRenameSessionTab,
   terminalConfig,
   editorConfig,
   activityTimeout,
@@ -702,7 +704,7 @@ export const MainPane = memo(function MainPane({
       {/* Config error banner */}
       <ConfigErrorBanner errors={configErrors} />
 
-      {/* Session tab bar (only shown when multiple tabs exist) */}
+      {/* Session tab bar (shown when at least one tab exists) */}
       <SessionTabBar
         tabs={allSessionTabs.get(activeSessionId) ?? []}
         activeTabId={activeSessionTabId}
@@ -712,6 +714,7 @@ export const MainPane = memo(function MainPane({
         onCloseTab={onCloseSessionTab}
         onAddTab={onAddSessionTab}
         onReorderTabs={onReorderSessionTabs}
+        onRenameTab={onRenameSessionTab}
       />
 
       {/* Terminal container - render ALL terminals for ALL sessions to keep them alive */}

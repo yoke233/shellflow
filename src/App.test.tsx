@@ -25,6 +25,12 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
   <SplitProvider>{children}</SplitProvider>
 );
 
+const expectTerminalLabel = () => {
+  expect(screen.queryAllByText('Terminal 1').length).toBeGreaterThan(0);
+};
+
+const getTerminalLabel = () => screen.getAllByText('Terminal 1')[0];
+
 describe('App', () => {
   beforeEach(() => {
     resetMocks();
@@ -69,7 +75,7 @@ describe('App', () => {
       // Wait for config to load and scratch terminal to be created
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -91,7 +97,7 @@ describe('App', () => {
       // The default config has startOnLaunch: true, so Terminal 1 should appear
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -201,7 +207,7 @@ describe('App', () => {
       // Wait for initial render - closed project should NOT be in sidebar
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -300,7 +306,7 @@ describe('App', () => {
       // Wait for initial scratch terminal
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -317,7 +323,7 @@ describe('App', () => {
       render(<App />, { wrapper: TestWrapper });
 
       await waitFor(() => {
-        expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+        expectTerminalLabel();
       });
 
       const initialConfigCalls = invokeHistory.filter((h) => h.command === 'get_config').length;
@@ -830,7 +836,7 @@ describe('App', () => {
       // Wait for scratch terminal with initial tab
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -896,7 +902,7 @@ describe('App', () => {
       // First, scratch terminal starts with Terminal 1
       await waitFor(
         () => {
-          expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+          expectTerminalLabel();
         },
         { timeout: 3000 }
       );
@@ -962,7 +968,7 @@ describe('App', () => {
 
       // Wait for scratch terminal to be created and spawned
       await waitFor(() => {
-        expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+        expectTerminalLabel();
       }, { timeout: 3000 });
 
       // Wait for terminal to be spawned (which means it's fully active)
@@ -972,7 +978,7 @@ describe('App', () => {
 
       // Click on the scratch terminal to ensure it's selected
       const user = userEvent.setup();
-      await user.click(screen.getByText('Terminal 1'));
+      await user.click(getTerminalLabel());
 
       // Clear invoke history to isolate our test
       invokeHistory.length = 0;
@@ -1056,13 +1062,13 @@ describe('App', () => {
 
       // Wait for scratch terminal to be spawned
       await waitFor(() => {
-        expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+        expectTerminalLabel();
       }, { timeout: 3000 });
       await waitFor(() => {
         expect(invokeHistory.some((h) => h.command === 'spawn_scratch_terminal')).toBe(true);
       });
 
-      await user.click(screen.getByText('Terminal 1'));
+      await user.click(getTerminalLabel());
       invokeHistory.length = 0;
 
       await act(async () => {
@@ -1094,13 +1100,13 @@ describe('App', () => {
 
       // Wait for scratch terminal to be spawned
       await waitFor(() => {
-        expect(screen.getByText('Terminal 1')).toBeInTheDocument();
+        expectTerminalLabel();
       }, { timeout: 3000 });
       await waitFor(() => {
         expect(invokeHistory.some((h) => h.command === 'spawn_scratch_terminal')).toBe(true);
       });
 
-      await user.click(screen.getByText('Terminal 1'));
+      await user.click(getTerminalLabel());
       invokeHistory.length = 0;
 
       await act(async () => {

@@ -64,6 +64,8 @@ export interface DiffTabConfig {
 export interface SessionTab {
   id: string;           // e.g., "worktree-abc-session-1"
   label: string;        // e.g., "Terminal 1"
+  /** User-defined label override (displayed instead of label when set) */
+  customLabel?: string;
   isPrimary: boolean;   // First tab runs configured command
   /** For command tabs: command to run instead of shell/main command */
   command?: string;
