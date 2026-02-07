@@ -37,6 +37,8 @@ export function useGitStatus(
   const { mode = 'uncommitted', projectPath } = options;
   // For backwards compatibility, also accept Worktree type
   const worktree = target as (Worktree | { id: string; path: string } | null);
+  const worktreeId = worktree?.id ?? null;
+  const worktreePath = worktree?.path ?? null;
   const [files, setFiles] = useState<FileChange[]>([]);
   const [loading, setLoading] = useState(false);
   const [isGitRepo, setIsGitRepo] = useState(true);
@@ -44,7 +46,7 @@ export function useGitStatus(
   const watchingRef = useRef<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!worktree) {
+    if (!worktreeId || !worktreePath) {
       setFiles([]);
       return;
     }
@@ -55,13 +57,13 @@ export function useGitStatus(
       if (mode === 'uncommitted') {
         // Fetch uncommitted changes (working tree vs HEAD)
         const result = await invoke<FileChange[]>('get_changed_files', {
-          worktreePath: worktree.path,
+          worktreePath,
         });
         setFiles(result);
       } else {
         // Fetch branch changes (current branch vs base branch)
         const result = await invoke<FileChange[]>('get_branch_changed_files', {
-          worktreePath: worktree.path,
+          worktreePath,
           projectPath,
         });
         setFiles(result);
@@ -77,17 +79,17 @@ export function useGitStatus(
     } finally {
       setLoading(false);
     }
-  }, [worktree, mode, projectPath]);
+  }, [worktreeId, worktreePath, mode, projectPath]);
 
   // Fetch branch info when target changes
   useEffect(() => {
-    if (!worktree) {
+    if (!worktreeId || !worktreePath) {
       setBranchInfo(null);
       return;
     }
 
     invoke<BranchInfo>('get_branch_info', {
-      worktreePath: worktree.path,
+      worktreePath,
       projectPath,
     })
       .then(setBranchInfo)
@@ -95,13 +97,13 @@ export function useGitStatus(
         console.error('Failed to get branch info:', err);
         setBranchInfo(null);
       });
-  }, [worktree, projectPath]);
+  }, [worktreeId, worktreePath, projectPath]);
 
   // Initial load and start watcher
   // IMPORTANT: We register the event listener BEFORE starting the watcher to avoid
   // a race condition where events could be emitted before the listener is ready.
   useEffect(() => {
-    if (!worktree) {
+    if (!worktreeId || !worktreePath) {
       setFiles([]);
       setIsGitRepo(true); // Reset when no target
       return;
@@ -119,7 +121,7 @@ export function useGitStatus(
         // Register the event listener before starting the watcher
         unlistenFn = await listen<FilesChanged>('files-changed', (event) => {
           // Only update if this is for our worktree and effect hasn't been cancelled
-          if (!cancelled && event.payload.worktree_path === worktree.path) {
+          if (!cancelled && event.payload.worktree_path === worktreePath) {
             setFiles(event.payload.files);
           }
         });
@@ -131,15 +133,15 @@ export function useGitStatus(
         }
 
         // Now start the watcher (listener is already ready to receive events)
-        if (watchingRef.current !== worktree.id) {
+        if (watchingRef.current !== worktreeId) {
           // Stop previous watcher if any
           if (watchingRef.current) {
             await invoke('stop_watching', { worktreeId: watchingRef.current }).catch(() => {});
           }
-          watchingRef.current = worktree.id;
+          watchingRef.current = worktreeId;
           await invoke('start_watching', {
-            worktreeId: worktree.id,
-            worktreePath: worktree.path,
+            worktreeId: worktreeId,
+            worktreePath: worktreePath,
           }).catch((err) => console.error('Failed to start watching:', err));
         }
       } else if (mode === 'branch' && watchingRef.current) {
@@ -167,7 +169,7 @@ export function useGitStatus(
         watchingRef.current = null;
       }
     };
-  }, [worktree, refresh, mode]);
+  }, [worktreeId, worktreePath, refresh, mode]);
 
   return {
     files,

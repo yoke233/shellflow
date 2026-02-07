@@ -14,11 +14,13 @@ import {
   trace as tauriTrace,
 } from "@tauri-apps/plugin-log";
 
-// Also log to browser console for DevTools visibility
-const LOG_TO_CONSOLE = true;
+const IS_DEV = import.meta.env.DEV;
 
-// Also log to terminal stdout (via Tauri command)
-const LOG_TO_TERMINAL = true;
+// Also log to browser console for DevTools visibility (dev only)
+const LOG_TO_CONSOLE = IS_DEV;
+
+// Also log to terminal stdout (via Tauri command) (dev only)
+const LOG_TO_TERMINAL = IS_DEV;
 
 // Check if we're in a Tauri environment (evaluated at call time, not module load)
 function isTauri(): boolean {

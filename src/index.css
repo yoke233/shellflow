@@ -358,6 +358,7 @@ textarea,
 /* Status colors */
 .text-accent { color: var(--accent); }
 .bg-accent { background-color: var(--accent); }
+.border-accent { border-color: var(--accent); }
 .text-success { color: var(--success); }
 .text-warning { color: var(--warning); }
 .text-error { color: var(--error); }

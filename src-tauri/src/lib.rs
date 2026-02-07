@@ -1942,6 +1942,7 @@ pub fn run() {
             // Set up application menu
             menu::setup_menu(app, &config.mappings)?;
 
+
             // Start file watchers for worktrees in active projects only
             // This enables detection of externally deleted worktree folders
             let app_state = app.state::<Arc<AppState>>();

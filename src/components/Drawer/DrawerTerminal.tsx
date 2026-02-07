@@ -64,6 +64,8 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
+  const isComposingRef = useRef(false);
+  const isActiveRef = useRef(isActive);
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
   const xtermTheme = useDrawerXtermTheme();
@@ -199,6 +201,16 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    const handleCompositionStart = () => {
+      isComposingRef.current = true;
+      terminal.options.cursorBlink = false;
+    };
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false;
+      terminal.options.cursorBlink = isActiveRef.current;
+    };
+    terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
+    terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
 
     // Report focus changes to parent via DOM events on container
     const handleFocus = () => {
@@ -211,6 +223,8 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       // Wait for next frame to ensure container is laid out
       await new Promise(resolve => requestAnimationFrame(resolve));
       if (!isMounted) return; // Component unmounted during wait
+      // Wait for fonts so cell sizing is stable (prevents TUI layout drift)
+      await (document.fonts?.ready ?? Promise.resolve());
 
       fitAddon.fit();
       const cols = terminal.cols;
@@ -237,6 +251,8 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
+      terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();
@@ -257,12 +273,17 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     }
   }, [xtermTheme]);
 
+  // Track active state for composition handlers
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+
   // Control cursor blink and style based on active state
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) return;
 
-    terminal.options.cursorBlink = isActive;
+    terminal.options.cursorBlink = isActive && !isComposingRef.current;
 
     // Access xterm internals to force the inactive cursor style (outline)
     const core = (terminal as any)._core;
@@ -372,8 +393,10 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       const textarea = document.querySelector(
         `[data-terminal-id="${id}"] textarea.xterm-helper-textarea`
       ) as HTMLTextAreaElement | null;
-      log.info('[DrawerTerminal] Focusing terminal textarea', { id, found: !!textarea });
-      textarea?.focus();
+      log.debug('[DrawerTerminal] Focusing terminal textarea', { id, found: !!textarea });
+      if (textarea && document.activeElement !== textarea && !isComposingRef.current) {
+        textarea.focus();
+      }
     }
   }, [shouldAutoFocus, focusTrigger, id]);
 

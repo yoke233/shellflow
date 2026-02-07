@@ -75,6 +75,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
+  const isComposingRef = useRef(false);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -353,6 +354,16 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    const handleCompositionStart = () => {
+      isComposingRef.current = true;
+      terminal.options.cursorBlink = false;
+    };
+    const handleCompositionEnd = () => {
+      isComposingRef.current = false;
+      terminal.options.cursorBlink = isActiveRef.current;
+    };
+    terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
+    terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
 
     // Attach onData handler immediately so terminal query responses work
     const onDataDisposable = terminal.onData((data) => {
@@ -484,6 +495,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       // Wait for next frame to ensure container is laid out
       await new Promise(resolve => requestAnimationFrame(resolve));
       if (!isMounted) return;
+      // Wait for fonts so cell sizing is stable (prevents TUI layout drift)
+      await (document.fonts?.ready ?? Promise.resolve());
 
       fitAddon.fit();
       const cols = terminal.cols;
@@ -517,6 +530,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
+      terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(entityId);
       osc7Disposable?.dispose();
@@ -591,12 +606,17 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     };
   }, [isReady]);
 
+  // Track active state for composition handlers
+  useEffect(() => {
+    isActiveRef.current = isActive;
+  }, [isActive]);
+
   // Control cursor blink and style based on active state
   useEffect(() => {
     const terminal = terminalRef.current;
     if (!terminal) return;
 
-    terminal.options.cursorBlink = isActive;
+    terminal.options.cursorBlink = isActive && !isComposingRef.current;
 
     // Access xterm internals to force the inactive cursor style (outline)
     // when our React state says the terminal is inactive
@@ -693,8 +713,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       const textarea = document.querySelector(
         `[data-terminal-id="${entityId}"] textarea.xterm-helper-textarea`
       ) as HTMLTextAreaElement | null;
-      log.info('[MainTerminal] Focusing terminal textarea', { entityId, found: !!textarea });
-      textarea?.focus();
+      log.debug('[MainTerminal] Focusing terminal textarea', { entityId, found: !!textarea });
+      if (textarea && document.activeElement !== textarea && !isComposingRef.current) {
+        textarea.focus();
+      }
     }
   }, [shouldAutoFocus, focusTrigger, entityId]);
 

@@ -28,6 +28,50 @@ fn find_in_path(candidates: &[&str]) -> Option<String> {
     None
 }
 
+#[cfg(windows)]
+fn find_windows_shell() -> String {
+    let preferred = ["pwsh.exe", "pwsh", "powershell.exe", "powershell", "cmd.exe", "cmd"];
+    if let Some(found) = find_in_path(&preferred) {
+        return found;
+    }
+
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Ok(program_files) = std::env::var("ProgramFiles") {
+        let base = std::path::Path::new(&program_files).join("PowerShell");
+        candidates.push(base.join("7").join("pwsh.exe"));
+        candidates.push(base.join("7-preview").join("pwsh.exe"));
+    }
+
+    if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+        let base = std::path::Path::new(&program_files_x86).join("PowerShell");
+        candidates.push(base.join("7").join("pwsh.exe"));
+        candidates.push(base.join("7-preview").join("pwsh.exe"));
+    }
+
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        let base = std::path::Path::new(&local_app_data)
+            .join("Programs")
+            .join("PowerShell");
+        candidates.push(base.join("7").join("pwsh.exe"));
+        candidates.push(base.join("7-preview").join("pwsh.exe"));
+    }
+
+    if let Ok(system_root) = std::env::var("SystemRoot") {
+        let system32 = std::path::Path::new(&system_root).join("System32");
+        candidates.push(system32.join("WindowsPowerShell").join("v1.0").join("powershell.exe"));
+        candidates.push(system32.join("cmd.exe"));
+    }
+
+    for candidate in candidates {
+        if candidate.is_file() {
+            return candidate.to_string_lossy().to_string();
+        }
+    }
+
+    "cmd.exe".to_string()
+}
+
 /// Get the user's PATH by running their login shell.
 /// This ensures we get the same PATH they'd have in a terminal.
 fn get_user_path() -> String {
@@ -143,12 +187,7 @@ fn get_cached_user_shell() -> String {
 
     #[cfg(windows)]
     let shell = {
-        let preferred = ["pwsh.exe", "pwsh", "powershell.exe", "powershell", "cmd.exe", "cmd"];
-        if let Some(found) = find_in_path(&preferred) {
-            found
-        } else {
-            "cmd.exe".to_string()
-        }
+        find_windows_shell()
     };
 
     #[cfg(not(windows))]
@@ -301,6 +340,12 @@ pub fn spawn_pty(
     cmd.env("PATH", &user_path);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    if let Some(cols) = cols {
+        cmd.env("COLUMNS", cols.to_string());
+    }
+    if let Some(rows) = rows {
+        cmd.env("LINES", rows.to_string());
+    }
 
     // Ensure essential environment variables are set
     if let Ok(home) = std::env::var("HOME") {

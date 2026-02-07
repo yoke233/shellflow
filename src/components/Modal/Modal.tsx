@@ -102,7 +102,7 @@ export function Modal({
       <div
         ref={modalRef}
         tabIndex={-1}
-        className={`relative backdrop-blur-xl rounded-lg p-5 w-full ${widthClass} mx-4 outline-none transition-all duration-100 ${
+        className={`relative backdrop-blur-xl rounded-lg p-5 w-full ${widthClass} mx-4 outline-none transition-all duration-100 max-h-[calc(100vh-48px)] overflow-y-auto ${
           showContent ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.98]'
         }`}
         style={{

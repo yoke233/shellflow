@@ -424,7 +424,7 @@ export function Sidebar({
                           onClick={() => onSelectScratch(scratch.id)}
                           className={`group/scratch relative flex items-center py-1 pr-2 text-sm active:cursor-grabbing ${
                             isSelected
-                              ? 'bg-theme-3 text-theme-0'
+                              ? 'bg-sidebar-active text-theme-0 border-l-2 border-accent'
                               : 'text-theme-1 hover:bg-theme-2 hover:text-theme-0'
                           }`}
                         >
@@ -446,7 +446,7 @@ export function Sidebar({
                             onFocusMain={onFocusMain}
                           />
                           {/* Action buttons - show on hover */}
-                          <div className={`absolute right-1 hidden group-hover/scratch:flex items-center gap-0.5 rounded ${isSelected ? 'bg-theme-3' : 'bg-theme-2'}`}>
+                          <div className={`absolute right-1 hidden group-hover/scratch:flex items-center gap-0.5 rounded ${isSelected ? 'bg-sidebar-active' : 'bg-theme-2'}`}>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -533,7 +533,7 @@ export function Sidebar({
                       <div
                         className={`group relative flex items-center py-1.5 pr-2 rounded active:cursor-grabbing ${
                           isProjectSelected
-                            ? 'bg-theme-3 text-theme-0'
+                            ? 'bg-sidebar-active text-theme-0 border-l-2 border-accent'
                             : hasOpenWorktrees || isProjectOpen
                               ? 'text-theme-1 hover:bg-theme-2'
                               : 'text-theme-2 hover:bg-theme-2'
@@ -575,7 +575,7 @@ export function Sidebar({
                         )}
                         <span className="text-sm font-medium truncate">{project.name}</span>
                         {/* Action buttons - show on hover */}
-                        <div className={`absolute right-1 hidden group-hover:flex items-center gap-0.5 rounded ${isProjectSelected ? 'bg-theme-3' : 'bg-theme-2'}`}>
+                        <div className={`absolute right-1 hidden group-hover:flex items-center gap-0.5 rounded ${isProjectSelected ? 'bg-sidebar-active' : 'bg-theme-2'}`}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -638,7 +638,7 @@ export function Sidebar({
                                       onClick={() => onSelectWorktree(worktree)}
                                       className={`group/worktree relative flex items-center py-1 pr-2 text-sm active:cursor-grabbing ${
                                         isSelected
-                                          ? 'bg-theme-3 text-theme-0'
+                                          ? 'bg-sidebar-active text-theme-0 border-l-2 border-accent'
                                           : isOpen
                                             ? 'text-theme-1 hover:bg-theme-2/50 hover:text-theme-0'
                                             : 'text-theme-3 hover:bg-theme-2/50 hover:text-theme-1'
@@ -674,7 +674,7 @@ export function Sidebar({
                                       ) : (
                                         <>
                                           {/* Action buttons - show on hover */}
-                                          <div className={`absolute right-1 hidden group-hover/worktree:flex items-center gap-0.5 rounded ${isSelected ? 'bg-theme-3' : 'bg-theme-2'}`}>
+                                          <div className={`absolute right-1 hidden group-hover/worktree:flex items-center gap-0.5 rounded ${isSelected ? 'bg-sidebar-active' : 'bg-theme-2'}`}>
                                             <button
                                               onClick={(e) => {
                                                 e.stopPropagation();
