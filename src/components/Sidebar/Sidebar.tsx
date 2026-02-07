@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal, BranchInfo, ChangedFilesViewMode } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
@@ -113,6 +113,7 @@ interface SidebarProps {
   onReorderScratchTerminals: (scratchIds: string[]) => void;
   onAutoEditConsumed: () => void;
   onEditingScratchConsumed: () => void;
+  onOpenAppearanceSettings: () => void;
 }
 
 export function Sidebar({
@@ -184,6 +185,7 @@ export function Sidebar({
   onEditingScratchConsumed,
   onOpenInDrawer,
   onOpenInTab,
+  onOpenAppearanceSettings,
 }: SidebarProps) {
   const [contextMenu, setContextMenu] = useState<{
     project: Project;
@@ -769,7 +771,37 @@ export function Sidebar({
             const path = await invoke<string>('get_config_file_path', { fileType });
 
             if (!editorCommand) {
-              console.error('No editor configured');
+              if (fileType === 'settings') {
+                const isWindows = navigator.platform.toUpperCase().includes('WIN');
+                const openWithApp = async (app: string) => {
+                  await invoke('open_in_editor', {
+                    path,
+                    app,
+                    target: 'external',
+                    terminalApp: terminalCommand ?? null,
+                  });
+                };
+
+                try {
+                  await openWithApp('code "{{ path }}"');
+                  return;
+                } catch (err) {
+                  console.warn('Failed to open settings with VS Code:', err);
+                }
+
+                if (isWindows) {
+                  try {
+                    await openWithApp('notepad "{{ path }}"');
+                    return;
+                  } catch (err) {
+                    console.error('Failed to open settings with Notepad:', err);
+                  }
+                } else {
+                  onOpenAppearanceSettings();
+                }
+              } else {
+                console.error('No editor configured');
+              }
               return;
             }
 
@@ -797,6 +829,14 @@ export function Sidebar({
             x={optionsMenu.x}
             y={optionsMenu.y}
             items={[
+              {
+                label: 'Appearance',
+                icon: <Palette size={14} />,
+                onClick: () => {
+                  setOptionsMenu(null);
+                  onOpenAppearanceSettings();
+                },
+              },
               {
                 label: 'Open Settings',
                 icon: <Settings size={14} />,

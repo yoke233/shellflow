@@ -212,6 +212,11 @@ export async function selectFolder(): Promise<string | null> {
   return selected as string | null;
 }
 
+// Config update
+export async function updateConfig(patch: Record<string, unknown>): Promise<void> {
+  await invoke('update_config', { patch });
+}
+
 // Action commands
 export interface MergeOptions {
   deleteWorktree: boolean;

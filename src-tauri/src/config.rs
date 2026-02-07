@@ -1037,6 +1037,40 @@ fn merge_arrays(base: &mut serde_json::Value, overlay: &serde_json::Value) {
     }
 }
 
+/// Update global config by deep-merging a patch into ~/.config/shellflow/config.jsonc
+pub fn update_config(patch: serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+
+    if !patch.is_object() {
+        return Err("Config patch must be an object".to_string());
+    }
+
+    let path = get_config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    let mut base: Value = if path.exists() {
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read config file: {}", e))?;
+        parse_jsonc_value(&content)
+            .map_err(|e| format!("Failed to parse config file: {}", e))?
+    } else {
+        parse_jsonc_value(DEFAULT_CONFIG)
+            .unwrap_or_else(|_| Value::Object(serde_json::Map::new()))
+    };
+
+    deep_merge(&mut base, &patch);
+
+    let serialized = serde_json::to_string_pretty(&base)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    std::fs::write(&path, serialized)
+        .map_err(|e| format!("Failed to write config file: {}", e))?;
+
+    Ok(())
+}
+
 /// Load config with optional project-specific overrides.
 /// Config files are merged in order: global <- repo <- local
 /// - Global: ~/.config/shellflow/config.jsonc

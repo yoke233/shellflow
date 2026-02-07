@@ -387,13 +387,13 @@ export function convertToCSSVariables(
       result['--resize-handle-hover'] = themeBorder;
     }
   } else if (borderStyle === 'visible' && editorBg) {
-    // Match border-1 values for consistency
-    result['--resize-handle'] = adjustBrightness(editorBg, themeType === 'light' ? -18 : 25);
-    result['--resize-handle-hover'] = adjustBrightness(editorBg, themeType === 'light' ? -28 : 35);
+    // Slightly softer than borders for a calmer divider
+    result['--resize-handle'] = adjustBrightness(editorBg, themeType === 'light' ? -12 : 18);
+    result['--resize-handle-hover'] = adjustBrightness(editorBg, themeType === 'light' ? -18 : 26);
   } else if (borderStyle === 'subtle' && editorFg) {
-    // Match border-1 values for consistency
-    result['--resize-handle'] = hexToRgba(editorFg, themeType === 'light' ? 0.12 : 0.15);
-    result['--resize-handle-hover'] = hexToRgba(editorFg, themeType === 'light' ? 0.22 : 0.25);
+    // Lower opacity for a softer split line
+    result['--resize-handle'] = hexToRgba(editorFg, themeType === 'light' ? 0.08 : 0.1);
+    result['--resize-handle-hover'] = hexToRgba(editorFg, themeType === 'light' ? 0.14 : 0.18);
   }
 
   // Tab bar

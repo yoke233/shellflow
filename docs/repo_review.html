@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Shellflow Repo Review</title>
+  <style>:root{
+  --bg:#0b0f14; --panel:#0f1722; --text:#e6edf3; --muted:#9fb0c0;
+  --link:#6cb6ff; --border:#1f2a37; --code-bg:#0a0f16; --code-border:#1b2636;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#ffffff; --panel:#f6f8fa; --text:#1f2328; --muted:#57606a;
+    --link:#0969da; --border:#d0d7de; --code-bg:#f6f8fa; --code-border:#d0d7de;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+a{color:var(--link);text-decoration:none} a:hover{text-decoration:underline}
+.layout{display:grid;grid-template-columns:320px 1fr;min-height:100vh}
+.sidebar{border-right:1px solid var(--border);background:var(--panel);padding:18px 14px;position:sticky;top:0;height:100vh;overflow:auto}
+.content{padding:28px 34px;max-width:1100px}
+.brand{font-weight:700;margin-bottom:6px}
+.meta{color:var(--muted);font-size:12px;margin-bottom:14px}
+.toc{list-style:none;padding:0;margin:0}
+.toc-item{margin:6px 0}
+h1,h2,h3,h4,h5,h6{margin:22px 0 10px;line-height:1.25}
+h1{font-size:28px} h2{font-size:22px} h3{font-size:18px}
+p{margin:10px 0}
+blockquote{margin:12px 0;padding:10px 12px;border-left:4px solid var(--border);background:rgba(255,255,255,0.03)}
+pre{background:var(--code-bg);border:1px solid var(--code-border);padding:12px;border-radius:10px;overflow:auto}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-size:13px}
+ul{padding-left:22px}
+.muted{color:var(--muted)}
+@media (max-width: 980px){.layout{grid-template-columns:1fr}.sidebar{position:relative;height:auto}}</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">Shellflow Repo Review</div>
+      <div class="meta">Generated: 2026-02-06 14:34:35<br/><span class="muted">Offline, standalone</span></div>
+      <ul class="toc">
+<li class="toc-item" style="margin-left:0px"><a href="#shellflow-仓库深度走读报告">Shellflow 仓库深度走读报告</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#01-项目概览">01. 项目概览</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#02-架构地图分层-核心对象-数据流">02. 架构地图（分层 + 核心对象 + 数据流）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#模块清单按目录分组">模块清单（按目录分组）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#mermaid模块依赖图">Mermaid：模块依赖图</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#03-入口与执行流程从锚点开始追">03. 入口与执行流程（从锚点开始追）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#锚点选择">锚点选择</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#入口点列表关键">入口点列表（关键）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#关键链路create-worktree">关键链路（Create Worktree）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#mermaid创建-worktree-时序图简化">Mermaid：创建 Worktree 时序图（简化）</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#04-核心模块深挖高杠杆">04. 核心模块深挖（高杠杆）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#41-worktree-管理核心域">4.1 Worktree 管理（核心域）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#42-git-适配层libgit2-cli">4.2 Git 适配层（libgit2 + CLI）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#43-pty-终端管理">4.3 PTY / 终端管理</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#44-watcher-变更感知">4.4 Watcher / 变更感知</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#45-配置与模板系统">4.5 配置与模板系统</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#46-动作系统前端高杠杆">4.6 动作系统（前端高杠杆）</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#05-上手实操本地跑起来">05. 上手实操（本地跑起来）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#最小依赖">最小依赖</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#最小命令">最小命令</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#最小配置">最小配置</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#常见坑与排查">常见坑与排查</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#06-二次开发指南可操作清单">06. 二次开发指南（可操作清单）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#新增一个动作action">新增一个动作（Action）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#新增一个-tauri-命令">新增一个 Tauri 命令</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#扩展配置模板能力">扩展配置/模板能力</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#07-仓库文档总结">07. 仓库文档总结</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#08-评分100-分制多维度">08. 评分（100 分制，多维度）</a></li>
+<li class="toc-item" style="margin-left:24px"><a href="#top-改进建议按影响成本排序">Top 改进建议（按影响/成本排序）</a></li>
+<li class="toc-item" style="margin-left:12px"><a href="#09-附录关键文件符号速查">09. 附录：关键文件/符号速查</a></li>
+</ul>
+      <hr style="border:0;border-top:1px solid var(--border);margin:16px 0"/>
+      <div class="muted" style="font-size:12px">
+        Tip: Mermaid blocks are kept as code fences for portability.
+      </div>
+    </aside>
+    <main class="content">
+      <h1 id="shellflow-仓库深度走读报告">Shellflow 仓库深度走读报告</h1>
+<blockquote>
+<p>目标读者：开发/架构（兼顾运维与产品理解）</p>
+<p>报告时间：2026-02-06</p>
+</blockquote>
+<h2 id="01-项目概览">01. 项目概览</h2>
+<ul>
+<li>仓库定位：Tauri 桌面应用，用于 Git worktree 编排与多终端协作（React + Rust）。见 <code>README.md</code>、<code>src-tauri/src/main.rs</code>、<code>src/main.tsx</code>。</li>
+<li>关键目录：</li>
+<li><code>src/</code>：React 前端（UI、动作系统、Tauri 调用封装）。</li>
+<li><code>src-tauri/</code>：Rust 后端（Tauri 命令、Git 操作、PTY、Watcher、配置）。</li>
+<li><code>schemas/</code>：配置 JSON Schema（编辑器提示与校验）。</li>
+<li><code>themes/</code>：主题资源（运行时读取/扫描）。</li>
+<li><code>.github/workflows/</code>：CI（前端与 Rust 测试）。</li>
+<li>技术栈与关键依赖：</li>
+<li>前端：React 19 + Vite 7 + Tailwind v4（<code>package.json</code>）。</li>
+<li>后端：Tauri 2.x + Rust 2021（<code>src-tauri/Cargo.toml</code>）。</li>
+<li>Git：<code>git2</code> + <code>git</code> CLI（<code>src-tauri/src/git.rs</code>）。</li>
+<li>终端：<code>portable-pty</code>（<code>src-tauri/src/pty.rs</code>）。</li>
+<li>文件监听：<code>notify</code>（<code>src-tauri/src/watcher.rs</code>）。</li>
+<li>运行与构建：<code>npm install</code> + <code>npm run tauri dev</code>（<code>README.md</code>）。</li>
+</ul>
+<h2 id="02-架构地图分层-核心对象-数据流">02. 架构地图（分层 + 核心对象 + 数据流）</h2>
+<h3 id="模块清单按目录分组">模块清单（按目录分组）</h3>
+<ul>
+<li>前端 UI 与动作系统：<code>src/App.tsx</code>、<code>src/lib/actions.ts</code>、<code>src/lib/actionHandlers.ts</code>、<code>src/lib/mappings.ts</code>。</li>
+<li>Tauri 调用封装：<code>src/lib/tauri.ts</code>。</li>
+<li>后端命令与主流程：<code>src-tauri/src/main.rs</code>、<code>src-tauri/src/lib.rs</code>。</li>
+<li>Git/worktree 领域：<code>src-tauri/src/git.rs</code>、<code>src-tauri/src/worktree.rs</code>。</li>
+<li>终端/PTY：<code>src-tauri/src/pty.rs</code>。</li>
+<li>文件变更与监听：<code>src-tauri/src/watcher.rs</code>。</li>
+<li>配置/模板/主题：<code>src-tauri/src/config.rs</code>、<code>src-tauri/src/template.rs</code>、<code>src-tauri/src/theme.rs</code>。</li>
+<li>状态持久化：<code>src-tauri/src/state.rs</code>。</li>
+<li>崩溃清理：<code>src-tauri/src/cleanup.rs</code>。</li>
+</ul>
+<h3 id="mermaid模块依赖图">Mermaid：模块依赖图</h3>
+<pre><code class="code language-mermaid">graph TD
+  subgraph Frontend
+    UI[React UI / App.tsx]
+    ACT[Action System / actions.ts]
+    MAP[Key Mappings / mappings.ts]
+    IPC[tauri.ts invoke wrappers]
+  end
+
+  subgraph Backend
+    CORE[Tauri Commands / lib.rs]
+    WT[Worktree + Git / worktree.rs + git.rs]
+    PTY[PTY / pty.rs]
+    WATCH[Watcher / watcher.rs]
+    CFG[Config + Template / config.rs + template.rs]
+    THEME[Theme / theme.rs]
+    STATE[Persisted State / state.rs]
+    CLEAN[Cleanup / cleanup.rs]
+  end
+
+  UI --&gt; ACT
+  UI --&gt; MAP
+  UI --&gt; IPC
+  IPC --&gt; CORE
+  CORE --&gt; WT
+  CORE --&gt; PTY
+  CORE --&gt; WATCH
+  CORE --&gt; CFG
+  CORE --&gt; THEME
+  CORE --&gt; STATE
+  CORE --&gt; CLEAN</code></pre>
+<h2 id="03-入口与执行流程从锚点开始追">03. 入口与执行流程（从锚点开始追）</h2>
+<h3 id="锚点选择">锚点选择</h3>
+<p>选择“创建 Worktree”作为核心锚点：它贯穿 UI 动作系统 → Tauri IPC → Git/Worktree 逻辑 → 文件监听与后续任务。</p>
+<h3 id="入口点列表关键">入口点列表（关键）</h3>
+<ul>
+<li>前端入口：<code>src/main.tsx</code>（React 渲染 + 日志挂载）。</li>
+<li>后端入口：<code>src-tauri/src/main.rs</code> → <code>shellflow_lib::run()</code>（Tauri 启动）</li>
+<li>Tauri 命令注册：<code>src-tauri/src/lib.rs</code> 的 <code>tauri::Builder::default().invoke_handler(...)</code>。</li>
+</ul>
+<h3 id="关键链路create-worktree">关键链路（Create Worktree）</h3>
+<p>1) UI 触发动作（命令面板/快捷键/UI 操作）→ 动作系统判断可用性。<code>src/lib/actions.ts</code>、<code>src/lib/actionHandlers.ts</code>。 2) 通过 Tauri invoke 调用：<code>src/lib/tauri.ts:createWorktree()</code> → invoke <code>create_worktree</code>。 3) 后端命令入口：<code>src-tauri/src/lib.rs:create_worktree()</code>，加载配置并持久化状态，发事件给前端。 4) 业务逻辑：<code>src-tauri/src/worktree.rs:create_worktree()</code> → 生成唯一分支名 → 解析目录模板 → <code>git::create_worktree()</code>。 5) Git 执行：<code>src-tauri/src/git.rs:create_worktree()</code> 用 libgit2 校验无未提交变更 + git CLI <code>worktree add</code>。 6) 可选复制忽略文件：<code>worktree::copy_gitignored_files()</code>（后台线程 + 事件通知）。 7) 启动文件监听：<code>src-tauri/src/watcher.rs:watch_worktree()</code> → <code>files-changed</code> 事件。</p>
+<h3 id="mermaid创建-worktree-时序图简化">Mermaid：创建 Worktree 时序图（简化）</h3>
+<pre><code class="code language-mermaid">sequenceDiagram
+  autonumber
+  participant U as User
+  participant UI as React UI
+  participant IPC as tauri.ts
+  participant CORE as Tauri Commands
+  participant WT as worktree.rs
+  participant G as git.rs
+  participant W as watcher.rs
+
+  U-&gt;&gt;UI: 触发 “新建 Worktree”
+  UI-&gt;&gt;IPC: createWorktree(projectPath)
+  IPC-&gt;&gt;CORE: invoke create_worktree
+  CORE-&gt;&gt;WT: worktree::create_worktree
+  WT-&gt;&gt;G: git::create_worktree
+  G--&gt;&gt;WT: ok / error
+  WT--&gt;&gt;CORE: Worktree
+  CORE-&gt;&gt;W: watch_worktree
+  CORE--&gt;&gt;UI: 返回 + 事件通知</code></pre>
+<h2 id="04-核心模块深挖高杠杆">04. 核心模块深挖（高杠杆）</h2>
+<h3 id="41-worktree-管理核心域">4.1 Worktree 管理（核心域）</h3>
+<ul>
+<li>概念与职责：生成唯一分支名、解析 worktree 目录、创建/删除 worktree、复制忽略文件。</li>
+<li>代码定位：<code>src-tauri/src/worktree.rs</code>（<code>create_worktree</code>, <code>delete_worktree</code>, <code>copy_gitignored_files</code>）。</li>
+<li>核心数据结构：<code>state::Project</code>、<code>state::Worktree</code>（<code>src-tauri/src/state.rs</code>）。</li>
+<li>关键流程/算法：</li>
+<li><code>generate_unique_worktree_name()</code> 通过 <code>git::branch_exists</code> 避免冲突。</li>
+<li><code>resolve_worktree_directory()</code> 使用模板（minijinja）支持 <code>{{ repo_directory }}</code> 等变量。</li>
+<li>复制忽略文件时使用 glob 过滤 <code>except</code> 模式。</li>
+<li>扩展点：</li>
+<li>Worktree 目录模板与过滤器（<code>template.rs</code>）。</li>
+<li>配置 <code>worktree.copy.*</code> 与 <code>worktree.baseBranch</code>（<code>config.rs</code>, <code>schemas/config.schema.json</code>）。</li>
+<li>最小示例（伪代码）：</li>
+<p>``<code>text createWorktree(projectPath) -&amp;gt; worktree::create_worktree -&amp;gt; resolve_worktree_directory -&amp;gt; git::create_worktree -&amp;gt; copy_gitignored_files (optional) </code>``</p>
+</ul>
+<h3 id="42-git-适配层libgit2-cli">4.2 Git 适配层（libgit2 + CLI）</h3>
+<ul>
+<li>概念与职责：Git 状态/分支/差异计算、合并可行性、worktree 操作封装。</li>
+<li>代码定位：<code>src-tauri/src/git.rs</code>。</li>
+<li>核心结构：<code>MergeFeasibility</code>, <code>WorktreeDeleteStatus</code>。</li>
+<li>关键流程：</li>
+<li>创建 worktree 前检查未提交变更（<code>has_modified_or_staged_changes</code>）。</li>
+<li>选择 base branch（auto/current/named）。</li>
+<li>使用 git CLI 执行 <code>git worktree add</code> 规避 libgit2 锁问题。</li>
+<li>扩展点：</li>
+<li>Merge/Rebase 工作流扩展（<code>execute_merge_workflow</code> 在 <code>lib.rs</code> 中注册）。</li>
+</ul>
+<h3 id="43-pty-终端管理">4.3 PTY / 终端管理</h3>
+<ul>
+<li>概念与职责：创建并管理 PTY，会话 IO 转发，生命周期与清理。</li>
+<li>代码定位：<code>src-tauri/src/pty.rs</code>。</li>
+<li>核心数据结构：<code>PtySession</code>（<code>state.rs</code>），全局 <code>PTY_WRITERS</code>/<code>PTY_MASTERS</code> 缓存。</li>
+<li>关键流程：</li>
+<li>启动 PTY 时读取用户登录 shell PATH（<code>get_user_path</code>），并缓存。</li>
+<li><code>spawn_pty()</code> 支持 shell override 与命令模式。</li>
+<li><code>cleanup.rs</code> 在崩溃时清理孤儿进程（PID 文件）。</li>
+<li>扩展点：</li>
+<li>新增命令类型（<code>spawn_*</code> 系列命令在 <code>lib.rs</code> 注册）。</li>
+</ul>
+<h3 id="44-watcher-变更感知">4.4 Watcher / 变更感知</h3>
+<ul>
+<li>概念与职责：监听 worktree 目录和 git index，向前端推送变更。</li>
+<li>代码定位：<code>src-tauri/src/watcher.rs</code>。</li>
+<li>关键流程：</li>
+<li><code>watch_worktree()</code> 使用 notify，带 trailing-edge debounce。</li>
+<li>额外监听 <code>.git</code> 实际目录以捕获 staging 变更。</li>
+<li>worktree 被外部删除时触发 <code>worktree-removed</code> 事件。</li>
+<li>扩展点：</li>
+<li>可增加更多事件类型（如任务状态、外部命令输出等）。</li>
+</ul>
+<h3 id="45-配置与模板系统">4.5 配置与模板系统</h3>
+<ul>
+<li>概念与职责：多层配置合并 + JSONC 解析 + 模板渲染。</li>
+<li>代码定位：<code>src-tauri/src/config.rs</code>、<code>src-tauri/src/template.rs</code>。</li>
+<li>核心流程：</li>
+<li>config 搜索路径：全局 + repo + local（<code>get_config_paths</code>）。</li>
+<li>JSONC 去注释 + deep merge（数组按 <code>name</code> 合并）。</li>
+<li>模板过滤器：<code>sanitize</code>、<code>hash_port</code>、<code>shell_escape</code>。</li>
+<li>扩展点：</li>
+<li>新增配置项需同步 <code>schemas/config.schema.json</code> 与默认配置。</li>
+</ul>
+<h3 id="46-动作系统前端高杠杆">4.6 动作系统（前端高杠杆）</h3>
+<ul>
+<li>概念与职责：统一 Action ID、可用性判定、菜单/快捷键/命令面板复用。</li>
+<li>代码定位：<code>src/lib/actions.ts</code>、<code>src/lib/actionHandlers.ts</code>、<code>src/lib/mappings.ts</code>。</li>
+<li>关键流程：</li>
+<li><code>ActionId</code> 作为全局语义键。</li>
+<li><code>AVAILABILITY</code> 统一判定可用性。</li>
+<li><code>defaultMappings.jsonc</code> 提供默认快捷键。</li>
+<li>扩展点：</li>
+<li>新动作需要同步四处（见 <code>CLAUDE.md</code>）。</li>
+</ul>
+<h2 id="05-上手实操本地跑起来">05. 上手实操（本地跑起来）</h2>
+<h3 id="最小依赖">最小依赖</h3>
+<ul>
+<li>Node.js 20+（<code>README.md</code>）</li>
+<li>Rust 1.70+（<code>README.md</code>）</li>
+</ul>
+<h3 id="最小命令">最小命令</h3>
+<pre><code class="code language-bash">npm install
+npm run tauri dev</code></pre>
+<h3 id="最小配置">最小配置</h3>
+<ul>
+<li>全局：<code>~/.config/shellflow/config.jsonc</code>（<code>src-tauri/src/config.rs</code>）。</li>
+<li>项目级：<code>&amp;lt;repo&amp;gt;/.shellflow/config.jsonc</code> + <code>config.local.jsonc</code>（<code>config.rs</code>）。</li>
+</ul>
+<h3 id="常见坑与排查">常见坑与排查</h3>
+<ul>
+<li>macOS 私有 API 仅在 macOS 生效（<code>src-tauri/tauri.conf.json</code>）。</li>
+<li>PTY 的 PATH 获取依赖登录 shell（<code>pty.rs</code>），若命令找不到需确认 shell 与 PATH。</li>
+<li>Git worktree 创建前若存在未提交变更会阻止创建（<code>git.rs</code>）。</li>
+</ul>
+<h2 id="06-二次开发指南可操作清单">06. 二次开发指南（可操作清单）</h2>
+<h3 id="新增一个动作action">新增一个动作（Action）</h3>
+<p>按照 <code>CLAUDE.md</code> 的步骤： 1) <code>src/lib/actions.ts</code>：添加 ActionId + 可用性 + 元数据。 2) <code>src/lib/actionHandlers.ts</code>：增加 handler 映射。 3) <code>src/lib/defaultMappings.jsonc</code>：绑定快捷键（可选）。 4) <code>src/App.tsx</code>：在 handler 中实现逻辑。</p>
+<h3 id="新增一个-tauri-命令">新增一个 Tauri 命令</h3>
+<p>1) <code>src-tauri/src/lib.rs</code>：新增 <code>#[tauri::command]</code> 函数并注册到 <code>invoke_handler</code>。 2) <code>src/lib/tauri.ts</code>：增加前端 invoke 封装。 3) <code>src/types</code>：若有新返回结构，补充类型定义。</p>
+<h3 id="扩展配置模板能力">扩展配置/模板能力</h3>
+<p>1) <code>src-tauri/src/config.rs</code>：新增配置结构与默认值。 2) <code>schemas/config.schema.json</code>：补充 schema。 3) 如需模板变量/过滤器：修改 <code>src-tauri/src/template.rs</code>。</p>
+<h2 id="07-仓库文档总结">07. 仓库文档总结</h2>
+<ul>
+<li><code>README.md</code>：功能概览 + 安装 + 基础开发命令。</li>
+<li><code>CLAUDE.md</code>：动作系统新增流程、测试规则、日志规范。</li>
+<li><code>schemas/</code>：配置/映射的 JSON Schema，利于编辑器校验。</li>
+<li><code>.github/workflows/</code>：明确前端与 Rust 测试 CI。</li>
+</ul>
+<h2 id="08-评分100-分制多维度">08. 评分（100 分制，多维度）</h2>
+<p>| 维度 | 分数 | 证据点（路径） | 说明 | | --- | --- | --- | --- | | 架构清晰度 | 8 | <code>src-tauri/src/lib.rs</code>, <code>src/lib/tauri.ts</code> | 前后端边界清晰、命令集中注册 | | 可扩展性 | 7 | <code>src/lib/actions.ts</code>, <code>CLAUDE.md</code> | 动作系统规范化但新增步骤较多 | | 可维护性 | 7 | <code>src/</code> 分层明确 | <code>App.tsx</code> 过大，需拆分 | | 可靠性/错误处理 | 7 | <code>git.rs</code>, <code>worktree.rs</code> | Git 前置校验清晰，部分流程仍依赖 CLI 错误字符串 | | 可观测性 | 8 | <code>pty.rs</code>, <code>lib.rs</code>, <code>CLAUDE.md</code> | 日志规范明确，前后端日志统一 | | 文档质量 | 7 | <code>README.md</code>, <code>CLAUDE.md</code> | 架构图与实操说明有，但缺少更细 API 文档 | | 示例与教程 | 5 | 无 examples 目录 | 上手依赖 README，缺少可运行示例 | | 测试与 CI | 7 | <code>.github/workflows/test.yml</code> | 前后端测试均有，但覆盖率未知 | | 安全与配置管理 | 7 | <code>config.rs</code>, <code>template.rs</code> | JSONC + shell_escape 提供一定防护 | | 开发者体验（DX） | 8 | <code>CLAUDE.md</code>, <code>schemas/</code> | Action/Mapping 规范化、Schema 友好 |</p>
+<p>**总分：71 / 100**</p>
+<h3 id="top-改进建议按影响成本排序">Top 改进建议（按影响/成本排序）</h3>
+<p>1) 拆分 <code>src/App.tsx</code>，把 Action/监听/面板逻辑拆分到 hooks 或子组件（可维护性）。 2) 增加一个最小可运行示例/教程（如 demo repo + 默认配置），提升新手上手速度。 3) 对关键流程补充集成测试（worktree 创建/删除 + watcher 事件）。</p>
+<h2 id="09-附录关键文件符号速查">09. 附录：关键文件/符号速查</h2>
+<ul>
+<li>前端入口：<code>src/main.tsx</code></li>
+<li>前端主 UI：<code>src/App.tsx</code></li>
+<li>动作系统：<code>src/lib/actions.ts</code>, <code>src/lib/actionHandlers.ts</code>, <code>src/lib/mappings.ts</code></li>
+<li>Tauri 调用封装：<code>src/lib/tauri.ts</code></li>
+<li>后端入口：<code>src-tauri/src/main.rs</code></li>
+<li>Tauri 命令注册：<code>src-tauri/src/lib.rs</code></li>
+<li>Worktree 核心：<code>src-tauri/src/worktree.rs</code></li>
+<li>Git 适配：<code>src-tauri/src/git.rs</code></li>
+<li>PTY：<code>src-tauri/src/pty.rs</code></li>
+<li>监听：<code>src-tauri/src/watcher.rs</code></li>
+<li>配置：<code>src-tauri/src/config.rs</code>, <code>schemas/config.schema.json</code></li>
+<li>模板：<code>src-tauri/src/template.rs</code></li>
+<li>主题：<code>src-tauri/src/theme.rs</code></li>
+<li>状态：<code>src-tauri/src/state.rs</code></li>
+<li>清理：<code>src-tauri/src/cleanup.rs</code></li>
+</ul>
+    </main>
+  </div>
+  
+</body>
+</html>

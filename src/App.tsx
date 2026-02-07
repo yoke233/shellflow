@@ -1,24 +1,11 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle, PanelImperativeHandle } from 'react-resizable-panels';
+import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { Sidebar } from './components/Sidebar/Sidebar';
-import { MainPane } from './components/MainPane/MainPane';
-import { RightPanel } from './components/RightPanel/RightPanel';
-import { Drawer, DrawerTab } from './components/Drawer/Drawer';
-import { DrawerTerminal } from './components/Drawer/DrawerTerminal';
-import { TaskTerminal } from './components/Drawer/TaskTerminal';
-import { ActionTerminal } from './components/Drawer/ActionTerminal';
-import { DeleteWorktreeModal } from './components/DeleteWorktreeModal';
-import { ConfirmModal } from './components/ConfirmModal';
-import { MergeModal } from './components/MergeModal';
-import { StashModal } from './components/StashModal';
-import { ShutdownScreen } from './components/ShutdownScreen';
-import { TaskSwitcher } from './components/TaskSwitcher/TaskSwitcher';
-import { CommandPalette } from './components/CommandPalette';
-import { ThemeSwitcher } from './components/ThemeSwitcher';
-import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { AppLayout } from './app/AppLayout';
+import type { DrawerTab } from './components/Drawer/Drawer';
+import type { FontSettingsPatch } from './components/Settings/AppearanceSettingsModal';
 import { useWorktrees } from './hooks/useWorktrees';
 import { useGitStatus } from './hooks/useGitStatus';
 import { useConfig, getAppCommand, getAppTarget } from './hooks/useConfig';
@@ -28,7 +15,7 @@ import { useDrawerTabs } from './hooks/useDrawerTabs';
 import { useSessionTabs, SessionTab } from './hooks/useSessionTabs';
 import { useSplitActions } from './contexts/SplitContext';
 import { log } from './lib/log';
-import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, touchProject } from './lib/tauri';
+import { selectFolder, shutdown, ptyKill, ptyForceKill, stashChanges, stashPop, reorderProjects, reorderWorktrees, expandActionPrompt, ActionPromptContext, updateActionAvailability, touchProject, updateConfig } from './lib/tauri';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ActionContext, ActionId, getMenuAvailability } from './lib/actions';
 import { useActions, ActionHandlers } from './hooks/useActions';
@@ -38,9 +25,8 @@ import { getActiveContexts, type ContextState } from './lib/contexts';
 import { createActionHandlers, executeAction } from './lib/actionHandlers';
 import { copyFromActiveTerminal, pasteToActiveTerminal } from './lib/terminalRegistry';
 import { Project, Worktree, RunningTask, MergeCompleted, Session, SessionKind, ChangedFilesViewMode } from './types';
-import { ToastContainer } from './components/Toast';
 import { useToast } from './hooks/useToast';
-import { ThemeProvider, ThemeBorderStyle } from './theme';
+import type { ThemeBorderStyle } from './theme';
 
 const EXPANDED_PROJECTS_KEY = 'shellflow:expandedProjects';
 const SELECTED_TASKS_KEY = 'shellflow:selectedTasks';
@@ -352,6 +338,7 @@ function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isProjectSwitcherOpen, setIsProjectSwitcherOpen] = useState(false);
   const [isThemeSwitcherOpen, setIsThemeSwitcherOpen] = useState(false);
+  const [isAppearanceSettingsOpen, setIsAppearanceSettingsOpen] = useState(false);
   // Runtime border style override (cycles through: theme -> subtle -> visible)
   const [runtimeBorderStyle, setRuntimeBorderStyle] = useState<ThemeBorderStyle | null>(null);
   const [isStashing, setIsStashing] = useState(false);
@@ -506,7 +493,7 @@ function App() {
   const [isCtrlCmdKeyHeld, setIsCtrlCmdKeyHeld] = useState(false);
 
   // Track when a picker is open to block global shortcuts
-  const isPickerOpen = isTaskSwitcherOpen || isCommandPaletteOpen || isProjectSwitcherOpen || isThemeSwitcherOpen;
+  const isPickerOpen = isTaskSwitcherOpen || isCommandPaletteOpen || isProjectSwitcherOpen || isThemeSwitcherOpen || isAppearanceSettingsOpen;
   // Use a ref so the keyboard handler always sees the current value (no stale closures)
   const isPickerOpenRef = useRef(isPickerOpen);
   isPickerOpenRef.current = isPickerOpen;
@@ -1578,12 +1565,41 @@ function App() {
     }
   }, [activeFocusState]);
 
+  const handleUpdateConfig = useCallback((patch: Record<string, unknown>) => {
+    updateConfig(patch).catch((err) => {
+      console.error('Failed to update config:', err);
+    });
+  }, []);
+
+  const handleThemeChange = useCallback((themeName: string) => {
+    handleUpdateConfig({ theme: themeName });
+  }, [handleUpdateConfig]);
+
+  const handleBorderStyleChange = useCallback((style: ThemeBorderStyle) => {
+    setRuntimeBorderStyle(style);
+    handleUpdateConfig({ themeBorderStyle: style });
+  }, [handleUpdateConfig]);
+
+  const handleFontSettingsChange = useCallback((patch: FontSettingsPatch) => {
+    const mainPatch: Record<string, unknown> = {};
+    if (patch.fontFamily !== undefined) mainPatch.fontFamily = patch.fontFamily;
+    if (patch.fontSize !== undefined) mainPatch.fontSize = patch.fontSize;
+    if (patch.fontLigatures !== undefined) mainPatch.fontLigatures = patch.fontLigatures;
+
+    if (Object.keys(mainPatch).length === 0) return;
+
+    handleUpdateConfig({
+      main: mainPatch,
+      drawer: mainPatch,
+    });
+  }, [handleUpdateConfig]);
+
   // Cycle through border styles: theme -> subtle -> visible -> theme
   const handleCycleBorderStyle = useCallback(() => {
     const current = runtimeBorderStyle ?? config.themeBorderStyle ?? 'subtle';
     const next: ThemeBorderStyle = current === 'theme' ? 'subtle' : current === 'subtle' ? 'visible' : 'theme';
-    setRuntimeBorderStyle(next);
-  }, [runtimeBorderStyle, config.themeBorderStyle]);
+    handleBorderStyleChange(next);
+  }, [runtimeBorderStyle, config.themeBorderStyle, handleBorderStyleChange]);
 
   // Effective border style (runtime override or config)
   const effectiveBorderStyle = runtimeBorderStyle ?? config.themeBorderStyle ?? 'subtle';
@@ -1811,6 +1827,8 @@ function App() {
         // Close other pickers when opening
         setIsCommandPaletteOpen(false);
         setIsProjectSwitcherOpen(false);
+        setIsThemeSwitcherOpen(false);
+        setIsAppearanceSettingsOpen(false);
       }
       return !prev;
     });
@@ -1834,6 +1852,8 @@ function App() {
         // Close other pickers when opening
         setIsTaskSwitcherOpen(false);
         setIsProjectSwitcherOpen(false);
+        setIsThemeSwitcherOpen(false);
+        setIsAppearanceSettingsOpen(false);
       }
       return !prev;
     });
@@ -1846,9 +1866,31 @@ function App() {
         // Close other pickers when opening
         setIsTaskSwitcherOpen(false);
         setIsCommandPaletteOpen(false);
+        setIsThemeSwitcherOpen(false);
+        setIsAppearanceSettingsOpen(false);
       }
       return !prev;
     });
+  }, []);
+
+  const handleOpenAppearanceSettings = useCallback(() => {
+    setIsAppearanceSettingsOpen(true);
+    setIsTaskSwitcherOpen(false);
+    setIsCommandPaletteOpen(false);
+    setIsProjectSwitcherOpen(false);
+    setIsThemeSwitcherOpen(false);
+  }, []);
+
+  const handleCloseAppearanceSettings = useCallback(() => {
+    setIsAppearanceSettingsOpen(false);
+  }, []);
+
+  const handleOpenThemeSwitcher = useCallback(() => {
+    setIsThemeSwitcherOpen(true);
+    setIsTaskSwitcherOpen(false);
+    setIsCommandPaletteOpen(false);
+    setIsProjectSwitcherOpen(false);
+    setIsAppearanceSettingsOpen(false);
   }, []);
 
   const handleProjectSwitcherSelect = useCallback(async (projectId: string) => {
@@ -2041,6 +2083,11 @@ function App() {
       setIsStashing(false);
     }
   }, [pendingStashProject, createWorktree, config.worktree.focusNewBranchNames]);
+
+  const handleCancelStash = useCallback(() => {
+    setPendingStashProject(null);
+    setStashError(null);
+  }, []);
 
   const handleSelectWorktree = useCallback((worktree: Worktree) => {
     // Mark the project as active and auto-open its project terminal
@@ -2820,7 +2867,33 @@ function App() {
           const path = await invoke<string>('get_config_file_path', { fileType: 'settings' });
 
           if (!command) {
-            console.error('No editor configured');
+            const isWindows = navigator.platform.toUpperCase().includes('WIN');
+            const openWithApp = async (app: string) => {
+              await invoke('open_in_editor', {
+                path,
+                app,
+                target: 'external',
+                terminalApp: terminalCommand ?? null,
+              });
+            };
+
+            try {
+              await openWithApp('code "{{ path }}"');
+              return;
+            } catch (err) {
+              console.warn('Failed to open settings with VS Code:', err);
+            }
+
+            if (isWindows) {
+              try {
+                await openWithApp('notepad "{{ path }}"');
+                return;
+              } catch (err) {
+                console.error('Failed to open settings with Notepad:', err);
+              }
+            } else {
+              handleOpenAppearanceSettings();
+            }
             return;
           }
 
@@ -2881,7 +2954,7 @@ function App() {
     'drawer::toggle': handleToggleDrawer,
     'drawer::expand': handleToggleDrawerExpand,
     'rightPanel::toggle': handleToggleRightPanel,
-    'view::switchTheme': () => setIsThemeSwitcherOpen(true),
+    'view::switchTheme': handleOpenThemeSwitcher,
     'view::cycleBorderStyle': handleCycleBorderStyle,
     'view::zoomIn': handleZoomIn,
     'view::zoomOut': handleZoomOut,
@@ -2941,6 +3014,7 @@ function App() {
     handleAddDrawerTab, handleOpenInDrawer, handleOpenInTab, handleAddSessionTab,
     handleCloseWorktree, handleCloseScratch,
     handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel, handleToggleProjectSwitcher,
+    handleOpenThemeSwitcher, handleOpenAppearanceSettings,
     handleZoomIn, handleZoomOut, handleZoomReset, handleCycleBorderStyle, handleNavigateBack, handleNavigateForward, handleSwitchFocus,
     handleRenameBranch, handleMergeWorktree, handleDeleteWorktree, handleToggleTask, handleToggleTaskSwitcher,
     handleOpenDiff, handleNextChangedFile, handlePrevChangedFile, handleToggleDiffMode,
@@ -3154,7 +3228,7 @@ function App() {
         isCommandPaletteOpen,
         isTaskSwitcherOpen,
         isProjectSwitcherOpen,
-        hasOpenModal: !!(pendingCloseProject || pendingDeleteId || pendingMergeId),
+        hasOpenModal: !!(pendingCloseProject || pendingDeleteId || pendingMergeId || pendingStashProject || isAppearanceSettingsOpen),
         openEntityCount: openEntitiesInOrder.length,
         canGoBack,
         canGoForward,
@@ -3188,7 +3262,7 @@ function App() {
   }, [
     activeScratchId, activeWorktreeId, activeProjectId, activeFocusState,
     isDrawerOpen, isRightPanelOpen, isCommandPaletteOpen, isTaskSwitcherOpen, isProjectSwitcherOpen,
-    pendingCloseProject, pendingDeleteId, pendingMergeId,
+    pendingCloseProject, pendingDeleteId, pendingMergeId, pendingStashProject, isAppearanceSettingsOpen,
     openEntitiesInOrder.length, canGoBack, canGoForward,
     activeSessionTabId, tabHasSplits,
     resolveKeyEvent, contextActionHandlers,
@@ -3284,446 +3358,301 @@ function App() {
       })()
     : null;
 
+  const sidebarProps = {
+    projects,
+    activeProjectId,
+    activeWorktreeId,
+    activeScratchId,
+    activeWorktree,
+    scratchTerminals,
+    openProjectIds,
+    openWorktreeIds,
+    openEntitiesInOrder,
+    isModifierKeyHeld: isCtrlCmdKeyHeld && !isPickerOpen,
+    loadingWorktrees,
+    notifiedWorktreeIds,
+    thinkingWorktreeIds,
+    idleWorktreeIds,
+    notifiedProjectIds,
+    thinkingProjectIds,
+    idleProjectIds,
+    notifiedScratchIds,
+    thinkingScratchIds,
+    idleScratchIds,
+    runningTaskCounts,
+    expandedProjects,
+    isDrawerOpen,
+    isRightPanelOpen,
+    tasks: config.tasks,
+    selectedTask: activeSelectedTask,
+    runningTask: activeRunningTask && activeEntityId
+      ? {
+          ...activeRunningTask,
+          worktreeId: activeEntityId,
+          kind: config.tasks.find(t => t.name === activeRunningTask.taskName)?.kind ?? 'command',
+        }
+      : null,
+    allRunningTasks: activeEntityId ? runningTasks.get(activeEntityId) ?? [] : [],
+    terminalFontFamily: config.main.fontFamily,
+    appsConfig: config.apps,
+    showIdleCheck: config.indicators.showIdleCheck,
+    activeScratchCwd: activeScratchId && activeSessionTabId ? scratchCwds.get(activeSessionTabId) ?? null : null,
+    homeDir,
+    branchInfo,
+    changedFilesCount: changedFiles.length,
+    changedFilesMode,
+    autoEditWorktreeId,
+    editingScratchId,
+    focusToRestoreRef,
+    onFocusMain: handleFocusMain,
+    onToggleProject: toggleProject,
+    onSelectProject: handleSelectProject,
+    onSelectWorktree: handleSelectWorktree,
+    onAddProject: handleAddProject,
+    onAddWorktree: handleAddWorktree,
+    onDeleteWorktree: handleDeleteWorktree,
+    onCloseWorktree: handleCloseWorktree,
+    onCloseProject: handleCloseProject,
+    onHideProject: handleHideProject,
+    onMergeWorktree: handleMergeWorktree,
+    onToggleDrawer: handleToggleDrawer,
+    onToggleRightPanel: handleToggleRightPanel,
+    onSelectTask: handleSelectTask,
+    onStartTask: handleStartTask,
+    onStopTask: handleStopTask,
+    onForceKillTask: handleForceKillTask,
+    onRenameWorktree: renameWorktree,
+    onReorderProjects: handleReorderProjects,
+    onReorderWorktrees: handleReorderWorktrees,
+    onAddScratchTerminal: handleAddScratchTerminal,
+    onSelectScratch: handleSelectScratch,
+    onCloseScratch: handleCloseScratch,
+    onRenameScratch: handleRenameScratch,
+    onReorderScratchTerminals: handleReorderScratchTerminals,
+    onAutoEditConsumed: () => setAutoEditWorktreeId(null),
+    onEditingScratchConsumed: () => setEditingScratchId(null),
+    onOpenInDrawer: handleOpenInDrawer,
+    onOpenInTab: handleOpenInTab,
+    onOpenAppearanceSettings: handleOpenAppearanceSettings,
+  };
+
+  const mainPaneProps = {
+    sessions,
+    openSessionIds,
+    activeSessionId,
+    allSessionTabs: sessionTabs,
+    activeSessionTabId,
+    sessionLastActiveTabIds,
+    isCtrlKeyHeld: isModifierKeyHeld && !isPickerOpen,
+    onSelectSessionTab: handleSelectSessionTab,
+    onCloseSessionTab: handleCloseSessionTab,
+    onAddSessionTab: handleAddSessionTab,
+    onReorderSessionTabs: handleReorderSessionTabs,
+    onRenameSessionTab: handleRenameSessionTab,
+    terminalConfig: mainTerminalConfig,
+    editorConfig: config.main,
+    activityTimeout: config.indicators.activityTimeout,
+    unfocusedPaneOpacity: isDrawerOpen && activeFocusState === 'drawer' ? 1 : config.panes.unfocusedOpacity,
+    shouldAutoFocus: activeFocusState === 'main',
+    focusTrigger: mainFocusTrigger,
+    configErrors,
+    onFocus: handleMainPaneFocused,
+    onWorktreeNotification: handleWorktreeNotification,
+    onWorktreeThinkingChange: handleWorktreeThinkingChange,
+    onProjectNotification: handleProjectNotification,
+    onProjectThinkingChange: handleProjectThinkingChange,
+    onScratchNotification: handleScratchNotification,
+    onScratchThinkingChange: handleScratchThinkingChange,
+    onScratchCwdChange: handleScratchCwdChange,
+    onClearNotification: clearNotification,
+    onTabTitleChange: updateSessionTabLabel,
+    onPtyIdReady: setSessionPtyId,
+  };
+
+  const drawerProps = {
+    isOpen: isDrawerOpen,
+    isExpanded: isDrawerExpanded,
+    worktreeId: activeEntityId,
+    tabs: activeDrawerTabs,
+    activeTabId: activeDrawerTabId,
+    taskStatuses: activeTaskStatuses,
+    isCtrlKeyHeld: isModifierKeyHeld && !isPickerOpen,
+    onSelectTab: handleSelectDrawerTab,
+    onCloseTab: handleCloseDrawerTab,
+    onAddTab: handleAddDrawerTab,
+    onToggleExpand: handleToggleDrawerExpand,
+    onReorderTabs: handleReorderDrawerTabs,
+  };
+
+  const rightPanelProps = {
+    changedFiles,
+    isGitRepo,
+    loading: changedFilesLoading,
+    mode: changedFilesMode,
+    onModeChange: setChangedFilesMode,
+    showModeToggle: showChangedFilesModeToggle ?? false,
+    onFileClick: handleFileClick,
+    selectedFile: activeDiffState.currentFilePath,
+    onOpenDiff: handleOpenDiff,
+    runningTabCount,
+  };
+
+  const taskSwitcherProps = {
+    tasks: config.tasks,
+    selectedTask: activeSelectedTask,
+    runningTasks: activeEntityId ? runningTasks.get(activeEntityId) ?? [] : [],
+    onSelect: handleTaskSwitcherSelect,
+    onRun: handleTaskSwitcherRun,
+    onClose: () => setIsTaskSwitcherOpen(false),
+    onModalOpen,
+    onModalClose,
+  };
+
+  const commandPaletteProps = {
+    actionContext,
+    getShortcut,
+    labelOverrides: commandPaletteLabelOverrides,
+    tasks: config.tasks,
+    projects,
+    scratchTerminals,
+    openEntitiesInOrder: navigableEntitiesInOrder,
+    onExecute: (actionId: ActionId) => actions.execute(actionId),
+    onRunTask: (taskName: string) => {
+      handleSelectTask(taskName);
+      handleStartTask(taskName);
+    },
+    onNavigate: (type: 'scratch' | 'project' | 'worktree', id: string) => {
+      if (type === 'scratch') {
+        handleSelectScratch(id);
+      } else if (type === 'project') {
+        const project = projects.find(p => p.id === id);
+        if (project) {
+          handleSelectProject(project);
+        }
+      } else if (type === 'worktree') {
+        for (const project of projects) {
+          const worktree = project.worktrees.find(w => w.id === id);
+          if (worktree) {
+            handleSelectWorktree(worktree);
+            break;
+          }
+        }
+      }
+    },
+    onClose: () => setIsCommandPaletteOpen(false),
+    onModalOpen,
+    onModalClose,
+  };
+
+  const projectSwitcherProps = {
+    projects,
+    activeProjectId,
+    onSelect: handleProjectSwitcherSelect,
+    onClose: () => setIsProjectSwitcherOpen(false),
+    onModalOpen,
+    onModalClose,
+  };
+
+  const themeSwitcherProps = {
+    onClose: () => setIsThemeSwitcherOpen(false),
+    onModalOpen,
+    onModalClose,
+  };
+
+  const appearanceSettingsProps = {
+    onClose: handleCloseAppearanceSettings,
+    borderStyle: effectiveBorderStyle,
+    fontFamily: config.main.fontFamily,
+    fontSize: config.main.fontSize,
+    fontLigatures: config.main.fontLigatures,
+    onFontChange: handleFontSettingsChange,
+    onBorderStyleChange: handleBorderStyleChange,
+    onModalOpen,
+    onModalClose,
+  };
+
+  const overlaysProps = {
+    isShuttingDown,
+    pendingDeleteInfo,
+    pendingCloseProject,
+    pendingMergeInfo,
+    pendingStashProject,
+    stashError,
+    isStashing,
+    onClearPendingDelete: () => setPendingDeleteId(null),
+    onClearPendingCloseProject: () => setPendingCloseProject(null),
+    onClearPendingMerge: () => setPendingMergeId(null),
+    onDeleteComplete: handleDeleteComplete,
+    onConfirmCloseProject: confirmCloseProject,
+    onMergeComplete: handleMergeComplete,
+    onTriggerAction: handleTriggerAction,
+    onStashAndCreate: handleStashAndCreate,
+    onCancelStash: handleCancelStash,
+    onModalOpen,
+    onModalClose,
+  };
+
+  const pickersProps = {
+    showTaskSwitcher: isTaskSwitcherOpen && !!activeEntityId,
+    taskSwitcherProps,
+    showCommandPalette: isCommandPaletteOpen,
+    commandPaletteProps,
+    showProjectSwitcher: isProjectSwitcherOpen,
+    projectSwitcherProps,
+    showThemeSwitcher: isThemeSwitcherOpen,
+    themeSwitcherProps,
+    showAppearanceSettings: isAppearanceSettingsOpen,
+    appearanceSettingsProps,
+  };
+
+  const layoutProps = {
+    sidebarProps,
+    mainPaneProps,
+    drawerProps,
+    rightPanelProps,
+    mainPanelRef,
+    drawerPanelRef,
+    rightPanelRef,
+    isDrawerOpen,
+    isDrawerExpanded,
+    isRightPanelOpen,
+    activeEntityId,
+    activeDrawerTabId,
+    activeFocusState,
+    drawerTabs,
+    drawerTerminalConfig,
+    getEntityDirectory,
+    onTaskPtyIdReady: handleTaskPtyIdReady,
+    onTaskExit: handleTaskExit,
+    onDrawerFocused: handleDrawerFocused,
+    onCloseDrawerTab: handleCloseDrawerTab,
+    onDrawerPtyIdReady: handleDrawerPtyIdReady,
+    onDrawerTabTitleChange: updateDrawerTabLabel,
+    onDrawerResize: handleDrawerResize,
+    onRightPanelResize: handleRightPanelResize,
+  };
+
+  const themeProps = {
+    themeConfig: config.theme,
+    borderStyle: effectiveBorderStyle,
+    onThemeChange: handleThemeChange,
+    onBorderStyleChange: handleBorderStyleChange,
+  };
+
+  const toastProps = {
+    items: toasts,
+    onDismiss: dismissToast,
+  };
+
   return (
-    <ThemeProvider themeConfig={config.theme} borderStyle={effectiveBorderStyle}>
-    <div className="h-screen w-screen overflow-hidden flex flex-col">
-      {/* Shutdown screen overlay */}
-      <ShutdownScreen isVisible={isShuttingDown} />
-
-      {pendingDeleteInfo && (
-        <DeleteWorktreeModal
-          worktree={pendingDeleteInfo.worktree}
-          projectPath={pendingDeleteInfo.projectPath}
-          defaultConfig={config.worktree.delete}
-          onClose={() => setPendingDeleteId(null)}
-          onDeleteComplete={handleDeleteComplete}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {pendingCloseProject && (
-        <ConfirmModal
-          title="Close Project"
-          message={`Are you sure you want to close "${pendingCloseProject.name}"?`}
-          confirmLabel="Close"
-          onConfirm={confirmCloseProject}
-          onCancel={() => setPendingCloseProject(null)}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {pendingMergeInfo && (
-        <MergeModal
-          worktree={pendingMergeInfo.worktree}
-          projectPath={pendingMergeInfo.projectPath}
-          defaultConfig={config.worktree.merge}
-          onClose={() => setPendingMergeId(null)}
-          onMergeComplete={handleMergeComplete}
-          onTriggerAction={(actionType, context) => {
-            handleTriggerAction(
-              pendingMergeInfo.worktree.id,
-              pendingMergeInfo.projectPath,
-              actionType,
-              context
-            );
-          }}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {pendingStashProject && (
-        <StashModal
-          projectName={pendingStashProject.name}
-          onStashAndCreate={handleStashAndCreate}
-          onCancel={() => {
-            setPendingStashProject(null);
-            setStashError(null);
-          }}
-          isLoading={isStashing}
-          error={stashError}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {isTaskSwitcherOpen && activeEntityId && (
-        <TaskSwitcher
-          tasks={config.tasks}
-          selectedTask={activeSelectedTask}
-          runningTasks={runningTasks.get(activeEntityId) ?? []}
-          onSelect={handleTaskSwitcherSelect}
-          onRun={handleTaskSwitcherRun}
-          onClose={() => setIsTaskSwitcherOpen(false)}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {isCommandPaletteOpen && (
-        <CommandPalette
-          actionContext={actionContext}
-          getShortcut={getShortcut}
-          labelOverrides={commandPaletteLabelOverrides}
-          tasks={config.tasks}
-          projects={projects}
-          scratchTerminals={scratchTerminals}
-          openEntitiesInOrder={navigableEntitiesInOrder}
-          onExecute={(actionId) => actions.execute(actionId)}
-          onRunTask={(taskName) => {
-            handleSelectTask(taskName);
-            handleStartTask(taskName);
-          }}
-          onNavigate={(type, id) => {
-            if (type === 'scratch') {
-              handleSelectScratch(id);
-            } else if (type === 'project') {
-              const project = projects.find(p => p.id === id);
-              if (project) {
-                handleSelectProject(project);
-              }
-            } else if (type === 'worktree') {
-              for (const project of projects) {
-                const worktree = project.worktrees.find(w => w.id === id);
-                if (worktree) {
-                  handleSelectWorktree(worktree);
-                  break;
-                }
-              }
-            }
-          }}
-          onClose={() => setIsCommandPaletteOpen(false)}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {isProjectSwitcherOpen && (
-        <ProjectSwitcher
-          projects={projects}
-          activeProjectId={activeProjectId}
-          onSelect={handleProjectSwitcherSelect}
-          onClose={() => setIsProjectSwitcherOpen(false)}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {isThemeSwitcherOpen && (
-        <ThemeSwitcher
-          onClose={() => setIsThemeSwitcherOpen(false)}
-          onModalOpen={onModalOpen}
-          onModalClose={onModalClose}
-        />
-      )}
-
-      {/* Main content - horizontal layout */}
-      <PanelGroup
-        orientation="horizontal"
-        className="flex-1"
-      >
-        {/* Sidebar */}
-        <Panel defaultSize="230px" minSize="180px" maxSize="420px">
-          <div className="h-full w-full overflow-hidden">
-            <Sidebar
-              projects={projects}
-              activeProjectId={activeProjectId}
-              activeWorktreeId={activeWorktreeId}
-              activeScratchId={activeScratchId}
-              activeWorktree={activeWorktree}
-              scratchTerminals={scratchTerminals}
-              openProjectIds={openProjectIds}
-              openWorktreeIds={openWorktreeIds}
-              openEntitiesInOrder={openEntitiesInOrder}
-              isModifierKeyHeld={isCtrlCmdKeyHeld && !isPickerOpen}
-              loadingWorktrees={loadingWorktrees}
-              notifiedWorktreeIds={notifiedWorktreeIds}
-              thinkingWorktreeIds={thinkingWorktreeIds}
-              idleWorktreeIds={idleWorktreeIds}
-              notifiedProjectIds={notifiedProjectIds}
-              thinkingProjectIds={thinkingProjectIds}
-              idleProjectIds={idleProjectIds}
-              notifiedScratchIds={notifiedScratchIds}
-              thinkingScratchIds={thinkingScratchIds}
-              idleScratchIds={idleScratchIds}
-              runningTaskCounts={runningTaskCounts}
-              expandedProjects={expandedProjects}
-              isDrawerOpen={isDrawerOpen}
-              isRightPanelOpen={isRightPanelOpen}
-              tasks={config.tasks}
-              selectedTask={activeSelectedTask}
-              runningTask={activeRunningTask && activeEntityId ? { ...activeRunningTask, worktreeId: activeEntityId, kind: config.tasks.find(t => t.name === activeRunningTask.taskName)?.kind ?? 'command' } : null}
-              allRunningTasks={activeEntityId ? runningTasks.get(activeEntityId) ?? [] : []}
-              terminalFontFamily={config.main.fontFamily}
-              appsConfig={config.apps}
-              showIdleCheck={config.indicators.showIdleCheck}
-              activeScratchCwd={activeScratchId && activeSessionTabId ? scratchCwds.get(activeSessionTabId) ?? null : null}
-              homeDir={homeDir}
-              branchInfo={branchInfo}
-              changedFilesCount={changedFiles.length}
-              changedFilesMode={changedFilesMode}
-              autoEditWorktreeId={autoEditWorktreeId}
-              editingScratchId={editingScratchId}
-              focusToRestoreRef={focusToRestoreRef}
-              onFocusMain={handleFocusMain}
-              onToggleProject={toggleProject}
-              onSelectProject={handleSelectProject}
-              onSelectWorktree={handleSelectWorktree}
-              onAddProject={handleAddProject}
-              onAddWorktree={handleAddWorktree}
-              onDeleteWorktree={handleDeleteWorktree}
-              onCloseWorktree={handleCloseWorktree}
-              onCloseProject={handleCloseProject}
-              onHideProject={handleHideProject}
-              onMergeWorktree={handleMergeWorktree}
-              onToggleDrawer={handleToggleDrawer}
-              onToggleRightPanel={handleToggleRightPanel}
-              onSelectTask={handleSelectTask}
-              onStartTask={handleStartTask}
-              onStopTask={handleStopTask}
-              onForceKillTask={handleForceKillTask}
-              onRenameWorktree={renameWorktree}
-              onReorderProjects={handleReorderProjects}
-              onReorderWorktrees={handleReorderWorktrees}
-              onAddScratchTerminal={handleAddScratchTerminal}
-              onSelectScratch={handleSelectScratch}
-              onCloseScratch={handleCloseScratch}
-              onRenameScratch={handleRenameScratch}
-              onReorderScratchTerminals={handleReorderScratchTerminals}
-              onAutoEditConsumed={() => setAutoEditWorktreeId(null)}
-              onEditingScratchConsumed={() => setEditingScratchId(null)}
-              onOpenInDrawer={handleOpenInDrawer}
-              onOpenInTab={handleOpenInTab}
-            />
-          </div>
-        </Panel>
-
-        <PanelResizeHandle className="w-px bg-sidebar-border hover:bg-resize-handle-hover transition-colors focus:outline-none cursor-col-resize" />
-
-        {/* Main Pane with Drawer - vertical layout */}
-        <Panel minSize="300px">
-          <PanelGroup
-            orientation="vertical"
-            className="h-full"
-          >
-            <Panel panelRef={mainPanelRef} minSize="0px" collapsible collapsedSize="0px">
-              <div
-                className="h-full transition-opacity duration-150"
-                style={{
-                  opacity: isDrawerOpen && activeFocusState === 'drawer'
-                    ? (config.main.unfocusedOpacity ?? config.panes.unfocusedOpacity)
-                    : 1
-                }}
-              >
-                <MainPane
-                  sessions={sessions}
-                  openSessionIds={openSessionIds}
-                  activeSessionId={activeSessionId}
-                  allSessionTabs={sessionTabs}
-                  activeSessionTabId={activeSessionTabId}
-                  sessionLastActiveTabIds={sessionLastActiveTabIds}
-                  isCtrlKeyHeld={isModifierKeyHeld && !isPickerOpen}
-                  onSelectSessionTab={handleSelectSessionTab}
-                  onCloseSessionTab={handleCloseSessionTab}
-                  onAddSessionTab={handleAddSessionTab}
-                  onReorderSessionTabs={handleReorderSessionTabs}
-                  onRenameSessionTab={handleRenameSessionTab}
-                  terminalConfig={mainTerminalConfig}
-                  editorConfig={config.main}
-                  activityTimeout={config.indicators.activityTimeout}
-                  unfocusedPaneOpacity={
-                    // Don't apply pane opacity when drawer is focused (whole main area is already dimmed)
-                    isDrawerOpen && activeFocusState === 'drawer' ? 1 : config.panes.unfocusedOpacity
-                  }
-                  shouldAutoFocus={activeFocusState === 'main'}
-                  focusTrigger={mainFocusTrigger}
-                  configErrors={configErrors}
-                  onFocus={handleMainPaneFocused}
-                  onWorktreeNotification={handleWorktreeNotification}
-                  onWorktreeThinkingChange={handleWorktreeThinkingChange}
-                  onProjectNotification={handleProjectNotification}
-                  onProjectThinkingChange={handleProjectThinkingChange}
-                  onScratchNotification={handleScratchNotification}
-                  onScratchThinkingChange={handleScratchThinkingChange}
-                  onScratchCwdChange={handleScratchCwdChange}
-                  onClearNotification={clearNotification}
-                  onTabTitleChange={updateSessionTabLabel}
-                  onPtyIdReady={setSessionPtyId}
-                />
-              </div>
-            </Panel>
-
-            {/* Drawer Panel - collapsible */}
-            <PanelResizeHandle
-              className={`transition-colors focus:outline-none !cursor-row-resize ${
-                isDrawerOpen && !isDrawerExpanded
-                  ? 'h-px bg-sidebar-border hover:bg-resize-handle-hover'
-                  : 'h-0 pointer-events-none'
-              }`}
-            />
-            <Panel
-              panelRef={drawerPanelRef}
-              defaultSize="0px"
-              minSize="100px"
-              maxSize={isDrawerExpanded ? "100%" : "70%"}
-              collapsible
-              collapsedSize="0px"
-              onResize={handleDrawerResize}
-            >
-              <div
-                className="h-full overflow-hidden transition-opacity duration-150"
-                style={{
-                  opacity: isDrawerOpen && activeFocusState !== 'drawer'
-                    ? config.drawer.unfocusedOpacity
-                    : 1
-                }}
-              >
-                <Drawer
-                  isOpen={isDrawerOpen}
-                  isExpanded={isDrawerExpanded}
-                  worktreeId={activeEntityId}
-                  tabs={activeDrawerTabs}
-                  activeTabId={activeDrawerTabId}
-                  taskStatuses={activeTaskStatuses}
-                  isCtrlKeyHeld={isModifierKeyHeld && !isPickerOpen}
-                  onSelectTab={handleSelectDrawerTab}
-                  onCloseTab={handleCloseDrawerTab}
-                  onAddTab={handleAddDrawerTab}
-                  onToggleExpand={handleToggleDrawerExpand}
-                  onReorderTabs={handleReorderDrawerTabs}
-                >
-                  {/* Render ALL terminals for ALL entities to keep them alive */}
-                  {Array.from(drawerTabs.entries()).flatMap(([entityId, tabs]) =>
-                    tabs.map((tab) => (
-                      <div
-                        key={tab.id}
-                        className={`absolute inset-0 ${
-                          entityId === activeEntityId &&
-                          isDrawerOpen &&
-                          tab.id === activeDrawerTabId
-                            ? 'z-10'
-                            : 'opacity-0 z-0 pointer-events-none'
-                        }`}
-                      >
-                        {tab.type === 'task' && tab.taskName ? (
-                          <TaskTerminal
-                            id={tab.id}
-                            entityId={entityId}
-                            taskName={tab.taskName}
-                            isActive={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                            shouldAutoFocus={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                                                        terminalConfig={drawerTerminalConfig}
-                            onPtyIdReady={(ptyId) => handleTaskPtyIdReady(entityId, tab.taskName!, ptyId)}
-                            onTaskExit={(exitCode) => handleTaskExit(entityId, tab.taskName!, exitCode)}
-                            onFocus={() => handleDrawerFocused(entityId)}
-                          />
-                        ) : tab.type === 'action' && tab.actionPrompt ? (
-                          <ActionTerminal
-                            id={tab.id}
-                            worktreeId={entityId}
-                            actionType={tab.actionType}
-                            actionPrompt={tab.actionPrompt}
-                            mergeOptions={tab.mergeOptions}
-                            strategy={tab.strategy}
-                            isActive={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                            shouldAutoFocus={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                                                        terminalConfig={drawerTerminalConfig}
-                            onFocus={() => handleDrawerFocused(entityId)}
-                          />
-                        ) : (
-                          <DrawerTerminal
-                            id={tab.id}
-                            entityId={entityId}
-                            directory={tab.directory ?? getEntityDirectory(entityId)}
-                            command={tab.command}
-                            isActive={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                            shouldAutoFocus={
-                              entityId === activeEntityId &&
-                              isDrawerOpen &&
-                              tab.id === activeDrawerTabId &&
-                              activeFocusState === 'drawer'
-                            }
-                                                        terminalConfig={drawerTerminalConfig}
-                            onClose={() => handleCloseDrawerTab(tab.id, entityId)}
-                            onFocus={() => handleDrawerFocused(entityId)}
-                            onPtyIdReady={(ptyId) => handleDrawerPtyIdReady(tab.id, ptyId)}
-                            onTitleChange={(title) => updateDrawerTabLabel(entityId, tab.id, title)}
-                          />
-                        )}
-                      </div>
-                    ))
-                  )}
-                </Drawer>
-              </div>
-            </Panel>
-          </PanelGroup>
-        </Panel>
-
-        {/* Right Panel - collapsible (only for worktrees/projects, not scratch) */}
-        <PanelResizeHandle
-          className={`w-px transition-colors focus:outline-none cursor-col-resize ${
-            isRightPanelOpen
-              ? 'bg-sidebar-border hover:bg-resize-handle-hover'
-              : 'bg-transparent pointer-events-none'
-          }`}
-        />
-        <Panel
-          panelRef={rightPanelRef}
-          defaultSize="0px"
-          minSize="150px"
-          maxSize="450px"
-          collapsible
-          collapsedSize="0px"
-          onResize={handleRightPanelResize}
-        >
-          <div className="h-full w-full overflow-hidden">
-            <RightPanel
-              changedFiles={changedFiles}
-              isGitRepo={isGitRepo}
-              loading={changedFilesLoading}
-              mode={changedFilesMode}
-              onModeChange={setChangedFilesMode}
-              showModeToggle={showChangedFilesModeToggle ?? false}
-              onFileClick={handleFileClick}
-              selectedFile={activeDiffState.currentFilePath}
-              onOpenDiff={handleOpenDiff}
-              runningTabCount={runningTabCount}
-            />
-          </div>
-        </Panel>
-      </PanelGroup>
-
-      {/* Toast notifications */}
-      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-    </div>
-    </ThemeProvider>
+    <AppLayout
+      theme={themeProps}
+      config={config}
+      overlays={overlaysProps}
+      pickers={pickersProps}
+      layout={layoutProps}
+      toasts={toastProps}
+    />
   );
 }
 

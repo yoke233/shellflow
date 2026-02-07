@@ -348,7 +348,7 @@ textarea,
 .border-theme-2 { border-color: var(--border-2); }
 
 /* Sidebar-specific */
-.bg-sidebar { background-color: color-mix(in srgb, var(--sidebar-bg) 50%, transparent); }
+.bg-sidebar { background-color: var(--sidebar-bg); }
 .text-sidebar { color: var(--sidebar-fg); }
 .border-sidebar { border-color: var(--sidebar-border); }
 .bg-sidebar-border { background-color: var(--sidebar-border); }

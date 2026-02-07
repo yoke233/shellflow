@@ -866,6 +866,11 @@ fn get_config(project_path: Option<String>) -> config::ConfigResult {
 }
 
 #[tauri::command]
+fn update_config(patch: serde_json::Value) -> Result<()> {
+    config::update_config(patch).map_err(map_err)
+}
+
+#[tauri::command]
 fn watch_config(app: AppHandle, project_path: Option<String>) {
     watcher::watch_config(app, project_path);
 }
@@ -2006,6 +2011,7 @@ pub fn run() {
             start_watching,
             stop_watching,
             get_config,
+            update_config,
             watch_config,
             stop_config_watcher,
             get_mappings,
