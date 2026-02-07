@@ -224,6 +224,7 @@ export function createInputLineGuard(): {
 export function createImeGuard(terminal: Terminal): {
   lock: () => void;
   unlock: () => void;
+  pin: () => void;
   dispose: () => void;
 } {
   let locked = false;
@@ -231,6 +232,59 @@ export function createImeGuard(terminal: Terminal): {
   let lockedY = 0;
   let originalUpdate: ((dontRecurse?: boolean) => void) | null = null;
   let compositionHelper: any = null;
+  let lastPin = 0;
+  const MIN_PIN_INTERVAL = 33; // ms, ~30fps
+  let stableX = terminal.buffer.active.cursorX;
+  let stableY = terminal.buffer.active.cursorY;
+  let lastX = stableX;
+  let lastY = stableY;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
+  let hasPreferred = false;
+
+  const isIgnoredPosition = (x: number, y: number) => {
+    const cols = terminal.cols;
+    const rows = terminal.rows;
+    if (cols <= 0 || rows <= 0) return false;
+    const nearRight = x >= Math.max(cols - 20, 0);
+    const nearBottom = y >= Math.max(rows - 2, 0);
+    return nearRight && nearBottom;
+  };
+
+  const cursorMoveDisposable = terminal.onCursorMove(() => {
+    const buffer = terminal.buffer.active;
+    lastX = buffer.cursorX;
+    lastY = buffer.cursorY;
+    if (settleTimer) {
+      clearTimeout(settleTimer);
+    }
+    settleTimer = setTimeout(() => {
+      const ignore = isIgnoredPosition(lastX, lastY);
+      if (!ignore || !hasPreferred) {
+        stableX = lastX;
+        stableY = lastY;
+        if (!ignore) {
+          hasPreferred = true;
+        }
+      }
+      if (locked && hasPreferred && isIgnoredPosition(lockedX, lockedY)) {
+        lockedX = stableX;
+        lockedY = stableY;
+      }
+      settleTimer = null;
+    }, 30);
+  });
+
+  const pin = () => {
+    if (!locked) return;
+    const now = performance.now();
+    if (now - lastPin < MIN_PIN_INTERVAL) return;
+    lastPin = now;
+    if (hasPreferred && isIgnoredPosition(lockedX, lockedY)) {
+      lockedX = stableX;
+      lockedY = stableY;
+    }
+    terminal.write(`\x1b[${lockedY + 1};${lockedX + 1}H`);
+  };
 
   const lock = () => {
     if (locked) return;
@@ -239,8 +293,13 @@ export function createImeGuard(terminal: Terminal): {
     if (!helper?.updateCompositionElements) return;
 
     const buffer = terminal.buffer.active;
-    lockedX = buffer.cursorX;
-    lockedY = buffer.cursorY;
+    if (hasPreferred) {
+      lockedX = stableX;
+      lockedY = stableY;
+    } else {
+      lockedX = buffer.cursorX;
+      lockedY = buffer.cursorY;
+    }
 
     compositionHelper = helper;
     originalUpdate = helper.updateCompositionElements.bind(helper);
@@ -267,6 +326,7 @@ export function createImeGuard(terminal: Terminal): {
     };
 
     locked = true;
+    pin();
   };
 
   const unlock = () => {
@@ -279,5 +339,14 @@ export function createImeGuard(terminal: Terminal): {
     originalUpdate = null;
   };
 
-  return { lock, unlock, dispose: unlock };
+  const dispose = () => {
+    unlock();
+    cursorMoveDisposable.dispose();
+    if (settleTimer) {
+      clearTimeout(settleTimer);
+      settleTimer = null;
+    }
+  };
+
+  return { lock, unlock, pin, dispose };
 }

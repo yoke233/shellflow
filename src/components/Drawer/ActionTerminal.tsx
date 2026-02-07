@@ -80,6 +80,7 @@ export function ActionTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
   const [isPtyReady, setIsPtyReady] = useState(false);
@@ -179,6 +180,7 @@ export function ActionTerminal({
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
     const imeGuard = createImeGuard(terminal);
+    imeGuardRef.current = imeGuard;
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
@@ -225,7 +227,11 @@ export function ActionTerminal({
         if (!ptyIdKnown) {
           earlyEvents.push(event.payload);
         } else if (event.payload.pty_id === ptyIdRef.current) {
-          terminal.write(fixColorSequences(event.payload.data));
+          terminal.write(fixColorSequences(event.payload.data), () => {
+            if (isComposingRef.current) {
+              imeGuardRef.current?.pin();
+            }
+          });
         }
       });
       unlistenOutput = outputListener;
@@ -256,7 +262,11 @@ export function ActionTerminal({
       // Replay buffered events that match our ptyId
       for (const event of earlyEvents) {
         if (event.pty_id === newPtyId) {
-          terminal.write(fixColorSequences(event.data));
+          terminal.write(fixColorSequences(event.data), () => {
+            if (isComposingRef.current) {
+              imeGuardRef.current?.pin();
+            }
+          });
         }
       }
 
@@ -284,6 +294,7 @@ export function ActionTerminal({
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
+      imeGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();

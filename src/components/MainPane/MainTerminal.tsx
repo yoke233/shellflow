@@ -76,6 +76,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -152,8 +153,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
     if (terminalRef.current) {
-      // Only fix color sequences for main terminals (Claude uses them)
-      terminalRef.current.write(type === 'main' ? fixColorSequences(data) : data);
+      const payload = type === 'main' ? fixColorSequences(data) : data;
+      terminalRef.current.write(payload, () => {
+        if (isComposingRef.current) {
+          imeGuardRef.current?.pin();
+        }
+      });
     }
 
     // Output activity detection when NOT active (for background tab indicators)
@@ -355,6 +360,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
     const imeGuard = createImeGuard(terminal);
+    imeGuardRef.current = imeGuard;
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
@@ -536,6 +542,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
+      imeGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(entityId);
       osc7Disposable?.dispose();

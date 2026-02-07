@@ -65,6 +65,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const isActiveRef = useRef(isActive);
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
@@ -75,7 +76,11 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
     if (terminalRef.current) {
-      terminalRef.current.write(fixColorSequences(data));
+      terminalRef.current.write(fixColorSequences(data), () => {
+        if (isComposingRef.current) {
+          imeGuardRef.current?.pin();
+        }
+      });
     }
   }, []);
 
@@ -202,6 +207,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
     const imeGuard = createImeGuard(terminal);
+    imeGuardRef.current = imeGuard;
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
@@ -257,6 +263,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
+      imeGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();
