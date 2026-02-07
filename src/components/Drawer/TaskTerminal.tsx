@@ -7,7 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
-import { attachKeyboardHandlers, createTerminalCopyPaste, loadWebGLWithRecovery } from '../../lib/terminal';
+import { attachKeyboardHandlers, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
 import '@xterm/xterm/css/xterm.css';
@@ -72,7 +72,6 @@ export function TaskTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
-  const outputBufferRef = useRef<string[]>([]);
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
 
@@ -81,25 +80,6 @@ export function TaskTerminal({
   const [isPtyReady, setIsPtyReady] = useState(false);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
-
-  const flushBufferedOutput = useCallback(() => {
-    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
-    terminalRef.current.write(outputBufferRef.current.join(''));
-    outputBufferRef.current = [];
-  }, []);
-
-  const queueOutput = useCallback((data: string) => {
-    const normalized = fixColorSequences(data);
-    if (isComposingRef.current) {
-      outputBufferRef.current.push(normalized);
-      return;
-    }
-    if (!terminalRef.current) return;
-    if (outputBufferRef.current.length > 0) {
-      flushBufferedOutput();
-    }
-    terminalRef.current.write(normalized);
-  }, [flushBufferedOutput]);
 
   // Store onFocus in ref for use in terminal events
   const onFocusRef = useRef(onFocus);
@@ -186,14 +166,16 @@ export function TaskTerminal({
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    const imeGuard = createImeGuard(terminal);
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
+      imeGuard.lock();
     };
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
-      flushBufferedOutput();
+      imeGuard.unlock();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
@@ -231,7 +213,7 @@ export function TaskTerminal({
         if (!ptyIdKnown) {
           earlyEvents.push(event.payload);
         } else if (event.payload.pty_id === ptyIdRef.current) {
-          queueOutput(event.payload.data);
+          terminal.write(fixColorSequences(event.payload.data));
         }
       });
       unlistenOutput = outputListener;
@@ -264,7 +246,7 @@ export function TaskTerminal({
       // Replay buffered events that match our ptyId
       for (const event of earlyEvents) {
         if (event.pty_id === newPtyId) {
-          queueOutput(event.data);
+          terminal.write(fixColorSequences(event.data));
         }
       }
 
@@ -289,6 +271,7 @@ export function TaskTerminal({
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
+      imeGuard.dispose();
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();

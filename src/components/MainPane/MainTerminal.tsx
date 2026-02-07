@@ -11,7 +11,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
-import { attachKeyboardHandlers, createTerminalCopyPaste, loadWebGLWithRecovery } from '../../lib/terminal';
+import { attachKeyboardHandlers, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import '@xterm/xterm/css/xterm.css';
@@ -76,7 +76,6 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
-  const outputBufferRef = useRef<string[]>([]);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -150,32 +149,18 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   // bypassGracePeriod: if true, triggers immediately even during grace period (for strong signals like title changes)
   const triggerActivityRef = useRef<(bypassGracePeriod?: boolean) => void>(() => {});
 
-  const normalizeOutput = useCallback((data: string) => {
-    return type === 'main' ? fixColorSequences(data) : data;
-  }, [type]);
-
-  const flushBufferedOutput = useCallback(() => {
-    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
-    terminalRef.current.write(outputBufferRef.current.join(''));
-    outputBufferRef.current = [];
-  }, []);
-
-  // Handle PTY output by writing directly to terminal (buffer during IME composition)
+  // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
-    if (isComposingRef.current) {
-      outputBufferRef.current.push(normalizeOutput(data));
-    } else if (terminalRef.current) {
-      if (outputBufferRef.current.length > 0) {
-        flushBufferedOutput();
-      }
-      terminalRef.current.write(normalizeOutput(data));
+    if (terminalRef.current) {
+      // Only fix color sequences for main terminals (Claude uses them)
+      terminalRef.current.write(type === 'main' ? fixColorSequences(data) : data);
     }
 
     // Output activity detection when NOT active (for background tab indicators)
     if (data.length > 0 && !isActiveRef.current) {
       triggerActivityRef.current();
     }
-  }, [normalizeOutput, flushBufferedOutput]);
+  }, []);
 
   // Handle pty-ready event - passed to usePty to avoid race condition
   const handleReady = useCallback(() => {
@@ -369,14 +354,16 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    const imeGuard = createImeGuard(terminal);
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
+      imeGuard.lock();
     };
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
-      flushBufferedOutput();
+      imeGuard.unlock();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
@@ -548,6 +535,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
+      imeGuard.dispose();
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(entityId);
       osc7Disposable?.dispose();

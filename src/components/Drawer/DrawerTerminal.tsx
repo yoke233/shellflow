@@ -10,7 +10,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
-import { attachKeyboardHandlers, createTerminalCopyPaste, loadWebGLWithRecovery } from '../../lib/terminal';
+import { attachKeyboardHandlers, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import '@xterm/xterm/css/xterm.css';
@@ -65,7 +65,6 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
-  const outputBufferRef = useRef<string[]>([]);
   const isActiveRef = useRef(isActive);
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
@@ -73,24 +72,12 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
-  const flushBufferedOutput = useCallback(() => {
-    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
-    terminalRef.current.write(outputBufferRef.current.join(''));
-    outputBufferRef.current = [];
-  }, []);
-
-  // Handle PTY output by writing directly to terminal (buffer during IME composition)
+  // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
-    const normalized = fixColorSequences(data);
-    if (isComposingRef.current) {
-      outputBufferRef.current.push(normalized);
-    } else if (terminalRef.current) {
-      if (outputBufferRef.current.length > 0) {
-        flushBufferedOutput();
-      }
-      terminalRef.current.write(normalized);
+    if (terminalRef.current) {
+      terminalRef.current.write(fixColorSequences(data));
     }
-  }, [flushBufferedOutput]);
+  }, []);
 
   const { ptyId, spawnShell, spawnCommand, write, resize, kill } = usePty(handleOutput);
 
@@ -214,14 +201,16 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    const imeGuard = createImeGuard(terminal);
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
+      imeGuard.lock();
     };
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
-      flushBufferedOutput();
+      imeGuard.unlock();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
@@ -267,6 +256,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
+      imeGuard.dispose();
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();

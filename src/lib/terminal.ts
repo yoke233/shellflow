@@ -164,3 +164,120 @@ export function createTerminalCopyPaste(
     },
   };
 }
+
+export function createInputLineGuard(): {
+  shouldSend: (data: string) => boolean;
+  reset: () => void;
+  getLength: () => number;
+} {
+  let lineLen = 0;
+
+  const countChars = (text: string) => Array.from(text).length;
+
+  const shouldSend = (data: string) => {
+    if (data.length === 0) return false;
+
+    // Enter or newline (Shift+Enter sends LF)
+    if (data === '\r' || data === '\n' || data === '\x0a') {
+      lineLen = 0;
+      return true;
+    }
+
+    // Ctrl+C / Ctrl+U clear line
+    if (data === '\x03' || data === '\x15') {
+      lineLen = 0;
+      return true;
+    }
+
+    // Backspace/Delete at line start: swallow
+    if (data === '\x7f' || data === '\b' || data === '\x1b[3~') {
+      if (lineLen === 0) return false;
+      lineLen = Math.max(0, lineLen - 1);
+      return true;
+    }
+
+    // Escape sequences (arrows/function keys) - don't affect line length
+    if (data.startsWith('\x1b')) {
+      return true;
+    }
+
+    const lastNewline = Math.max(data.lastIndexOf('\r'), data.lastIndexOf('\n'));
+    if (lastNewline !== -1) {
+      const tail = data.slice(lastNewline + 1);
+      lineLen = countChars(tail);
+      return true;
+    }
+
+    lineLen += countChars(data);
+    return true;
+  };
+
+  const reset = () => {
+    lineLen = 0;
+  };
+
+  const getLength = () => lineLen;
+
+  return { shouldSend, reset, getLength };
+}
+
+export function createImeGuard(terminal: Terminal): {
+  lock: () => void;
+  unlock: () => void;
+  dispose: () => void;
+} {
+  let locked = false;
+  let lockedX = 0;
+  let lockedY = 0;
+  let originalUpdate: ((dontRecurse?: boolean) => void) | null = null;
+  let compositionHelper: any = null;
+
+  const lock = () => {
+    if (locked) return;
+    const core = (terminal as any)._core;
+    const helper = core?._compositionHelper;
+    if (!helper?.updateCompositionElements) return;
+
+    const buffer = terminal.buffer.active;
+    lockedX = buffer.cursorX;
+    lockedY = buffer.cursorY;
+
+    compositionHelper = helper;
+    originalUpdate = helper.updateCompositionElements.bind(helper);
+
+    helper.updateCompositionElements = (dontRecurse?: boolean) => {
+      if (!compositionHelper?._isComposing) {
+        return originalUpdate?.(dontRecurse);
+      }
+      const bufferService = compositionHelper?._bufferService;
+      const buf = bufferService?.buffer;
+      if (!buf) {
+        return originalUpdate?.(dontRecurse);
+      }
+      const origX = buf.x;
+      const origY = buf.y;
+      buf.x = lockedX;
+      buf.y = lockedY;
+      try {
+        originalUpdate?.(dontRecurse);
+      } finally {
+        buf.x = origX;
+        buf.y = origY;
+      }
+    };
+
+    locked = true;
+  };
+
+  const unlock = () => {
+    if (!locked) return;
+    locked = false;
+    if (compositionHelper && originalUpdate) {
+      compositionHelper.updateCompositionElements = originalUpdate;
+    }
+    compositionHelper = null;
+    originalUpdate = null;
+  };
+
+  return { lock, unlock, dispose: unlock };
+}
