@@ -65,6 +65,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const outputBufferRef = useRef<string[]>([]);
   const isActiveRef = useRef(isActive);
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
@@ -72,12 +73,24 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
-  // Handle PTY output by writing directly to terminal
-  const handleOutput = useCallback((data: string) => {
-    if (terminalRef.current) {
-      terminalRef.current.write(fixColorSequences(data));
-    }
+  const flushBufferedOutput = useCallback(() => {
+    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
+    terminalRef.current.write(outputBufferRef.current.join(''));
+    outputBufferRef.current = [];
   }, []);
+
+  // Handle PTY output by writing directly to terminal (buffer during IME composition)
+  const handleOutput = useCallback((data: string) => {
+    const normalized = fixColorSequences(data);
+    if (isComposingRef.current) {
+      outputBufferRef.current.push(normalized);
+    } else if (terminalRef.current) {
+      if (outputBufferRef.current.length > 0) {
+        flushBufferedOutput();
+      }
+      terminalRef.current.write(normalized);
+    }
+  }, [flushBufferedOutput]);
 
   const { ptyId, spawnShell, spawnCommand, write, resize, kill } = usePty(handleOutput);
 
@@ -208,6 +221,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
+      flushBufferedOutput();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);

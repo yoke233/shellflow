@@ -76,6 +76,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const outputBufferRef = useRef<string[]>([]);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -149,18 +150,32 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   // bypassGracePeriod: if true, triggers immediately even during grace period (for strong signals like title changes)
   const triggerActivityRef = useRef<(bypassGracePeriod?: boolean) => void>(() => {});
 
-  // Handle PTY output by writing directly to terminal
-  const handleOutput = useCallback((data: string) => {
-    if (terminalRef.current) {
-      // Only fix color sequences for main terminals (Claude uses them)
-      terminalRef.current.write(type === 'main' ? fixColorSequences(data) : data);
+  const normalizeOutput = useCallback((data: string) => {
+    return type === 'main' ? fixColorSequences(data) : data;
+  }, [type]);
 
-      // Output activity detection when NOT active (for background tab indicators)
-      if (data.length > 0 && !isActiveRef.current) {
-        triggerActivityRef.current();
-      }
-    }
+  const flushBufferedOutput = useCallback(() => {
+    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
+    terminalRef.current.write(outputBufferRef.current.join(''));
+    outputBufferRef.current = [];
   }, []);
+
+  // Handle PTY output by writing directly to terminal (buffer during IME composition)
+  const handleOutput = useCallback((data: string) => {
+    if (isComposingRef.current) {
+      outputBufferRef.current.push(normalizeOutput(data));
+    } else if (terminalRef.current) {
+      if (outputBufferRef.current.length > 0) {
+        flushBufferedOutput();
+      }
+      terminalRef.current.write(normalizeOutput(data));
+    }
+
+    // Output activity detection when NOT active (for background tab indicators)
+    if (data.length > 0 && !isActiveRef.current) {
+      triggerActivityRef.current();
+    }
+  }, [normalizeOutput, flushBufferedOutput]);
 
   // Handle pty-ready event - passed to usePty to avoid race condition
   const handleReady = useCallback(() => {
@@ -361,6 +376,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
+      flushBufferedOutput();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);

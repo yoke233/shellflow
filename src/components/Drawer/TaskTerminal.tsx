@@ -72,6 +72,7 @@ export function TaskTerminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
+  const outputBufferRef = useRef<string[]>([]);
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
 
@@ -80,6 +81,25 @@ export function TaskTerminal({
   const [isPtyReady, setIsPtyReady] = useState(false);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
+
+  const flushBufferedOutput = useCallback(() => {
+    if (!terminalRef.current || outputBufferRef.current.length === 0) return;
+    terminalRef.current.write(outputBufferRef.current.join(''));
+    outputBufferRef.current = [];
+  }, []);
+
+  const queueOutput = useCallback((data: string) => {
+    const normalized = fixColorSequences(data);
+    if (isComposingRef.current) {
+      outputBufferRef.current.push(normalized);
+      return;
+    }
+    if (!terminalRef.current) return;
+    if (outputBufferRef.current.length > 0) {
+      flushBufferedOutput();
+    }
+    terminalRef.current.write(normalized);
+  }, [flushBufferedOutput]);
 
   // Store onFocus in ref for use in terminal events
   const onFocusRef = useRef(onFocus);
@@ -173,6 +193,7 @@ export function TaskTerminal({
     const handleCompositionEnd = () => {
       isComposingRef.current = false;
       terminal.options.cursorBlink = isActiveRef.current;
+      flushBufferedOutput();
     };
     terminal.textarea?.addEventListener('compositionstart', handleCompositionStart);
     terminal.textarea?.addEventListener('compositionend', handleCompositionEnd);
@@ -210,7 +231,7 @@ export function TaskTerminal({
         if (!ptyIdKnown) {
           earlyEvents.push(event.payload);
         } else if (event.payload.pty_id === ptyIdRef.current) {
-          terminal.write(fixColorSequences(event.payload.data));
+          queueOutput(event.payload.data);
         }
       });
       unlistenOutput = outputListener;
@@ -243,7 +264,7 @@ export function TaskTerminal({
       // Replay buffered events that match our ptyId
       for (const event of earlyEvents) {
         if (event.pty_id === newPtyId) {
-          terminal.write(fixColorSequences(event.data));
+          queueOutput(event.data);
         }
       }
 
