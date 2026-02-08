@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0](https://github.com/yoke233/shellflow/compare/v0.12.0...v0.13.0) (2026-02-08)
+
+
+### Features
+
+* tab rename and ui tweaks ([69793ce](https://github.com/yoke233/shellflow/commit/69793ce878bd91615bf0bfd957dfaf7e305c8958))
+
+
+### Bug Fixes
+
+* consistent shell_escape ([0ed586d](https://github.com/yoke233/shellflow/commit/0ed586d0086d80a82964dc7fb9c68a3e689effc3))
+* refresh xterm cache on font size change ([5969ecb](https://github.com/yoke233/shellflow/commit/5969ecb111fea07830f859e616419dec4240ade4))
+* windows pwsh default + cursor visibility ([3243561](https://github.com/yoke233/shellflow/commit/3243561e495080d93aac9d146e48d0b244556910))
+* windows shell override + git no window ([1ae2861](https://github.com/yoke233/shellflow/commit/1ae2861f3c7e00b29bf3cfa17308d2ee33655ebd))
+* windows shell override + silent git ([f570dd0](https://github.com/yoke233/shellflow/commit/f570dd024b894b9a34eaa168eb207200b045e88b))
+
 ## [0.12.0](https://github.com/shkm/shellflow/compare/v0.11.0...v0.12.0) (2026-01-29)
 
 
