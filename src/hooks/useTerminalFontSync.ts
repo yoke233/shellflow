@@ -19,6 +19,7 @@ export function useTerminalFontSync(
 ) {
   // Track previous font family to detect changes
   const lastFontFamilyRef = useRef<string | null>(null);
+  const lastFontSizeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -27,14 +28,17 @@ export function useTerminalFontSync(
     // Detect if this is our first sync with this terminal (ref was null) or if font changed
     const isFirstSync = lastFontFamilyRef.current === null;
     const fontFamilyChanged = !isFirstSync && lastFontFamilyRef.current !== config.fontFamily;
+    const fontSizeChanged =
+      !isFirstSync && lastFontSizeRef.current !== null && lastFontSizeRef.current !== config.fontSize;
     lastFontFamilyRef.current = config.fontFamily;
+    lastFontSizeRef.current = config.fontSize;
 
     terminal.options.fontSize = config.fontSize;
     terminal.options.fontFamily = config.fontFamily;
 
-    // Clear caches on first sync (terminal may have been created with different font)
-    // or when font family changes. This forces xterm.js to re-measure characters.
-    if (isFirstSync || fontFamilyChanged) {
+    // Clear caches on first sync, or when font family/size changes.
+    // This forces xterm.js to re-measure characters and recalc cols/rows.
+    if (isFirstSync || fontFamilyChanged || fontSizeChanged) {
       // Access xterm internals to clear the character size cache
       const core = (terminal as any)._core;
       if (core?._charSizeService) {
