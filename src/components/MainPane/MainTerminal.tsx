@@ -11,7 +11,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
-import { attachKeyboardHandlers, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
+import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import '@xterm/xterm/css/xterm.css';
@@ -77,6 +77,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
+  const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
 
@@ -157,6 +158,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       terminalRef.current.write(payload, () => {
         if (isComposingRef.current) {
           imeGuardRef.current?.pin();
+        } else {
+          cursorGuardRef.current?.update();
         }
       });
     }
@@ -296,7 +299,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
     const terminal = new Terminal({
       cursorBlink: true,
-      cursorStyle: 'block',
+      cursorStyle: 'bar',
+      cursorWidth: 1,
       cursorInactiveStyle: 'outline',
       fontSize: terminalConfig.fontSize,
       fontFamily: terminalConfig.fontFamily,
@@ -361,6 +365,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
+    const cursorGuard = createCursorVisibilityGuard(terminal, { rowTolerance: 0, minIntervalMs: 33 });
+    cursorGuardRef.current = cursorGuard;
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
@@ -376,6 +382,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
     // Attach onData handler immediately so terminal query responses work
     const onDataDisposable = terminal.onData((data) => {
+      cursorGuardRef.current?.anchor();
       writeRef.current(data);
     });
 
@@ -543,6 +550,8 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
       imeGuardRef.current = null;
+      cursorGuard.dispose();
+      cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(entityId);
       osc7Disposable?.dispose();

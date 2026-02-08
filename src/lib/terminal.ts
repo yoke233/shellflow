@@ -350,3 +350,53 @@ export function createImeGuard(terminal: Terminal): {
 
   return { lock, unlock, pin, dispose };
 }
+
+export function createCursorVisibilityGuard(
+  terminal: Terminal,
+  options?: { rowTolerance?: number; minIntervalMs?: number }
+): {
+  anchor: () => void;
+  update: () => void;
+  dispose: () => void;
+} {
+  let anchorY = terminal.buffer.active.cursorY;
+  let hasAnchor = false;
+  let hidden = false;
+  let lastUpdate = 0;
+  const rowTolerance = options?.rowTolerance ?? 0;
+  const minIntervalMs = options?.minIntervalMs ?? 33;
+
+  const setHidden = (hide: boolean) => {
+    if (hidden === hide) return;
+    hidden = hide;
+    const core = (terminal as any)._core;
+    if (core?.coreService) {
+      core.coreService.isCursorHidden = hide;
+    }
+    terminal.refresh(terminal.buffer.active.cursorY, terminal.buffer.active.cursorY);
+  };
+
+  const anchor = () => {
+    const buffer = terminal.buffer.active;
+    anchorY = buffer.cursorY;
+    hasAnchor = true;
+    setHidden(false);
+  };
+
+  const update = () => {
+    if (!hasAnchor) return;
+    const now = performance.now();
+    if (now - lastUpdate < minIntervalMs) return;
+    lastUpdate = now;
+    const buffer = terminal.buffer.active;
+    const cursorY = buffer.cursorY;
+    const away = Math.abs(cursorY - anchorY) > rowTolerance;
+    setHidden(away);
+  };
+
+  const dispose = () => {
+    setHidden(false);
+  };
+
+  return { anchor, update, dispose };
+}

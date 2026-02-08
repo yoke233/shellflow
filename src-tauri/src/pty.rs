@@ -55,6 +55,11 @@ fn find_windows_shell() -> String {
             .join("PowerShell");
         candidates.push(base.join("7").join("pwsh.exe"));
         candidates.push(base.join("7-preview").join("pwsh.exe"));
+
+        // Microsoft Store app execution alias
+        let windows_apps = std::path::Path::new(&local_app_data).join("Microsoft").join("WindowsApps");
+        candidates.push(windows_apps.join("pwsh.exe"));
+        candidates.push(windows_apps.join("powershell.exe"));
     }
 
     if let Ok(system_root) = std::env::var("SystemRoot") {

@@ -7,7 +7,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
-import { attachKeyboardHandlers, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
+import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
 import '@xterm/xterm/css/xterm.css';
@@ -73,6 +73,7 @@ export function TaskTerminal({
   const initializedRef = useRef(false);
   const isComposingRef = useRef(false);
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
+  const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
 
@@ -111,7 +112,8 @@ export function TaskTerminal({
 
     const terminal = new Terminal({
       cursorBlink: true,
-      cursorStyle: 'block',
+      cursorStyle: 'bar',
+      cursorWidth: 1,
       cursorInactiveStyle: 'outline',
       fontSize: terminalConfig.fontSize,
       fontFamily: terminalConfig.fontFamily,
@@ -169,6 +171,8 @@ export function TaskTerminal({
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
+    const cursorGuard = createCursorVisibilityGuard(terminal, { rowTolerance: 0, minIntervalMs: 33 });
+    cursorGuardRef.current = cursorGuard;
     const handleCompositionStart = () => {
       isComposingRef.current = true;
       terminal.options.cursorBlink = false;
@@ -184,6 +188,7 @@ export function TaskTerminal({
 
     // Attach onData handler
     const onDataDisposable = terminal.onData((data) => {
+      cursorGuardRef.current?.anchor();
       if (ptyIdRef.current) {
         ptyWrite(ptyIdRef.current, data);
       }
@@ -218,6 +223,8 @@ export function TaskTerminal({
           terminal.write(fixColorSequences(event.payload.data), () => {
             if (isComposingRef.current) {
               imeGuardRef.current?.pin();
+            } else {
+              cursorGuardRef.current?.update();
             }
           });
         }
@@ -255,6 +262,8 @@ export function TaskTerminal({
           terminal.write(fixColorSequences(event.data), () => {
             if (isComposingRef.current) {
               imeGuardRef.current?.pin();
+            } else {
+              cursorGuardRef.current?.update();
             }
           });
         }
@@ -283,6 +292,8 @@ export function TaskTerminal({
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
       imeGuardRef.current = null;
+      cursorGuard.dispose();
+      cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
       terminal.dispose();
