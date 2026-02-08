@@ -71,7 +71,31 @@ fn sanitize(value: Value) -> String {
 /// Escape a string for safe use in shell commands.
 fn shell_escape_filter(value: Value) -> String {
     let s = value.as_str().unwrap_or_default();
-    shell_escape::escape(s.into()).into_owned()
+    if s.is_empty() {
+        return "''".to_string();
+    }
+
+    let is_safe = s.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(c, '_' | '@' | '%' | '+' | '=' | ':' | ',' | '.' | '/' | '-')
+    });
+
+    if is_safe {
+        return s.to_string();
+    }
+
+    // POSIX-style single-quote escaping
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for ch in s.chars() {
+        if ch == '\'' {
+            out.push_str("'\"'\"'");
+        } else {
+            out.push(ch);
+        }
+    }
+    out.push('\'');
+    out
 }
 
 /// Create a minijinja environment with custom filters registered.
