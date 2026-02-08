@@ -471,7 +471,8 @@ fn spawn_main(
         None => "shell".to_string(),
     };
 
-    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows, None, None).map_err(map_err)
+    let shell_override = cfg.shell.as_deref();
+    pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows, shell_override, None).map_err(map_err)
 }
 
 #[tauri::command]
@@ -504,7 +505,9 @@ fn spawn_terminal(
         }).ok_or_else(|| format!("Worktree or project not found: {}", worktree_id))?
     };
 
-    pty::spawn_pty(&app, &state, worktree_id, &path, "shell", cols, rows, None, None).map_err(map_err)
+    let cfg = config::load_config_for_project(Some(&path));
+    let shell_override = cfg.shell.as_deref();
+    pty::spawn_pty(&app, &state, worktree_id, &path, "shell", cols, rows, shell_override, None).map_err(map_err)
 }
 
 #[tauri::command]
@@ -539,8 +542,11 @@ fn spawn_action(
     // Run through shell so shell escaping works properly
     let command = format!("{} {}", action_command, shell_escape::escape(prompt.into()));
 
-    // Get user's shell to run the command through
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    // Get user's shell to run the command through (respect config override)
+    let shell = config
+        .shell
+        .clone()
+        .unwrap_or_else(pty::get_default_shell_command);
 
     pty::spawn_pty(&app, &state, worktree_id, &worktree_path, &command, cols, rows, Some(&shell), None).map_err(map_err)
 }
@@ -766,8 +772,9 @@ fn spawn_project_shell(
         None => "shell".to_string(),
     };
 
+    let shell_override = cfg.shell.as_deref();
     // Use project_id as the "worktree_id" for PTY tracking purposes
-    pty::spawn_pty(&app, &state, project_id, &project_path, &command, cols, rows, None, None).map_err(map_err)
+    pty::spawn_pty(&app, &state, project_id, &project_path, &command, cols, rows, shell_override, None).map_err(map_err)
 }
 
 #[tauri::command]
@@ -789,11 +796,11 @@ fn spawn_scratch_terminal(
         }
     };
 
-    // Get the user's shell (scratch terminals just run a shell, no main command)
-    let shell = pty::get_default_shell_command();
+    let cfg = config::load_config_for_project(None);
+    let shell_override = cfg.shell.as_deref();
 
     // Use scratch_id as the entity ID for PTY tracking purposes
-    pty::spawn_pty(&app, &state, scratch_id, &path, &shell, cols, rows, None, None).map_err(map_err)
+    pty::spawn_pty(&app, &state, scratch_id, &path, "shell", cols, rows, shell_override, None).map_err(map_err)
 }
 
 #[tauri::command]
@@ -815,7 +822,9 @@ fn spawn_shell(
         }
     };
 
-    pty::spawn_pty(&app, &state, entity_id, &path, "shell", cols, rows, None, None).map_err(map_err)
+    let cfg = config::load_config_for_project(directory);
+    let shell_override = cfg.shell.as_deref();
+    pty::spawn_pty(&app, &state, entity_id, &path, "shell", cols, rows, shell_override, None).map_err(map_err)
 }
 
 /// Spawn a PTY running a specific command (for opening editors in drawer/tab)
@@ -830,7 +839,8 @@ fn spawn_command(
     rows: Option<u16>,
 ) -> Result<String> {
     // Run through user's shell so quoted paths and shell features work correctly
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let cfg = config::load_config_for_project(Some(directory));
+    let shell = cfg.shell.clone().unwrap_or_else(pty::get_default_shell_command);
     pty::spawn_pty(&app, &state, entity_id, directory, command, cols, rows, Some(&shell), None).map_err(map_err)
 }
 

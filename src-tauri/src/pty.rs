@@ -17,8 +17,8 @@ use std::process::Command;
 #[cfg(windows)]
 fn find_in_path(candidates: &[&str]) -> Option<String> {
     let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        for name in candidates {
+    for name in candidates {
+        for dir in std::env::split_paths(&path) {
             let full = dir.join(name);
             if full.is_file() {
                 return Some(full.to_string_lossy().to_string());
@@ -36,12 +36,22 @@ fn find_windows_shell() -> String {
     }
 
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string());
 
     if let Ok(program_files) = std::env::var("ProgramFiles") {
         let base = std::path::Path::new(&program_files).join("PowerShell");
         candidates.push(base.join("7").join("pwsh.exe"));
         candidates.push(base.join("7-preview").join("pwsh.exe"));
     }
+    // Fallback default Program Files locations (in case env vars are missing)
+    let default_program_files = format!("{}\\Program Files", system_drive);
+    let default_program_files_x86 = format!("{}\\Program Files (x86)", system_drive);
+    let default_pf_base = std::path::Path::new(&default_program_files).join("PowerShell");
+    candidates.push(default_pf_base.join("7").join("pwsh.exe"));
+    candidates.push(default_pf_base.join("7-preview").join("pwsh.exe"));
+    let default_pf_x86_base = std::path::Path::new(&default_program_files_x86).join("PowerShell");
+    candidates.push(default_pf_x86_base.join("7").join("pwsh.exe"));
+    candidates.push(default_pf_x86_base.join("7-preview").join("pwsh.exe"));
 
     if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
         let base = std::path::Path::new(&program_files_x86).join("PowerShell");
@@ -62,11 +72,10 @@ fn find_windows_shell() -> String {
         candidates.push(windows_apps.join("powershell.exe"));
     }
 
-    if let Ok(system_root) = std::env::var("SystemRoot") {
-        let system32 = std::path::Path::new(&system_root).join("System32");
-        candidates.push(system32.join("WindowsPowerShell").join("v1.0").join("powershell.exe"));
-        candidates.push(system32.join("cmd.exe"));
-    }
+    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| format!("{}\\Windows", system_drive));
+    let system32 = std::path::Path::new(&system_root).join("System32");
+    candidates.push(system32.join("WindowsPowerShell").join("v1.0").join("powershell.exe"));
+    candidates.push(system32.join("cmd.exe"));
 
     for candidate in candidates {
         if candidate.is_file() {

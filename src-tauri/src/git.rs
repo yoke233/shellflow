@@ -3,7 +3,23 @@ use crate::state::{FileChange, FileStatus};
 use git2::{BranchType, Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::process::Command;
 use thiserror::Error;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    #[cfg(windows)]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
 
 #[derive(Error, Debug)]
 pub enum GitError {
@@ -126,7 +142,6 @@ pub fn create_worktree(
     branch_name: &str,
     base_branch: &BaseBranch,
 ) -> Result<(), GitError> {
-    use std::process::Command;
 
     log::info!("[git::create_worktree] Creating worktree at {:?}", worktree_path);
 
@@ -160,7 +175,7 @@ pub fn create_worktree(
     log::info!("[git::create_worktree] Using source branch: {}", source_branch);
 
     // Use git CLI for worktree creation - handles locking properly
-    let output = Command::new("git")
+    let output = git_command()
         .args([
             "worktree",
             "add",
@@ -208,7 +223,6 @@ pub fn delete_worktree(repo_path: &Path, worktree_name: &str) -> Result<(), GitE
 
 pub fn get_changed_files(worktree_path: &Path) -> Result<Vec<FileChange>, GitError> {
     use std::collections::HashMap;
-    use std::process::Command;
 
     let repo = Repository::open(worktree_path)?;
 
@@ -216,7 +230,7 @@ pub fn get_changed_files(worktree_path: &Path) -> Result<Vec<FileChange>, GitErr
     let mut diff_stats: HashMap<String, (usize, usize)> = HashMap::new();
 
     // Unstaged changes
-    if let Ok(output) = Command::new("git")
+    if let Ok(output) = git_command()
         .args(["diff", "--numstat"])
         .current_dir(worktree_path)
         .output()
@@ -235,7 +249,7 @@ pub fn get_changed_files(worktree_path: &Path) -> Result<Vec<FileChange>, GitErr
     }
 
     // Staged changes
-    if let Ok(output) = Command::new("git")
+    if let Ok(output) = git_command()
         .args(["diff", "--cached", "--numstat"])
         .current_dir(worktree_path)
         .output()
@@ -308,7 +322,6 @@ pub fn get_changed_files(worktree_path: &Path) -> Result<Vec<FileChange>, GitErr
 
 /// Get information about the current branch relative to a base branch
 pub fn get_branch_info(worktree_path: &Path, base_branch: &BaseBranch) -> Result<crate::state::BranchInfo, GitError> {
-    use std::process::Command;
 
     let repo = Repository::open(worktree_path)?;
     let current_branch = get_current_branch(&repo)?;
@@ -319,7 +332,7 @@ pub fn get_branch_info(worktree_path: &Path, base_branch: &BaseBranch) -> Result
     let commits_ahead = if is_on_base_branch {
         0
     } else {
-        let output = Command::new("git")
+        let output = git_command()
             .args(["rev-list", "--count", &format!("{}..HEAD", base)])
             .current_dir(worktree_path)
             .output();
@@ -350,14 +363,13 @@ pub fn get_branch_changed_files(
     base_branch: &BaseBranch,
 ) -> Result<Vec<FileChange>, GitError> {
     use std::collections::HashMap;
-    use std::process::Command;
 
     let repo = Repository::open(worktree_path)?;
     let target_branch = resolve_target_branch(&repo, base_branch)?;
 
     // Get file status changes using git diff --name-status
     // Compare base branch directly to working tree (includes uncommitted changes to tracked files)
-    let output = Command::new("git")
+    let output = git_command()
         .args(["diff", "--name-status", &target_branch])
         .current_dir(worktree_path)
         .output()?;
@@ -388,7 +400,7 @@ pub fn get_branch_changed_files(
     }
 
     // Also get untracked files using git status
-    let output = Command::new("git")
+    let output = git_command()
         .args(["status", "--porcelain", "-uall"])
         .current_dir(worktree_path)
         .output()?;
@@ -410,7 +422,7 @@ pub fn get_branch_changed_files(
 
     // Get diff stats using git diff --numstat
     // Compare base branch directly to working tree
-    let output = Command::new("git")
+    let output = git_command()
         .args(["diff", "--numstat", &target_branch])
         .current_dir(worktree_path)
         .output()?;
@@ -454,9 +466,8 @@ pub fn get_file_at_ref(
     file_path: &str,
     git_ref: &str,
 ) -> Result<String, GitError> {
-    use std::process::Command;
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["show", &format!("{}:{}", git_ref, file_path)])
         .current_dir(repo_path)
         .output()?;
@@ -516,10 +527,9 @@ pub fn detect_language(file_path: &str) -> String {
 
 /// Get list of files with merge conflicts in the worktree.
 pub fn get_conflicted_files(worktree_path: &Path) -> Result<Vec<String>, GitError> {
-    use std::process::Command;
 
     // Use git diff to find unmerged files - more reliable than libgit2 status
-    let output = Command::new("git")
+    let output = git_command()
         .args(["diff", "--name-only", "--diff-filter=U"])
         .current_dir(worktree_path)
         .output()
@@ -542,9 +552,8 @@ pub fn get_conflicted_files(worktree_path: &Path) -> Result<Vec<String>, GitErro
 /// Uses `git status --ignored --porcelain` to get ignored entries.
 /// Directories are returned with a trailing slash.
 pub fn get_ignored_files(repo_path: &Path) -> Result<Vec<String>, GitError> {
-    use std::process::Command;
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["status", "--ignored", "--porcelain"])
         .current_dir(repo_path)
         .output()?;
@@ -725,7 +734,6 @@ fn count_commits_ahead_of_base(repo: &Repository, branch_name: &str, target_bran
 /// Stash uncommitted changes in a repository using git CLI.
 /// Returns a unique stash ID that can be used with `stash_pop` to restore the correct stash.
 pub fn stash_changes(repo_path: &Path) -> Result<String, GitError> {
-    use std::process::Command;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     // Generate unique stash ID using timestamp + random suffix
@@ -737,7 +745,7 @@ pub fn stash_changes(repo_path: &Path) -> Result<String, GitError> {
 
     log::info!("[stash_changes] Stashing changes in {:?} with id {}", repo_path, stash_id);
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["stash", "push", "--include-untracked", "-m", &stash_id])
         .current_dir(repo_path)
         .output()?;
@@ -757,12 +765,11 @@ pub fn stash_changes(repo_path: &Path) -> Result<String, GitError> {
 /// Pop a specific stash by its ID (message).
 /// Finds the stash with the matching message and pops it.
 pub fn stash_pop(repo_path: &Path, stash_id: &str) -> Result<(), GitError> {
-    use std::process::Command;
 
     log::info!("[stash_pop] Looking for stash with id {} in {:?}", stash_id, repo_path);
 
     // List stashes to find the one with our ID
-    let output = Command::new("git")
+    let output = git_command()
         .args(["stash", "list"])
         .current_dir(repo_path)
         .output()?;
@@ -792,7 +799,7 @@ pub fn stash_pop(repo_path: &Path, stash_id: &str) -> Result<(), GitError> {
 
     log::info!("[stash_pop] Found stash at {}, popping", stash_ref);
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["stash", "pop", &stash_ref])
         .current_dir(repo_path)
         .output()?;
@@ -815,7 +822,6 @@ pub fn merge_branch_to_target(
     worktree_path: &Path,
     repo_path: &Path,
 ) -> Result<(), GitError> {
-    use std::process::Command;
 
     // Use git CLI for merge operations as libgit2 merge is complex
     // First, get current branch name
@@ -831,7 +837,7 @@ pub fn merge_branch_to_target(
     };
 
     // Checkout target branch in main repo
-    let output = Command::new("git")
+    let output = git_command()
         .args(["checkout", &target_branch])
         .current_dir(repo_path)
         .output()?;
@@ -848,7 +854,7 @@ pub fn merge_branch_to_target(
     }
 
     // Merge the worktree branch
-    let output = Command::new("git")
+    let output = git_command()
         .args(["merge", "--no-edit", &current_branch])
         .current_dir(repo_path)
         .output()?;
@@ -867,9 +873,8 @@ pub fn merge_branch_to_target(
 
 /// Abort an in-progress merge operation
 pub fn abort_merge(repo_path: &Path) -> Result<(), GitError> {
-    use std::process::Command;
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["merge", "--abort"])
         .current_dir(repo_path)
         .output()?;
@@ -884,9 +889,8 @@ pub fn abort_merge(repo_path: &Path) -> Result<(), GitError> {
 
 /// Abort an in-progress rebase operation
 pub fn abort_rebase(repo_path: &Path) -> Result<(), GitError> {
-    use std::process::Command;
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["rebase", "--abort"])
         .current_dir(repo_path)
         .output()?;
@@ -903,14 +907,13 @@ pub fn abort_rebase(repo_path: &Path) -> Result<(), GitError> {
 pub fn rebase_branch_onto_target(
     worktree_path: &Path,
 ) -> Result<(), GitError> {
-    use std::process::Command;
 
     let repo = Repository::open(worktree_path)?;
     let target_branch = get_default_branch(&repo)?;
     drop(repo);
 
     // Rebase onto target branch
-    let output = Command::new("git")
+    let output = git_command()
         .args(["rebase", &target_branch])
         .current_dir(worktree_path)
         .output()?;
@@ -939,9 +942,8 @@ pub fn delete_local_branch(repo_path: &Path, branch_name: &str) -> Result<(), Gi
 
 /// Delete a remote branch by pushing a delete refspec
 pub fn delete_remote_branch(repo_path: &Path, branch_name: &str) -> Result<(), GitError> {
-    use std::process::Command;
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["push", "origin", "--delete", branch_name])
         .current_dir(repo_path)
         .output()?;
@@ -1017,7 +1019,6 @@ pub fn validate_branch_name(name: &str) -> Option<String> {
 
 /// Rename a git branch using `git branch -m`
 pub fn rename_branch(repo_path: &Path, old_name: &str, new_name: &str) -> Result<(), GitError> {
-    use std::process::Command;
 
     log::info!(
         "[git::rename_branch] Renaming branch '{}' to '{}' in {:?}",
@@ -1026,7 +1027,7 @@ pub fn rename_branch(repo_path: &Path, old_name: &str, new_name: &str) -> Result
         repo_path
     );
 
-    let output = Command::new("git")
+    let output = git_command()
         .args(["branch", "-m", old_name, new_name])
         .current_dir(repo_path)
         .output()?;

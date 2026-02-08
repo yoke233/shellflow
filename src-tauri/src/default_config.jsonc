@@ -48,6 +48,9 @@
     // "fileManager": "Finder"
   },
 
+  // Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+  // "shell": null,
+
   "worktree": {
     // Supports placeholder: {{ repo_directory }}
     "directory": "{{ repo_directory }}/.worktrees",

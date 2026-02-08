@@ -740,23 +740,41 @@ export function Sidebar({
         )}
       </div>
 
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          items={[
-            {
-              label: 'Close Project',
-              onClick: handleCloseProject,
-            },
-            {
-              label: 'Hide Project',
-              onClick: handleHideProject,
-            },
-          ]}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
+      {contextMenu && (() => {
+        const fileManagerCommand = getAppCommand(appsConfig.fileManager);
+        const fileManagerLabel = fileManagerCommand
+          ? `Open in ${fileManagerCommand}`
+          : 'Open in File Manager';
+
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={[
+              {
+                label: fileManagerLabel,
+                icon: <Folder size={14} />,
+                onClick: () => {
+                  invoke('open_in_file_manager', {
+                    path: contextMenu.project.path,
+                    app: fileManagerCommand ?? null,
+                  });
+                  setContextMenu(null);
+                },
+              },
+              {
+                label: 'Close Project',
+                onClick: handleCloseProject,
+              },
+              {
+                label: 'Hide Project',
+                onClick: handleHideProject,
+              },
+            ]}
+            onClose={() => setContextMenu(null)}
+          />
+        );
+      })()}
 
       {optionsMenu && (() => {
         const editorCommand = getAppCommand(appsConfig.editor);

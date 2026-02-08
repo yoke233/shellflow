@@ -167,8 +167,8 @@ describe('Sidebar', () => {
       );
 
       const projectElement = screen.getByText('Active Project');
-      // Check for selection styling (bg-theme-2 or similar)
-      expect(projectElement.closest('[class*="bg-theme"]')).toBeTruthy();
+      // Check for selection styling
+      expect(projectElement.closest('[class*="bg-sidebar-active"]')).toBeTruthy();
     });
 
     it('shows expand/collapse chevron for projects with worktrees', () => {
@@ -298,7 +298,7 @@ describe('Sidebar', () => {
       );
 
       const worktreeElement = screen.getByText('active-branch');
-      expect(worktreeElement.closest('[class*="bg-theme"]')).toBeTruthy();
+      expect(worktreeElement.closest('[class*="bg-sidebar-active"]')).toBeTruthy();
     });
 
     it('shows notification indicator for notified worktrees', () => {
@@ -450,7 +450,7 @@ describe('Sidebar', () => {
       );
 
       const scratchElement = screen.getByText('Terminal 1');
-      expect(scratchElement.closest('[class*="bg-theme"]')).toBeTruthy();
+      expect(scratchElement.closest('[class*="bg-sidebar-active"]')).toBeTruthy();
     });
 
     it('calls onSelectScratch when scratch terminal is clicked', async () => {

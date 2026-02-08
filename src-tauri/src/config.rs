@@ -25,6 +25,8 @@ pub struct RawConfig {
     pub main: MainConfig,
     pub drawer: RawDrawerConfig,
     pub apps: AppsConfig,
+    /// Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+    pub shell: Option<String>,
     pub worktree: WorktreeConfig,
     pub navigation: NavigationConfig,
     pub indicators: IndicatorsConfig,
@@ -46,6 +48,7 @@ impl Default for RawConfig {
             main: MainConfig::default(),
             drawer: RawDrawerConfig::default(),
             apps: AppsConfig::default(),
+            shell: None,
             worktree: WorktreeConfig::default(),
             navigation: NavigationConfig::default(),
             indicators: IndicatorsConfig::default(),
@@ -66,6 +69,8 @@ pub struct Config {
     pub main: MainConfig,
     pub drawer: DrawerConfig,
     pub apps: AppsConfig,
+    /// Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")
+    pub shell: Option<String>,
     pub worktree: WorktreeConfig,
     pub navigation: NavigationConfig,
     pub indicators: IndicatorsConfig,
@@ -88,6 +93,7 @@ impl Config {
             drawer: DrawerConfig::from_raw(&raw.drawer, &raw.main, raw.panes.unfocused_opacity),
             main: raw.main,
             apps: raw.apps,
+            shell: raw.shell,
             worktree: raw.worktree,
             navigation: raw.navigation,
             indicators: raw.indicators,
