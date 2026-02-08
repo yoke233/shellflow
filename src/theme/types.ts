@@ -135,6 +135,9 @@ export interface CSSThemeVariables {
   '--modal-item-highlight': string;
   '--modal-item-text': string;
   '--modal-item-text-muted': string;
+  '--modal-error-bg': string;
+  '--modal-error-border': string;
+  '--modal-error-text': string;
   '--modal-input-bg': string;
   '--modal-input-border': string;
   '--modal-footer-bg': string;

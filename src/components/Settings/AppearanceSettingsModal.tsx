@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { X } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from '../../theme';
 import type { ThemeBorderStyle } from '../../theme/types';
 import {
   Modal,
-  ModalHeader,
   ModalBody,
   ModalActions,
   ModalButton,
@@ -13,6 +14,10 @@ import {
   ModalListItem,
   ModalSearchInput,
 } from '../Modal';
+
+type SystemFontFamily = {
+  family: string;
+};
 
 const FONT_SUGGESTIONS = [
   'JetBrains Mono',
@@ -33,6 +38,18 @@ const FONT_SUGGESTIONS = [
   'Hack',
 ];
 
+const FONT_PRIORITY_KEYWORDS = [
+  'mono',
+  'monospace',
+  'monospaced',
+  'code',
+  'console',
+  'terminal',
+  'fixed',
+  'nerd',
+  'typewriter',
+];
+
 const FONT_SIZE_MIN = 10;
 const FONT_SIZE_MAX = 24;
 
@@ -51,6 +68,32 @@ function normalizeFontFamily(input: string): string {
   const trimmed = input.trim();
   const key = trimmed.toLowerCase();
   return FONT_ALIAS_MAP[key] ?? trimmed;
+}
+
+function isPreferredFont(name: string): boolean {
+  const lower = name.toLowerCase();
+  return FONT_PRIORITY_KEYWORDS.some((keyword) => lower.includes(keyword));
+}
+
+function sortFontFamilies(fonts: string[]): string[] {
+  const unique = new Map<string, string>();
+  for (const font of fonts) {
+    const trimmed = font.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (!unique.has(key)) {
+      unique.set(key, trimmed);
+    }
+  }
+
+  const list = Array.from(unique.values());
+  list.sort((a, b) => {
+    const aPreferred = isPreferredFont(a) ? 0 : 1;
+    const bPreferred = isPreferredFont(b) ? 0 : 1;
+    if (aPreferred !== bPreferred) return aPreferred - bPreferred;
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+  });
+  return list;
 }
 
 export type FontSettingsPatch = {
@@ -85,8 +128,27 @@ export function AppearanceSettingsModal({
   const [query, setQuery] = useState('');
   const [fontFamilyInput, setFontFamilyInput] = useState(fontFamily);
   const [fontSizeInput, setFontSizeInput] = useState(fontSize);
+  const [systemFonts, setSystemFonts] = useState<string[]>([]);
+  const [showAllFonts, setShowAllFonts] = useState(false);
 
   const { availableThemes, currentThemeName, colorScheme, setTheme } = useTheme();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const fonts = await invoke<SystemFontFamily[]>('list_system_fonts');
+        if (cancelled) return;
+        const families = fonts.map((font) => font.family);
+        setSystemFonts(families);
+      } catch (err) {
+        console.warn('Failed to load system fonts:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setFontFamilyInput(fontFamily);
@@ -102,6 +164,14 @@ export function AppearanceSettingsModal({
     const lowerQuery = query.toLowerCase();
     return availableThemes.filter((theme) => theme.name.toLowerCase().includes(lowerQuery));
   }, [availableThemes, query]);
+
+  const fontSuggestions = useMemo(() => {
+    const baseFonts = systemFonts.length > 0 ? systemFonts : FONT_SUGGESTIONS;
+    const sorted = sortFontFamilies(baseFonts);
+    if (showAllFonts) return sorted;
+    const preferred = sorted.filter((font) => isPreferredFont(font));
+    return preferred.length > 0 ? preferred : sorted;
+  }, [systemFonts, showAllFonts]);
 
   const handleSelectTheme = useCallback((themeName: string) => {
     setTheme(themeName);
@@ -156,8 +226,25 @@ export function AppearanceSettingsModal({
   };
 
   return (
-    <Modal onClose={onClose} onModalOpen={onModalOpen} onModalClose={onModalClose} widthClass="max-w-lg">
-      <ModalHeader>Appearance</ModalHeader>
+    <Modal
+      onClose={onClose}
+      onModalOpen={onModalOpen}
+      onModalClose={onModalClose}
+      widthClass="max-w-2xl"
+      closeOnBackdrop={false}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--modal-item-text)' }}>
+          Appearance
+        </h2>
+        <button
+          onClick={onClose}
+          className="modal-toggle p-1 rounded"
+          aria-label="Close"
+        >
+          <X size={14} />
+        </button>
+      </div>
 
       <ModalBody>
         <div className="space-y-5">
@@ -257,9 +344,20 @@ export function AppearanceSettingsModal({
             </label>
             <div className="space-y-3">
               <div>
-                <label className="block text-[12px] mb-1" style={{ color: 'var(--modal-item-text-muted)' }}>
-                  Font family
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[12px] mb-1" style={{ color: 'var(--modal-item-text-muted)' }}>
+                    Font family
+                  </label>
+                  <label className="flex items-center gap-2 text-[11px] cursor-pointer mb-1" style={{ color: 'var(--modal-item-text-muted)' }}>
+                    <input
+                      type="checkbox"
+                      checked={showAllFonts}
+                      onChange={(e) => setShowAllFonts(e.target.checked)}
+                      className="rounded border-theme-1 bg-theme-3/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-theme-2"
+                    />
+                    Show all fonts
+                  </label>
+                </div>
                 <input
                   list="font-suggestions"
                   value={fontFamilyInput}
@@ -276,7 +374,7 @@ export function AppearanceSettingsModal({
                   placeholder="e.g. JetBrains Mono, Fira Code"
                 />
                 <datalist id="font-suggestions">
-                  {FONT_SUGGESTIONS.map((font) => (
+                  {fontSuggestions.map((font) => (
                     <option key={font} value={font} />
                   ))}
                 </datalist>

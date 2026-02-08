@@ -29,6 +29,8 @@ interface MainPaneProps {
   onAddSessionTab: () => void;
   onReorderSessionTabs: (oldIndex: number, newIndex: number) => void;
   onRenameSessionTab: (tabId: string, label: string) => void;
+  newTabShortcut?: string | null;
+  commandPaletteShortcut?: string | null;
 
   // Common props
   terminalConfig: TerminalConfig;
@@ -299,6 +301,8 @@ export const MainPane = memo(function MainPane({
   onAddSessionTab,
   onReorderSessionTabs,
   onRenameSessionTab,
+  newTabShortcut,
+  commandPaletteShortcut,
   terminalConfig,
   editorConfig,
   activityTimeout,
@@ -689,9 +693,17 @@ export const MainPane = memo(function MainPane({
             <Keyboard size={18} className="text-theme-3 mt-0.5 flex-shrink-0" />
             <div>
               <span className="text-theme-1">Use keyboard shortcuts</span>
-              <span className="text-theme-3"> — press </span>
-              <kbd className="px-1.5 py-0.5 bg-theme-2 rounded text-theme-2 text-xs font-mono">⌘⇧P</kbd>
-              <span className="text-theme-3"> for the command palette</span>
+              {commandPaletteShortcut ? (
+                <>
+                  <span className="text-theme-3"> — press </span>
+                  <kbd className="px-1.5 py-0.5 bg-theme-2 rounded text-theme-2 text-xs font-mono">
+                    {commandPaletteShortcut}
+                  </kbd>
+                  <span className="text-theme-3"> for the command palette</span>
+                </>
+              ) : (
+                <span className="text-theme-3"> — open the command palette</span>
+              )}
             </div>
           </div>
         </div>
@@ -715,6 +727,7 @@ export const MainPane = memo(function MainPane({
         onAddTab={onAddSessionTab}
         onReorderTabs={onReorderSessionTabs}
         onRenameTab={onRenameSessionTab}
+        newTabShortcut={newTabShortcut}
       />
 
       {/* Terminal container - render ALL terminals for ALL sessions to keep them alive */}

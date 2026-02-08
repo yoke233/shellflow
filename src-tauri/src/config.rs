@@ -25,6 +25,7 @@ pub struct RawConfig {
     pub main: MainConfig,
     pub drawer: RawDrawerConfig,
     pub apps: AppsConfig,
+    pub commit: CommitConfig,
     /// Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")
     pub shell: Option<String>,
     pub worktree: WorktreeConfig,
@@ -48,6 +49,7 @@ impl Default for RawConfig {
             main: MainConfig::default(),
             drawer: RawDrawerConfig::default(),
             apps: AppsConfig::default(),
+            commit: CommitConfig::default(),
             shell: None,
             worktree: WorktreeConfig::default(),
             navigation: NavigationConfig::default(),
@@ -69,6 +71,7 @@ pub struct Config {
     pub main: MainConfig,
     pub drawer: DrawerConfig,
     pub apps: AppsConfig,
+    pub commit: CommitConfig,
     /// Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")
     pub shell: Option<String>,
     pub worktree: WorktreeConfig,
@@ -93,6 +96,7 @@ impl Config {
             drawer: DrawerConfig::from_raw(&raw.drawer, &raw.main, raw.panes.unfocused_opacity),
             main: raw.main,
             apps: raw.apps,
+            commit: raw.commit,
             shell: raw.shell,
             worktree: raw.worktree,
             navigation: raw.navigation,
@@ -597,6 +601,48 @@ pub struct AppsConfig {
     /// File manager app configuration. If omitted, uses platform defaults.
     #[serde(rename = "fileManager")]
     pub file_manager: Option<AppConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CommitConfig {
+    pub ai: CommitAiConfig,
+}
+
+impl Default for CommitConfig {
+    fn default() -> Self {
+        Self { ai: CommitAiConfig::default() }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CommitAiConfig {
+    #[serde(rename = "baseUrl")]
+    pub base_url: String,
+    #[serde(rename = "apiKey")]
+    pub api_key: String,
+    pub model: String,
+    pub prompt: String,
+    pub temperature: f32,
+    #[serde(rename = "maxTokens")]
+    pub max_tokens: u32,
+    #[serde(rename = "timeoutMs")]
+    pub timeout_ms: u64,
+}
+
+impl Default for CommitAiConfig {
+    fn default() -> Self {
+        Self {
+            base_url: "https://api.openai.com/v1".to_string(),
+            api_key: "".to_string(),
+            model: "gpt-4o-mini".to_string(),
+            prompt: "Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}".to_string(),
+            temperature: 0.2,
+            max_tokens: 120,
+            timeout_ms: 15_000,
+        }
+    }
 }
 
 #[allow(dead_code)] // Used only in tests

@@ -103,6 +103,60 @@
       },
       "additionalProperties": false
     },
+    "commit": {
+      "type": "object",
+      "description": "Commit message generation (OpenAI compatible)",
+      "properties": {
+        "ai": {
+          "type": "object",
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "description": "OpenAI-compatible API base URL",
+              "default": "https://api.openai.com/v1"
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "API key for the provider",
+              "default": ""
+            },
+            "model": {
+              "type": "string",
+              "description": "Model name to use for commit message generation",
+              "default": "gpt-4o-mini"
+            },
+            "prompt": {
+              "type": "string",
+              "description": "Prompt template for commit generation. Variables: {{ diff }}, {{ files }}, {{ branch }}, {{ repo }}",
+              "default": "Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}"
+            },
+            "temperature": {
+              "type": "number",
+              "description": "Sampling temperature",
+              "minimum": 0,
+              "maximum": 2,
+              "default": 0.2
+            },
+            "maxTokens": {
+              "type": "integer",
+              "description": "Maximum tokens to generate",
+              "minimum": 1,
+              "default": 120
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "description": "Request timeout in milliseconds",
+              "minimum": 1000,
+              "default": 15000
+            }
+          },
+          "required": ["baseUrl", "apiKey", "model", "prompt"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["ai"],
+      "additionalProperties": false
+    },
     "shell": {
       "type": ["string", "null"],
       "description": "Override the default shell for all terminals (e.g., \"C:\\\\Program Files\\\\PowerShell\\\\7\\\\pwsh.exe\")",

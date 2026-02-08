@@ -34,6 +34,17 @@ export const defaultTestConfig = {
   navigation: {},
   indicators: { activityTimeout: 5000, showIdleCheck: true },
   apps: { terminal: 'Terminal', editor: 'VS Code' },
+  commit: {
+    ai: {
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: 'gpt-4o-mini',
+      prompt: 'Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}',
+      temperature: 0.2,
+      maxTokens: 120,
+      timeoutMs: 15000,
+    },
+  },
   tasks: [],
   actions: { mergeWorktreeWithConflicts: '' },
   scratch: { startOnLaunch: true },

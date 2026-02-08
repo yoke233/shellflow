@@ -81,6 +81,20 @@ export interface AppsConfig {
   fileManager?: AppConfig;
 }
 
+export interface CommitAiConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  prompt: string;
+  temperature: number;
+  maxTokens: number;
+  timeoutMs: number;
+}
+
+export interface CommitConfig {
+  ai: CommitAiConfig;
+}
+
 /** Helper to get the command from an AppConfig */
 export function getAppCommand(config: AppConfig | undefined): string | undefined {
   if (!config) return undefined;
@@ -122,6 +136,7 @@ export interface Config {
   main: MainConfig;
   drawer: DrawerConfig;
   apps: AppsConfig;
+  commit: CommitConfig;
   navigation: NavigationConfig;
   indicators: IndicatorsConfig;
   tasks: TaskConfig[];
@@ -165,6 +180,17 @@ const defaultConfig: Config = {
   },
   apps: {
     // No defaults - will use platform defaults
+  },
+  commit: {
+    ai: {
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: 'gpt-4o-mini',
+      prompt: 'Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}',
+      temperature: 0.2,
+      maxTokens: 120,
+      timeoutMs: 15000,
+    },
   },
   navigation: {},
   indicators: {

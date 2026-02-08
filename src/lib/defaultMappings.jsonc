@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/mappings.schema.json",
+  "$schema": "https://raw.githubusercontent.com/yoke233/shellflow/main/schemas/mappings.schema.json",
   // Shellflow Default Key Mappings
   // https://github.com/shkm/shellflow/blob/main/src/lib/defaultMappings.jsonc
   //

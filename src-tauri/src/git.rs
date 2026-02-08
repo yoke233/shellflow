@@ -3,7 +3,8 @@ use crate::state::{FileChange, FileStatus};
 use git2::{BranchType, Repository, Status, StatusOptions};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::io::Write;
 use thiserror::Error;
 
 #[cfg(windows)]
@@ -33,6 +34,163 @@ pub enum GitError {
     BranchNotFound(String),
     #[error("Repository has uncommitted changes")]
     UncommittedChanges,
+}
+
+pub fn stage_all(repo_path: &Path) -> Result<(), GitError> {
+    let output = git_command()
+        .args(["add", "-A"])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git add failed: {}", stderr),
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn diff_cached(repo_path: &Path) -> Result<String, GitError> {
+    let output = git_command()
+        .args(["diff", "--cached"])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git diff --cached failed: {}", stderr),
+        )));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub fn diff_cached_files(repo_path: &Path) -> Result<Vec<String>, GitError> {
+    let output = git_command()
+        .args(["diff", "--cached", "--name-only"])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git diff --cached --name-only failed: {}", stderr),
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(stdout
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect())
+}
+
+pub fn commit_staged(repo_path: &Path, message: &str) -> Result<(), GitError> {
+    if message.trim().is_empty() {
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Commit message cannot be empty",
+        )));
+    }
+
+    let mut cmd = git_command();
+    cmd.args(["commit", "-F", "-"])
+        .current_dir(repo_path)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd.spawn()?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin.write_all(message.as_bytes())?;
+    }
+
+    let output = child.wait_with_output()?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git commit failed: {}", stderr),
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn create_branch(repo_path: &Path, branch_name: &str) -> Result<(), GitError> {
+    let output = git_command()
+        .args(["checkout", "-b", branch_name])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git checkout -b failed: {}", stderr),
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn push_current_branch(repo_path: &Path) -> Result<(), GitError> {
+    let repo = Repository::open(repo_path)?;
+    let branch = get_current_branch(&repo)?;
+
+    let upstream_check = git_command()
+        .args(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .current_dir(repo_path)
+        .output()?;
+
+    let output = if upstream_check.status.success() {
+        git_command()
+            .args(["push"])
+            .current_dir(repo_path)
+            .output()?
+    } else {
+        git_command()
+            .args(["push", "-u", "origin", &branch])
+            .current_dir(repo_path)
+            .output()?
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git push failed: {}", stderr),
+        )));
+    }
+
+    Ok(())
+}
+
+pub fn push_default_branch(repo_path: &Path) -> Result<(), GitError> {
+    let repo = Repository::open(repo_path)?;
+    let branch = get_default_branch(&repo)?;
+
+    let output = git_command()
+        .args(["push", "origin", &branch])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git push origin {} failed: {}", branch, stderr),
+        )));
+    }
+
+    Ok(())
 }
 
 /// Result of checking merge feasibility

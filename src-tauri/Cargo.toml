@@ -39,6 +39,7 @@ minijinja = "2"
 log = "0.4"
 tauri-plugin-log = "2"
 shell-escape = "0.1"
+fontdb = "0.16"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

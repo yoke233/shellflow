@@ -361,8 +361,26 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     const handleTerminalBlur = () => {
       unregisterActiveTerminal(copyPasteFns);
     };
+    const handleTerminalContextMenu = (event: MouseEvent) => {
+      if (terminal.hasSelection()) {
+        event.preventDefault();
+        copyPasteFns.copy();
+        return;
+      }
+
+      const textarea = terminal.textarea;
+      const target = event.target as Node | null;
+      const isInputTarget = !!textarea && !!target && (target === textarea || textarea.contains(target));
+      const isInputFocused = !!textarea && document.activeElement === textarea;
+
+      if (isInputTarget || isInputFocused) {
+        event.preventDefault();
+        copyPasteFns.paste();
+      }
+    };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    terminal.element?.addEventListener('contextmenu', handleTerminalContextMenu);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
     const cursorGuard = createCursorVisibilityGuard(terminal, { rowTolerance: 0, minIntervalMs: 33 });
@@ -546,6 +564,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.element?.removeEventListener('contextmenu', handleTerminalContextMenu);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();

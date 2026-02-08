@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/shkm/shellflow/main/schemas/config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/yoke233/shellflow/main/schemas/config.schema.json",
   // Shellflow Default Configuration
   // https://github.com/shkm/shellflow/blob/main/src-tauri/src/default_config.jsonc
 
@@ -46,6 +46,19 @@
     // "editor": { "command": "zed", "target": "external" },
     // "editor": { "command": "nvim", "target": "drawer" },
     // "fileManager": "Finder"
+  },
+
+  // Commit message generation (OpenAI compatible)
+  "commit": {
+    "ai": {
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKey": "",
+      "model": "gpt-4o-mini",
+      "prompt": "Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}",
+      "temperature": 0.2,
+      "maxTokens": 120,
+      "timeoutMs": 15000
+    }
   },
 
   // Override the default shell for all terminals (e.g., "C:\\Program Files\\PowerShell\\7\\pwsh.exe")

@@ -13,8 +13,8 @@ interface ChangedFilesProps {
   selectedFile?: string | null;
   /** Callback to open the diff view */
   onOpenDiff?: () => void;
-  /** Count of running main-pane tabs */
-  runningTabCount?: number;
+  /** Shortcut hint for opening the diff view */
+  openDiffShortcut?: string | null;
 }
 
 const statusConfig: Record<FileChange['status'], { color: string; label: string }> = {
@@ -35,8 +35,9 @@ export function ChangedFiles({
   onFileClick,
   selectedFile,
   onOpenDiff,
-  runningTabCount = 0,
+  openDiffShortcut,
 }: ChangedFilesProps) {
+  const diffShortcut = openDiffShortcut ?? 'Ctrl+Shift+D';
   // Calculate total insertions and deletions
   const totals = files.reduce(
     (acc, file) => ({
@@ -88,7 +89,7 @@ export function ChangedFiles({
             <button
               onClick={onOpenDiff}
               className="p-1 rounded text-theme-2 hover:bg-theme-2 hover:text-theme-1"
-              title="Open Diff View (Cmd+Shift+D)"
+              title={`Open Diff View (${diffShortcut})`}
               data-testid="open-diff-button"
             >
               <FileDiff className="w-3.5 h-3.5" />
@@ -101,17 +102,6 @@ export function ChangedFiles({
           {files.length} {files.length === 1 ? 'file' : 'files'}
         </span>
         <div className="flex items-center gap-2">
-          <span
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${
-              runningTabCount > 0
-                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300'
-                : 'border-theme-0/60 text-theme-3'
-            }`}
-            title="Running tabs"
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${runningTabCount > 0 ? 'bg-emerald-400' : 'bg-theme-3'}`} />
-            Tabs {runningTabCount}
-          </span>
           {hasChanges && (
             <span className="text-xs font-mono">
               <span className="text-green-400">+{totals.insertions}</span>

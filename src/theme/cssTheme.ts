@@ -90,6 +90,9 @@ const DEFAULT_DARK_CSS: CSSThemeVariables = {
   '--modal-item-highlight': 'rgba(255, 255, 255, 0.08)',
   '--modal-item-text': 'rgba(255, 255, 255, 0.9)',
   '--modal-item-text-muted': 'rgba(255, 255, 255, 0.5)',
+  '--modal-error-bg': 'rgba(239, 68, 68, 0.16)',
+  '--modal-error-border': 'rgba(239, 68, 68, 0.4)',
+  '--modal-error-text': 'rgba(254, 202, 202, 0.95)',
   '--modal-input-bg': 'rgba(0, 0, 0, 0.25)',
   '--modal-input-border': 'rgba(255, 255, 255, 0.1)',
   '--modal-footer-bg': 'rgba(0, 0, 0, 0.15)',
@@ -178,6 +181,9 @@ const DEFAULT_LIGHT_CSS: CSSThemeVariables = {
   '--modal-item-highlight': 'rgba(0, 0, 0, 0.05)',
   '--modal-item-text': 'rgba(0, 0, 0, 0.9)',
   '--modal-item-text-muted': 'rgba(0, 0, 0, 0.5)',
+  '--modal-error-bg': 'rgba(220, 38, 38, 0.12)',
+  '--modal-error-border': 'rgba(220, 38, 38, 0.35)',
+  '--modal-error-text': 'rgba(185, 28, 28, 0.95)',
   '--modal-input-bg': 'rgba(0, 0, 0, 0.05)',
   '--modal-input-border': 'rgba(0, 0, 0, 0.15)',
   '--modal-footer-bg': 'rgba(0, 0, 0, 0.03)',
@@ -425,6 +431,13 @@ export function convertToCSSVariables(
   }
   if (colors['notificationsErrorIcon.foreground']) {
     result['--error'] = colors['notificationsErrorIcon.foreground'];
+  }
+
+  const errorColor = result['--error'];
+  if (errorColor) {
+    result['--modal-error-text'] = errorColor;
+    result['--modal-error-bg'] = hexToRgba(errorColor, themeType === 'light' ? 0.12 : 0.16);
+    result['--modal-error-border'] = hexToRgba(errorColor, themeType === 'light' ? 0.35 : 0.4);
   }
 
   return result;

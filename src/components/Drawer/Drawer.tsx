@@ -55,6 +55,7 @@ interface DrawerProps {
   onAddTab: () => void;
   onToggleExpand: () => void;
   onReorderTabs: (oldIndex: number, newIndex: number) => void;
+  newTabShortcut?: string | null;
   children?: ReactNode;
 }
 
@@ -71,6 +72,7 @@ export function Drawer({
   onAddTab,
   onToggleExpand,
   onReorderTabs,
+  newTabShortcut,
   children,
 }: DrawerProps) {
   const sensors = useSensors(
@@ -200,7 +202,7 @@ export function Drawer({
             <button
               onClick={onAddTab}
               className="p-2 text-theme-3 hover:text-theme-1 hover:bg-theme-2"
-              title="New terminal (Cmd+T)"
+              title={newTabShortcut ? `New terminal (${newTabShortcut})` : 'New terminal'}
             >
               <Plus size={16} />
             </button>

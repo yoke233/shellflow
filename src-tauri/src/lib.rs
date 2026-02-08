@@ -33,6 +33,88 @@ fn log_to_terminal(level: &str, message: &str) {
     println!("[{}] {}", level, message);
 }
 
+#[derive(Serialize)]
+struct SystemFontFamily {
+    family: String,
+}
+
+#[tauri::command]
+fn list_system_fonts() -> Result<Vec<SystemFontFamily>> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+
+    let mut families: HashMap<String, ()> = HashMap::new();
+    for face in db.faces() {
+        if let Some((family, _)) = face.families.first() {
+            families.entry(family.clone()).or_insert(());
+        }
+    }
+
+    let mut list: Vec<SystemFontFamily> = families
+        .into_iter()
+        .map(|(family, _)| SystemFontFamily { family })
+        .collect();
+    list.sort_by(|a, b| a.family.to_lowercase().cmp(&b.family.to_lowercase()));
+    Ok(list)
+}
+
+#[tauri::command]
+fn git_stage_all(repo_path: &str) -> Result<()> {
+    git::stage_all(Path::new(repo_path)).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_diff_cached(repo_path: &str) -> Result<String> {
+    git::diff_cached(Path::new(repo_path)).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_diff_cached_files(repo_path: &str) -> Result<Vec<String>> {
+    git::diff_cached_files(Path::new(repo_path)).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_commit(repo_path: &str, message: &str) -> Result<()> {
+    git::commit_staged(Path::new(repo_path), message).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_current_branch(repo_path: &str) -> Result<String> {
+    let repo = git2::Repository::open(repo_path).map_err(map_err)?;
+    git::get_current_branch(&repo).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_branch_exists(repo_path: &str, branch: &str) -> Result<bool> {
+    git::branch_exists(Path::new(repo_path), branch).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_create_branch(repo_path: &str, branch: &str) -> Result<()> {
+    if let Some(error) = git::validate_branch_name(branch) {
+        return Err(error);
+    }
+    if git::branch_exists(Path::new(repo_path), branch).map_err(map_err)? {
+        return Err(format!("Branch '{}' already exists", branch));
+    }
+    git::create_branch(Path::new(repo_path), branch).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_push_current_branch(repo_path: &str) -> Result<()> {
+    git::push_current_branch(Path::new(repo_path)).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_merge_to_main(worktree_path: &str, repo_path: &str) -> Result<()> {
+    git::merge_branch_to_target(Path::new(worktree_path), Path::new(repo_path)).map_err(map_err)
+}
+
+#[tauri::command]
+fn git_push_default_branch(repo_path: &str) -> Result<()> {
+    git::push_default_branch(Path::new(repo_path)).map_err(map_err)
+}
+
 // Project commands
 #[tauri::command]
 fn add_project(state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
@@ -1495,7 +1577,14 @@ fn substitute_path_template(command: &str, path: &str) -> String {
     }
 }
 
+/// Escape a path for shell use.
+#[cfg(windows)]
+fn shell_escape(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
 /// Escape a path for shell use (wrap in single quotes, escape existing quotes).
+#[cfg(not(windows))]
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace("'", "'\\''"))
 }
@@ -1971,6 +2060,17 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             log_to_terminal,
+            list_system_fonts,
+            git_stage_all,
+            git_diff_cached,
+            git_diff_cached_files,
+            git_commit,
+            git_current_branch,
+            git_branch_exists,
+            git_create_branch,
+            git_push_current_branch,
+            git_merge_to_main,
+            git_push_default_branch,
             add_project,
             list_projects,
             hide_project,

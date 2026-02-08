@@ -361,7 +361,14 @@ describe('ChangedFiles', () => {
   describe('open diff button', () => {
     it('shows diff button when files exist and onOpenDiff is provided', () => {
       const files: FileChange[] = [{ path: 'src/app.ts', status: 'modified' }];
-      render(<ChangedFiles files={files} showModeToggle={true} onOpenDiff={vi.fn()} />);
+      render(
+        <ChangedFiles
+          files={files}
+          showModeToggle={true}
+          onOpenDiff={vi.fn()}
+          openDiffShortcut="Ctrl+Shift+D"
+        />
+      );
 
       expect(screen.getByTestId('open-diff-button')).toBeInTheDocument();
     });
@@ -402,7 +409,7 @@ describe('ChangedFiles', () => {
       render(<ChangedFiles files={files} showModeToggle={true} onOpenDiff={vi.fn()} />);
 
       const button = screen.getByTestId('open-diff-button');
-      expect(button.title).toContain('Cmd+Shift+D');
+      expect(button.title).toContain('Ctrl+Shift+D');
     });
   });
 });

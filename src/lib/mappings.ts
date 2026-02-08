@@ -16,6 +16,7 @@ import { parseContextExpr, matchesContext, type ParsedContextExpr } from './cont
  */
 export type ActionNamespace =
   | 'app'
+  | 'git'
   | 'drawer'
   | 'session'
   | 'scratch'
@@ -166,27 +167,44 @@ export function resolveBinding(
 ): ResolvedBinding | null {
   const normalizedKey = normalizeKey(key);
 
-  // Search in reverse order (later bindings take precedence)
-  for (let i = mappings.groups.length - 1; i >= 0; i--) {
-    const group = mappings.groups[i];
+  const resolveWithKey = (keyToFind: string): ResolvedBinding | null => {
+    // Search in reverse order (later bindings take precedence)
+    for (let i = mappings.groups.length - 1; i >= 0; i--) {
+      const group = mappings.groups[i];
 
-    // Check if context matches (null context = always matches)
-    if (group.context && !matchesContext(group.context, contexts)) {
-      continue;
+      // Check if context matches (null context = always matches)
+      if (group.context && !matchesContext(group.context, contexts)) {
+        continue;
+      }
+
+      // Check if this group has a binding for the key
+      const action = group.bindings.get(keyToFind);
+      if (action) {
+        // Parse action into ID and args
+        const [actionId, ...args] = Array.isArray(action) ? action : [action];
+
+        return {
+          action,
+          actionId: actionId as ActionId,
+          args,
+          context: group.context?.source ?? null,
+        };
+      }
     }
 
-    // Check if this group has a binding for the key
-    const action = group.bindings.get(normalizedKey);
-    if (action) {
-      // Parse action into ID and args
-      const [actionId, ...args] = Array.isArray(action) ? action : [action];
+    return null;
+  };
 
-      return {
-        action,
-        actionId: actionId as ActionId,
-        args,
-        context: group.context?.source ?? null,
-      };
+  const directMatch = resolveWithKey(normalizedKey);
+  if (directMatch) return directMatch;
+
+  if (!isMac) {
+    const parts = normalizedKey.split('-');
+    if (parts.includes('ctrl') && !parts.includes('cmd')) {
+      const aliasKey = parts.map((part) => (part === 'ctrl' ? 'cmd' : part)).join('-');
+      if (aliasKey !== normalizedKey) {
+        return resolveWithKey(aliasKey);
+      }
     }
   }
 

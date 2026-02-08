@@ -19,6 +19,7 @@ describe('SessionTabBar', () => {
     onAddTab: vi.fn(),
     onReorderTabs: vi.fn(),
     onRenameTab: vi.fn(),
+    newTabShortcut: 'Ctrl+T',
   };
 
   beforeEach(() => {
@@ -73,7 +74,7 @@ describe('SessionTabBar', () => {
       render(<SessionTabBar {...defaultProps} tabs={tabs} activeTabId="tab-1" />);
 
       // Find button by title
-      expect(screen.getByTitle('New tab (Cmd+T)')).toBeInTheDocument();
+      expect(screen.getByTitle('New tab (Ctrl+T)')).toBeInTheDocument();
     });
 
     it('renders add tab button before tab labels in the DOM', () => {
@@ -83,7 +84,7 @@ describe('SessionTabBar', () => {
       ];
       render(<SessionTabBar {...defaultProps} tabs={tabs} activeTabId="tab-1" />);
 
-      const addButton = screen.getByTitle('New tab (Cmd+T)');
+      const addButton = screen.getByTitle('New tab (Ctrl+T)');
       const firstTabLabel = screen.getByText('Terminal 1');
 
       const position = addButton.compareDocumentPosition(firstTabLabel);
@@ -155,7 +156,7 @@ describe('SessionTabBar', () => {
         />
       );
 
-      fireEvent.click(screen.getByTitle('New tab (Cmd+T)'));
+      fireEvent.click(screen.getByTitle('New tab (Ctrl+T)'));
       expect(onAddTab).toHaveBeenCalled();
     });
   });

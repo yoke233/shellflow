@@ -25,11 +25,44 @@ function getMonacoBase(vscodeType?: string): 'vs' | 'vs-dark' | 'hc-black' | 'hc
 }
 
 /**
- * Remove # prefix from hex color for Monaco rules.
+ * Normalize a color value into a Monaco-compatible hex string (no leading #).
+ * Monaco token colors must be 6 or 8 hex digits; 3/4-digit forms are expanded.
  */
-function stripHash(color: string | undefined): string | undefined {
+function normalizeTokenColor(color: string | undefined): string | undefined {
   if (!color) return undefined;
-  return color.startsWith('#') ? color.slice(1) : color;
+  const trimmed = color.trim();
+  if (trimmed.length === 0) return undefined;
+
+  let hex = trimmed.startsWith('#') ? trimmed.slice(1) : trimmed;
+  if (hex.startsWith('0x') || hex.startsWith('0X')) {
+    hex = hex.slice(2);
+  }
+
+  if (!/^[0-9a-fA-F]+$/.test(hex)) return undefined;
+
+  if (hex.length === 3 || hex.length === 4) {
+    hex = hex
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+
+  if (hex.length !== 6 && hex.length !== 8) return undefined;
+
+  return hex;
+}
+
+/**
+ * Normalize a theme color value for Monaco colors map (requires leading #).
+ */
+function normalizeThemeColor(color: string | undefined): string | undefined {
+  if (!color) return undefined;
+  const trimmed = color.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.toLowerCase() === 'transparent') return '#00000000';
+
+  const hex = normalizeTokenColor(trimmed);
+  return hex ? `#${hex}` : undefined;
 }
 
 /**
@@ -60,10 +93,16 @@ function convertTokenColors(tokenColors: VSCodeTokenColor[]): MonacoTokenRule[] 
       };
 
       if (settings.foreground) {
-        rule.foreground = stripHash(settings.foreground);
+        const foreground = normalizeTokenColor(settings.foreground);
+        if (foreground) {
+          rule.foreground = foreground;
+        }
       }
       if (settings.background) {
-        rule.background = stripHash(settings.background);
+        const background = normalizeTokenColor(settings.background);
+        if (background) {
+          rule.background = background;
+        }
       }
       if (settings.fontStyle) {
         rule.fontStyle = settings.fontStyle;
@@ -86,8 +125,11 @@ function convertColors(colors: Record<string, string> | undefined): Record<strin
   const result: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(colors)) {
-    // Monaco uses the same color keys as VSCode
-    result[key] = value;
+    const normalized = normalizeThemeColor(value);
+    if (normalized) {
+      // Monaco uses the same color keys as VSCode
+      result[key] = normalized;
+    }
   }
 
   return result;

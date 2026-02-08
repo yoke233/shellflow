@@ -25,6 +25,7 @@ export type ActionId =
   | 'app::helpDocs'
   | 'app::helpReportIssue'
   | 'app::helpReleaseNotes'
+  | 'git::commit'
   // Palette actions
   | 'palette::toggle'
   | 'palette::projectSwitcher'
@@ -123,6 +124,7 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
   'app::helpDocs': () => true,
   'app::helpReportIssue': () => true,
   'app::helpReleaseNotes': () => true,
+  'git::commit': (ctx) => !!ctx.activeWorktreeId || (!!ctx.activeProjectId && !ctx.activeScratchId),
 
   // Palette actions
   'palette::toggle': () => true,
@@ -252,6 +254,7 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
   'app::helpDocs': { label: 'Help', category: 'Help', showInPalette: true },
   'app::helpReportIssue': { label: 'Report Issue', category: 'Help', showInPalette: true },
   'app::helpReleaseNotes': { label: 'Release Notes', category: 'Help', showInPalette: true },
+  'git::commit': { label: 'Commit Changes', category: 'File', showInPalette: true },
 
   // Palette actions
   'palette::toggle': { label: 'Command Palette', category: 'View', showInPalette: false },

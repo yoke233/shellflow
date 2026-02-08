@@ -59,6 +59,7 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   onMergeWorktree: vi.fn(),
   onToggleDrawer: vi.fn(),
   onToggleRightPanel: vi.fn(),
+  onOpenCommitModal: vi.fn(),
   onSelectTask: vi.fn(),
   onStartTask: vi.fn(),
   onStopTask: vi.fn(),

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { DiffEditor, loader } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { getFileDiffContent } from '../../lib/tauri';
@@ -29,18 +29,39 @@ export function DiffViewer({
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'split' | 'unified'>('split');
   const [themeRegistered, setThemeRegistered] = useState(false);
+  const [monacoReady, setMonacoReady] = useState(false);
+  const [monacoError, setMonacoError] = useState<string | null>(null);
   const { theme } = useTheme();
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
+  const hasBinaryContent = useMemo(() => {
+    if (!diffContent) return false;
+    return diffContent.original.includes('\u0000') || diffContent.modified.includes('\u0000');
+  }, [diffContent]);
 
-  // Register theme with Monaco when available
+  // Initialize Monaco once so we can gate rendering and avoid hard crashes.
   useEffect(() => {
-    if (!theme?.monaco) return;
+    let cancelled = false;
 
-    loader.init().then((monaco) => {
-      monacoRef.current = monaco;
-      monaco.editor.defineTheme(SHELLFLOW_THEME_NAME, theme.monaco);
-      setThemeRegistered(true);
-    });
+    loader.init()
+      .then((monaco) => {
+        if (cancelled) return;
+        monacoRef.current = monaco;
+        setMonacoReady(true);
+        if (theme?.monaco) {
+          monaco.editor.defineTheme(SHELLFLOW_THEME_NAME, theme.monaco);
+          monaco.editor.setTheme(SHELLFLOW_THEME_NAME);
+          setThemeRegistered(true);
+        }
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('Failed to initialize Monaco:', err);
+        setMonacoError(err instanceof Error ? err.message : String(err));
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Update theme when it changes
@@ -50,6 +71,7 @@ export function DiffViewer({
     monacoRef.current.editor.defineTheme(SHELLFLOW_THEME_NAME, theme.monaco);
     // Force editors to pick up the new theme
     monacoRef.current.editor.setTheme(SHELLFLOW_THEME_NAME);
+    setThemeRegistered(true);
   }, [theme?.monaco]);
 
   useEffect(() => {
@@ -99,8 +121,32 @@ export function DiffViewer({
     );
   }
 
+  if (monacoError) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-theme-1 text-theme-2 gap-4">
+        <span className="text-red-400">Failed to initialize diff viewer: {monacoError}</span>
+      </div>
+    );
+  }
+
   if (!diffContent) {
     return null;
+  }
+
+  if (hasBinaryContent) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center bg-theme-1 text-theme-2 gap-4">
+        <span className="text-theme-3">Binary file detected. Diff view is not available.</span>
+      </div>
+    );
+  }
+
+  if (!monacoReady) {
+    return (
+      <div className="h-full flex items-center justify-center bg-theme-1 text-theme-2">
+        Initializing diff viewer...
+      </div>
+    );
   }
 
   return (
@@ -139,6 +185,7 @@ export function DiffViewer({
       {/* Monaco Diff Editor */}
       <div className="flex-1">
         <DiffEditor
+          key={`${filePath}:${mode}`}
           original={diffContent.original}
           modified={diffContent.modified}
           language={diffContent.language}
@@ -154,6 +201,7 @@ export function DiffViewer({
             // Required for word wrap to work on the original (left) side in split view
             // See: https://github.com/microsoft/monaco-editor/discussions/4454
             useInlineViewWhenSpaceIsLimited: false,
+            automaticLayout: true,
             minimap: { enabled: false },
             scrollBeyondLastLine: false,
             fontSize: terminalConfig?.fontSize ?? 13,

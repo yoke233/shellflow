@@ -75,6 +75,51 @@ export async function reorderWorktrees(
   return invoke('reorder_worktrees', { projectId, worktreeIds });
 }
 
+// Git helpers
+export async function gitStageAll(repoPath: string): Promise<void> {
+  return invoke('git_stage_all', { repoPath });
+}
+
+export async function gitDiffCached(repoPath: string): Promise<string> {
+  return invoke<string>('git_diff_cached', { repoPath });
+}
+
+export async function gitDiffCachedFiles(repoPath: string): Promise<string[]> {
+  return invoke<string[]>('git_diff_cached_files', { repoPath });
+}
+
+export async function gitCommit(repoPath: string, message: string): Promise<void> {
+  return invoke('git_commit', { repoPath, message });
+}
+
+export async function gitCurrentBranch(repoPath: string): Promise<string> {
+  return invoke<string>('git_current_branch', { repoPath });
+}
+
+export async function gitBranchExists(repoPath: string, branch: string): Promise<boolean> {
+  return invoke<boolean>('git_branch_exists', { repoPath, branch });
+}
+
+export async function gitCreateBranch(repoPath: string, branch: string): Promise<void> {
+  return invoke('git_create_branch', { repoPath, branch });
+}
+
+export async function renameWorktreeBranch(worktreeId: string, newName: string): Promise<void> {
+  return invoke('rename_worktree', { worktreeId, newName });
+}
+
+export async function gitPushCurrentBranch(repoPath: string): Promise<void> {
+  return invoke('git_push_current_branch', { repoPath });
+}
+
+export async function gitMergeToMain(worktreePath: string, repoPath: string): Promise<void> {
+  return invoke('git_merge_to_main', { worktreePath, repoPath });
+}
+
+export async function gitPushDefaultBranch(repoPath: string): Promise<void> {
+  return invoke('git_push_default_branch', { repoPath });
+}
+
 // PTY commands
 export async function spawnMain(worktreeId: string): Promise<string> {
   return invoke<string>('spawn_main', { worktreeId });

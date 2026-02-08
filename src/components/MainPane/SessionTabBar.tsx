@@ -27,6 +27,7 @@ interface SessionTabBarProps {
   onAddTab: () => void;
   onReorderTabs: (oldIndex: number, newIndex: number) => void;
   onRenameTab: (tabId: string, label: string) => void;
+  newTabShortcut?: string | null;
 }
 
 export function SessionTabBar({
@@ -39,6 +40,7 @@ export function SessionTabBar({
   onAddTab,
   onReorderTabs,
   onRenameTab,
+  newTabShortcut,
 }: SessionTabBarProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -113,7 +115,7 @@ export function SessionTabBar({
         <button
           onClick={onAddTab}
           className="p-2 text-theme-3 hover:text-theme-1 hover:bg-theme-2"
-          title="New tab (Cmd+T)"
+          title={newTabShortcut ? `New tab (${newTabShortcut})` : 'New tab'}
         >
           <Plus size={16} />
         </button>

@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette, GitCommit } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal, BranchInfo, ChangedFilesViewMode } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
@@ -29,14 +29,7 @@ import {
 import { SortableProject } from './SortableProject';
 import { SortableWorktree } from './SortableWorktree';
 import { SortableScratch } from './SortableScratch';
-
-/** Substitute `{{ path }}` in a command template, or append path if no template. */
-function substitutePathTemplate(command: string, path: string): string {
-  if (command.includes('{{ path }}')) {
-    return command.replace(/\{\{ path \}\}/g, `"${path}"`);
-  }
-  return `${command} "${path}"`;
-}
+import { substitutePathTemplate } from '../../lib/pathTemplate';
 
 interface SidebarProps {
   projects: Project[];
@@ -99,6 +92,9 @@ interface SidebarProps {
   onMergeWorktree: (worktreeId: string) => void;
   onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
+  onOpenCommitModal: () => void;
+  toggleDrawerShortcut?: string | null;
+  toggleRightPanelShortcut?: string | null;
   onSelectTask: (taskName: string) => void;
   onStartTask: () => void;
   onStopTask: () => void;
@@ -169,6 +165,9 @@ export function Sidebar({
   onMergeWorktree,
   onToggleDrawer,
   onToggleRightPanel,
+  onOpenCommitModal,
+  toggleDrawerShortcut,
+  toggleRightPanelShortcut,
   onSelectTask,
   onStartTask,
   onStopTask,
@@ -187,6 +186,11 @@ export function Sidebar({
   onOpenInTab,
   onOpenAppearanceSettings,
 }: SidebarProps) {
+  const toggleDrawerTitle = toggleDrawerShortcut ? `Toggle terminal (${toggleDrawerShortcut})` : 'Toggle terminal';
+  const toggleRightPanelTitle = toggleRightPanelShortcut
+    ? `Toggle right panel (${toggleRightPanelShortcut})`
+    : 'Toggle right panel';
+
   const [contextMenu, setContextMenu] = useState<{
     project: Project;
     x: number;
@@ -745,7 +749,6 @@ export function Sidebar({
         const fileManagerLabel = fileManagerCommand
           ? `Open in ${fileManagerCommand}`
           : 'Open in File Manager';
-
         return (
           <ContextMenu
             x={contextMenu.x}
@@ -777,66 +780,13 @@ export function Sidebar({
       })()}
 
       {optionsMenu && (() => {
-        const editorCommand = getAppCommand(appsConfig.editor);
-        const editorTarget = getAppTarget(appsConfig.editor, 'terminal');
-        const terminalCommand = getAppCommand(appsConfig.terminal);
-
         const handleOpenConfigFile = async (fileType: 'settings' | 'mappings') => {
           setOptionsMenu(null);
 
           try {
             // Get the config file path (creates file if it doesn't exist)
             const path = await invoke<string>('get_config_file_path', { fileType });
-
-            if (!editorCommand) {
-              if (fileType === 'settings') {
-                const isWindows = navigator.platform.toUpperCase().includes('WIN');
-                const openWithApp = async (app: string) => {
-                  await invoke('open_in_editor', {
-                    path,
-                    app,
-                    target: 'external',
-                    terminalApp: terminalCommand ?? null,
-                  });
-                };
-
-                try {
-                  await openWithApp('code "{{ path }}"');
-                  return;
-                } catch (err) {
-                  console.warn('Failed to open settings with VS Code:', err);
-                }
-
-                if (isWindows) {
-                  try {
-                    await openWithApp('notepad "{{ path }}"');
-                    return;
-                  } catch (err) {
-                    console.error('Failed to open settings with Notepad:', err);
-                  }
-                } else {
-                  onOpenAppearanceSettings();
-                }
-              } else {
-                console.error('No editor configured');
-              }
-              return;
-            }
-
-            // Use the same opening logic as the folder menu's "Open in Editor"
-            if (editorTarget === 'drawer') {
-              onOpenInDrawer(path, substitutePathTemplate(editorCommand, path));
-            } else if (editorTarget === 'tab') {
-              onOpenInTab(path, substitutePathTemplate(editorCommand, path));
-            } else {
-              // External or terminal target - handled by backend
-              invoke('open_in_editor', {
-                path,
-                app: editorCommand,
-                target: editorTarget,
-                terminalApp: terminalCommand ?? null,
-              });
-            }
+            await invoke('open_default', { path });
           } catch (err) {
             console.error('Failed to open config file:', err);
           }
@@ -956,7 +906,9 @@ export function Sidebar({
 
         const handleOpenEditor = () => {
           if (!editorCommand) {
-            console.error('No editor configured');
+            invoke('open_default', { path: activePath }).catch((err) => {
+              console.error('Failed to open path:', err);
+            });
             return;
           }
 
@@ -973,6 +925,8 @@ export function Sidebar({
               app: editorCommand,
               target: editorTarget,
               terminalApp: terminalCommand ?? null,
+            }).catch((err) => {
+              console.error('Failed to open editor:', err);
             });
           }
         };
@@ -1045,7 +999,7 @@ export function Sidebar({
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
                   isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
                 }`}
-                title="Toggle terminal (Ctrl+`)"
+                title={toggleDrawerTitle}
               >
                 <Terminal size={16} />
               </button>
@@ -1054,9 +1008,16 @@ export function Sidebar({
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
                   isRightPanelOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
                 }`}
-                title="Toggle right panel (Cmd+R)"
+                title={toggleRightPanelTitle}
               >
                 <PanelRight size={16} />
+              </button>
+              <button
+                onClick={onOpenCommitModal}
+                className="p-1.5 rounded text-theme-3 hover:text-theme-1 hover:bg-theme-2 flex-shrink-0"
+                title="Commit changes"
+              >
+                <GitCommit size={16} />
               </button>
               <div className="flex-1" />
               <button
@@ -1082,7 +1043,7 @@ export function Sidebar({
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
                   isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
                 }`}
-                title="Toggle terminal (Ctrl+`)"
+                title={toggleDrawerTitle}
               >
                 <Terminal size={16} />
               </button>
@@ -1096,7 +1057,7 @@ export function Sidebar({
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
                   isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
                 }`}
-                title="Toggle terminal (Ctrl+`)"
+                title={toggleDrawerTitle}
               >
                 <Terminal size={16} />
               </button>
@@ -1105,9 +1066,16 @@ export function Sidebar({
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
                   isRightPanelOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
                 }`}
-                title="Toggle right panel (Cmd+R)"
+                title={toggleRightPanelTitle}
               >
                 <PanelRight size={16} />
+              </button>
+              <button
+                onClick={onOpenCommitModal}
+                className="p-1.5 rounded text-theme-3 hover:text-theme-1 hover:bg-theme-2 flex-shrink-0"
+                title="Commit changes"
+              >
+                <GitCommit size={16} />
               </button>
               <div className="flex-1" />
             </>

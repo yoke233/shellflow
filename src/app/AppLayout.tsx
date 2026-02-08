@@ -11,6 +11,7 @@ import { DeleteWorktreeModal } from '../components/DeleteWorktreeModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { MergeModal } from '../components/MergeModal';
 import { StashModal } from '../components/StashModal';
+import { CommitModal } from '../components/CommitModal';
 import { ShutdownScreen } from '../components/ShutdownScreen';
 import { TaskSwitcher } from '../components/TaskSwitcher/TaskSwitcher';
 import { CommandPalette } from '../components/CommandPalette';
@@ -52,6 +53,8 @@ interface AppLayoutOverlaysProps {
   pendingCloseProject: Project | null;
   pendingMergeInfo: { worktree: Worktree; projectPath: string } | null;
   pendingStashProject: Project | null;
+  showCommitModal: boolean;
+  commitModalProps: ComponentProps<typeof CommitModal>;
   stashError: string | null;
   isStashing: boolean;
   onClearPendingDelete: () => void;
@@ -133,6 +136,8 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
     pendingCloseProject,
     pendingMergeInfo,
     pendingStashProject,
+    showCommitModal,
+    commitModalProps,
     stashError,
     isStashing,
     onClearPendingDelete,
@@ -254,6 +259,10 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
             onModalOpen={onModalOpen}
             onModalClose={onModalClose}
           />
+        )}
+
+        {showCommitModal && (
+          <CommitModal {...commitModalProps} />
         )}
 
         {showTaskSwitcher && (
