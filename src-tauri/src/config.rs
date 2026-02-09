@@ -637,7 +637,7 @@ impl Default for CommitAiConfig {
             base_url: "https://api.openai.com/v1".to_string(),
             api_key: "".to_string(),
             model: "gpt-4o-mini".to_string(),
-            prompt: "Generate a concise git commit message based on the diff. Use imperative mood, no trailing period.\n\nDiff:\n{{ diff }}".to_string(),
+            prompt: "You are a senior engineer and code reviewer. Based on the git diff I provide, generate exactly one standard Git commit message.\n\nRequirements:\n- Use Conventional Commits format: <type>(<scope>): <subject>\n- Choose the most appropriate type from: feat, fix, refactor, perf, docs, test, chore, ci, build, revert\n- Infer scope as 1–2 words from affected paths/modules in the diff\n- Write subject in English, start with a verb, and keep it <= 20 words\n- If the diff contains mixed changes, prioritize the core user value or highest-risk change; do not expand on secondary changes\n- Output exactly one line: only the commit message\n- No explanation, no code block, no bullets\n\nInput: below is the git diff\n----\n{{ diff }}".to_string(),
             temperature: 0.2,
             max_tokens: 120,
             timeout_ms: 15_000,

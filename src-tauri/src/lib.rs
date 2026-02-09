@@ -14,12 +14,12 @@ use config::MergeStrategy;
 use git::{MergeFeasibility, WorktreeDeleteStatus};
 use log::info;
 use serde::{Deserialize, Serialize};
-use state::{AppState, FileChange, Project, Worktree};
+use state::{AppState, FileChange, Project, WindowSize, Worktree};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Size, State};
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -2014,11 +2014,29 @@ pub fn run() {
         .setup(|app| {
             eprintln!("[setup] Shellflow starting...");
 
+            let window = app.get_webview_window("main").expect("main window not found");
+            let app_state = app.state::<Arc<AppState>>();
+
+            let saved_window_size = {
+                let persisted = app_state.persisted.read();
+                persisted.window_size.clone()
+            };
+
+            if let Some(saved) = saved_window_size {
+                let _ = window.set_size(Size::Physical(PhysicalSize::new(saved.width, saved.height)));
+            } else if let Ok(Some(monitor)) = window.current_monitor() {
+                let monitor_size = monitor.size();
+                let width = ((monitor_size.width as f64) * 0.8).round() as u32;
+                let height = ((monitor_size.height as f64) * 0.8).round() as u32;
+                let width = width.max(1000);
+                let height = height.max(600);
+                let _ = window.set_size(Size::Physical(PhysicalSize::new(width, height)));
+            }
+
             // Apply platform-specific window effects for glassy appearance
             #[cfg(target_os = "macos")]
             {
                 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                let window = app.get_webview_window("main").expect("main window not found");
                 match apply_vibrancy(&window, NSVisualEffectMaterial::Sidebar, None, None) {
                     Ok(_) => eprintln!("[setup] Applied macOS vibrancy effect"),
                     Err(e) => eprintln!("[setup] Failed to apply vibrancy: {:?}", e),
@@ -2028,7 +2046,6 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             {
                 use window_vibrancy::apply_mica;
-                let window = app.get_webview_window("main").expect("main window not found");
                 match apply_mica(&window, None) {
                     Ok(_) => eprintln!("[setup] Applied Windows Mica effect"),
                     Err(e) => eprintln!("[setup] Failed to apply Mica: {:?}", e),
@@ -2044,7 +2061,6 @@ pub fn run() {
 
             // Start file watchers for worktrees in active projects only
             // This enables detection of externally deleted worktree folders
-            let app_state = app.state::<Arc<AppState>>();
             let persisted = app_state.persisted.read();
             for project in persisted.projects.iter().filter(|p| p.is_active) {
                 for wt in &project.worktrees {
@@ -2139,6 +2155,19 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             match event {
+                tauri::WindowEvent::Resized(size) => {
+                    if size.width > 0 && size.height > 0 {
+                        let app_state = window.state::<Arc<AppState>>();
+                        {
+                            let mut persisted = app_state.persisted.write();
+                            persisted.window_size = Some(WindowSize {
+                                width: size.width,
+                                height: size.height,
+                            });
+                        }
+                        let _ = app_state.save();
+                    }
+                }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // Prevent default close - let frontend handle it
                     api.prevent_close();

@@ -73,13 +73,25 @@ pub struct DiffContent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistedState {
     pub projects: Vec<Project>,
+    #[serde(default, rename = "windowSize")]
+    pub window_size: Option<WindowSize>,
 }
 
 impl Default for PersistedState {
     fn default() -> Self {
-        Self { projects: vec![] }
+        Self {
+            projects: vec![],
+            window_size: None,
+        }
     }
 }
 

@@ -16,6 +16,9 @@ import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInsta
 import { log } from '../../lib/log';
 import '@xterm/xterm/css/xterm.css';
 
+const DEFAULT_TERMINAL_COLS = 80;
+const DEFAULT_TERMINAL_ROWS = 24;
+
 // Fix for xterm.js not handling 5-part colon-separated RGB sequences.
 // Neovim sends 38:2:R:G:B but xterm.js expects 38:2:CS:R:G:B (with colorspace).
 // This adds an empty colorspace to fix the parsing.
@@ -364,7 +367,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     const handleTerminalContextMenu = (event: MouseEvent) => {
       if (terminal.hasSelection()) {
         event.preventDefault();
-        copyPasteFns.copy();
+        const copied = copyPasteFns.copy();
+        if (copied) {
+          terminal.clearSelection();
+        }
         return;
       }
 
@@ -533,8 +539,21 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       await (document.fonts?.ready ?? Promise.resolve());
 
       fitAddon.fit();
-      const cols = terminal.cols;
-      const rows = terminal.rows;
+      const proposed = fitAddon.proposeDimensions();
+      const measuredCols = proposed?.cols ?? terminal.cols;
+      const measuredRows = proposed?.rows ?? terminal.rows;
+      const cols = measuredCols > 0 ? measuredCols : DEFAULT_TERMINAL_COLS;
+      const rows = measuredRows > 0 ? measuredRows : DEFAULT_TERMINAL_ROWS;
+
+      if (measuredCols <= 0 || measuredRows <= 0) {
+        log.warn('[MainTerminal] Invalid initial terminal size, using fallback', {
+          entityId,
+          measuredCols,
+          measuredRows,
+          fallbackCols: cols,
+          fallbackRows: rows,
+        });
+      }
 
       spawnedAtRef.current = Date.now();
       // Pass initialCwd for scratch terminals to start in the specified directory
@@ -691,6 +710,9 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     }
 
     fitAddon.fit();
+    if (terminal.cols <= 0 || terminal.rows <= 0) {
+      return;
+    }
     resizeRef.current(terminal.cols, terminal.rows);
   }, []);
 

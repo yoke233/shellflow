@@ -68,8 +68,8 @@ export function SortableSessionTab({
       onClick={onSelect}
       className={`flex items-center gap-2 px-3 border-r border-theme-0 min-w-0 active:cursor-grabbing ${
         isActive
-          ? 'bg-theme-2 text-theme-0'
-          : 'bg-theme-1 text-theme-2 hover:bg-theme-2 hover:text-theme-1'
+          ? 'bg-theme-2 text-theme-0 border-b-2 border-blue-500 font-medium'
+          : 'bg-theme-1 text-theme-2 hover:bg-theme-2/50 hover:text-theme-1'
       } ${isDragging ? 'opacity-0' : ''}`}
     >
       {isCtrlKeyHeld && shortcutNumber !== null ? (
