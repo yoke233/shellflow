@@ -229,6 +229,73 @@ pub struct WorktreeDeleteStatus {
     pub branch_name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveredWorktree {
+    pub path: String,
+    pub branch: Option<String>,
+}
+
+fn parse_worktree_list_porcelain(stdout: &str) -> Vec<DiscoveredWorktree> {
+    let mut worktrees = Vec::new();
+    let mut current_path: Option<String> = None;
+    let mut current_branch: Option<String> = None;
+
+    let flush_current = |
+        entries: &mut Vec<DiscoveredWorktree>,
+        path: &mut Option<String>,
+        branch: &mut Option<String>,
+    | {
+        if let Some(path) = path.take() {
+            entries.push(DiscoveredWorktree {
+                path,
+                branch: branch.take(),
+            });
+        } else {
+            branch.take();
+        }
+    };
+
+    for line in stdout.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            flush_current(&mut worktrees, &mut current_path, &mut current_branch);
+            current_path = Some(path.trim().to_string());
+            current_branch = None;
+        } else if let Some(branch_ref) = line.strip_prefix("branch ") {
+            let branch_ref = branch_ref.trim();
+            let branch = branch_ref
+                .strip_prefix("refs/heads/")
+                .unwrap_or(branch_ref)
+                .to_string();
+            current_branch = Some(branch);
+        } else if line.trim() == "detached" {
+            current_branch = None;
+        } else if line.trim().is_empty() {
+            flush_current(&mut worktrees, &mut current_path, &mut current_branch);
+        }
+    }
+
+    flush_current(&mut worktrees, &mut current_path, &mut current_branch);
+    worktrees
+}
+
+pub fn list_registered_worktrees(repo_path: &Path) -> Result<Vec<DiscoveredWorktree>, GitError> {
+    let output = git_command()
+        .args(["worktree", "list", "--porcelain"])
+        .current_dir(repo_path)
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(GitError::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("git worktree list --porcelain failed: {}", stderr),
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_worktree_list_porcelain(&stdout))
+}
+
 pub fn is_git_repo(path: &Path) -> bool {
     Repository::open(path).is_ok()
 }
@@ -1448,5 +1515,49 @@ mod tests {
         let json = serde_json::to_value(&info).unwrap();
         assert_eq!(json["isOnBaseBranch"], true);
         assert_eq!(json["commitsAhead"], 0);
+    }
+
+    #[test]
+    fn parse_worktree_list_porcelain_extracts_paths_and_branches() {
+        let input = r#"worktree /repo
+HEAD 0123456789abcdef
+branch refs/heads/main
+
+worktree /repo/.worktrees/feature-abc
+HEAD abcdef0123456789
+branch refs/heads/feature-abc
+"#;
+
+        let parsed = parse_worktree_list_porcelain(input);
+        assert_eq!(
+            parsed,
+            vec![
+                DiscoveredWorktree {
+                    path: "/repo".to_string(),
+                    branch: Some("main".to_string()),
+                },
+                DiscoveredWorktree {
+                    path: "/repo/.worktrees/feature-abc".to_string(),
+                    branch: Some("feature-abc".to_string()),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_worktree_list_porcelain_handles_detached_worktree() {
+        let input = r#"worktree /repo
+HEAD 0123456789abcdef
+branch refs/heads/main
+
+worktree /repo/.worktrees/hotfix
+HEAD 1122334455667788
+detached
+"#;
+
+        let parsed = parse_worktree_list_porcelain(input);
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[1].path, "/repo/.worktrees/hotfix");
+        assert_eq!(parsed[1].branch, None);
     }
 }

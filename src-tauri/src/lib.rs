@@ -3,6 +3,7 @@ mod config;
 mod git;
 mod mappings;
 mod menu;
+mod path_utils;
 mod pty;
 mod state;
 mod template;
@@ -15,8 +16,8 @@ use git::{MergeFeasibility, WorktreeDeleteStatus};
 use log::info;
 use serde::{Deserialize, Serialize};
 use state::{AppState, FileChange, Project, WindowSize, Worktree};
-use std::collections::HashMap;
-use std::path::Path;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Size, State};
@@ -25,6 +26,146 @@ type Result<T> = std::result::Result<T, String>;
 
 fn map_err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
+}
+
+#[derive(Default)]
+struct ProjectWorktreeSync {
+    added_worktrees: Vec<(String, String)>,
+    removed_worktree_ids: Vec<String>,
+    changed: bool,
+}
+
+fn canonicalize_or_original(path: &Path) -> PathBuf {
+    path_utils::canonicalize_for_storage(path)
+}
+
+fn normalize_path_for_compare(path: &Path) -> String {
+    let normalized = path_utils::normalize_path_string(path);
+
+    #[cfg(windows)]
+    {
+        normalized.to_lowercase()
+    }
+
+    #[cfg(not(windows))]
+    {
+        normalized
+    }
+}
+
+fn fallback_worktree_name(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("detached")
+        .to_string()
+}
+
+fn sync_project_worktrees_from_git(
+    project: &mut Project,
+) -> std::result::Result<ProjectWorktreeSync, git::GitError> {
+    let project_path = Path::new(&project.path);
+    let project_root = canonicalize_or_original(project_path);
+    let project_root_key = normalize_path_for_compare(&project_root);
+
+    let mut discovered_by_path: HashMap<String, (String, Option<String>)> = HashMap::new();
+
+    for discovered in git::list_registered_worktrees(project_path)? {
+        let discovered_path = PathBuf::from(&discovered.path);
+        if !discovered_path.exists() {
+            continue;
+        }
+
+        let canonical_path = canonicalize_or_original(&discovered_path);
+        let normalized = normalize_path_for_compare(&canonical_path);
+
+        // Skip the main repository worktree (only keep linked worktrees)
+        if normalized == project_root_key {
+            continue;
+        }
+
+        discovered_by_path
+            .entry(normalized)
+            .or_insert((canonical_path.to_string_lossy().to_string(), discovered.branch));
+    }
+
+    let mut sync = ProjectWorktreeSync::default();
+    let mut seen_paths = HashSet::new();
+    let existing_worktrees = std::mem::take(&mut project.worktrees);
+    let mut merged_worktrees = Vec::new();
+
+    for mut existing in existing_worktrees {
+        let existing_path = canonicalize_or_original(Path::new(&existing.path));
+        let existing_key = normalize_path_for_compare(&existing_path);
+
+        if let Some((canonical_path, discovered_branch)) = discovered_by_path.get(&existing_key) {
+            seen_paths.insert(existing_key);
+
+            let branch = discovered_branch
+                .clone()
+                .unwrap_or_else(|| existing.branch.clone());
+            let branch = if branch.trim().is_empty() {
+                fallback_worktree_name(canonical_path)
+            } else {
+                branch
+            };
+            let name = branch.clone();
+
+            if existing.path != *canonical_path || existing.branch != branch || existing.name != name {
+                existing.path = canonical_path.clone();
+                existing.branch = branch;
+                existing.name = name;
+                sync.changed = true;
+            }
+
+            merged_worktrees.push(existing);
+        } else {
+            sync.removed_worktree_ids.push(existing.id);
+            sync.changed = true;
+        }
+    }
+
+    let mut new_worktrees = Vec::new();
+    for (key, (path, branch)) in discovered_by_path {
+        if seen_paths.contains(&key) {
+            continue;
+        }
+
+        let branch = branch.unwrap_or_else(|| fallback_worktree_name(&path));
+        let branch = if branch.trim().is_empty() {
+            fallback_worktree_name(&path)
+        } else {
+            branch
+        };
+
+        let worktree = Worktree {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: branch.clone(),
+            path,
+            branch,
+            created_at: worktree::chrono_lite_now(),
+            order: 0,
+        };
+
+        sync.added_worktrees
+            .push((worktree.id.clone(), worktree.path.clone()));
+        new_worktrees.push(worktree);
+        sync.changed = true;
+    }
+
+    new_worktrees.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    merged_worktrees.extend(new_worktrees);
+
+    for (index, worktree) in merged_worktrees.iter_mut().enumerate() {
+        let expected_order = index as i32;
+        if worktree.order != expected_order {
+            worktree.order = expected_order;
+            sync.changed = true;
+        }
+    }
+
+    project.worktrees = merged_worktrees;
+    Ok(sync)
 }
 
 // Logging command - prints to stdout so it appears in the terminal during dev
@@ -117,34 +258,69 @@ fn git_push_default_branch(repo_path: &str) -> Result<()> {
 
 // Project commands
 #[tauri::command]
-fn add_project(state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
+fn add_project(app: AppHandle, state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
     let path = Path::new(path);
-    let canonical_path = path.canonicalize().map_err(map_err)?;
+    let canonical_path = canonicalize_or_original(path);
 
-    {
+    let mut worktrees_to_watch: Vec<(String, String)> = Vec::new();
+    let mut worktrees_to_unwatch: Vec<String> = Vec::new();
+
+    let project = {
         let mut persisted = state.persisted.write();
 
         // Check if project with this path already exists
         if let Some(existing) = persisted
             .projects
             .iter_mut()
-            .find(|p| Path::new(&p.path).canonicalize().ok() == Some(canonical_path.clone()))
+            .find(|p| canonicalize_or_original(Path::new(&p.path)) == canonical_path)
         {
             // Reactivate existing project instead of creating duplicate
             existing.is_active = true;
             existing.last_accessed_at = Some(worktree::chrono_lite_now());
-            let project = existing.clone();
-            drop(persisted);
-            state.save().map_err(map_err)?;
-            return Ok(project);
+
+            match sync_project_worktrees_from_git(existing) {
+                Ok(sync) => {
+                    worktrees_to_watch.extend(sync.added_worktrees);
+                    worktrees_to_unwatch.extend(sync.removed_worktree_ids);
+                }
+                Err(err) => {
+                    info!(
+                        "[add_project] Failed to sync worktrees for '{}': {}",
+                        existing.path, err
+                    );
+                }
+            }
+
+            existing.clone()
+        } else {
+            let mut project = worktree::create_project(&canonical_path).map_err(map_err)?;
+
+            match sync_project_worktrees_from_git(&mut project) {
+                Ok(sync) => {
+                    worktrees_to_watch.extend(sync.added_worktrees);
+                    worktrees_to_unwatch.extend(sync.removed_worktree_ids);
+                }
+                Err(err) => {
+                    info!(
+                        "[add_project] Failed to sync worktrees for '{}': {}",
+                        project.path, err
+                    );
+                }
+            }
+
+            persisted.projects.push(project.clone());
+            project
         }
+    };
+
+    for worktree_id in worktrees_to_unwatch {
+        watcher::stop_watching(&worktree_id);
     }
 
-    let project = worktree::create_project(path).map_err(map_err)?;
-
-    {
-        let mut persisted = state.persisted.write();
-        persisted.projects.push(project.clone());
+    if project.is_active {
+        for (id, path) in worktrees_to_watch {
+            watcher::watch_worktree(app.clone(), id, path);
+        }
     }
 
     state.save().map_err(map_err)?;
@@ -152,7 +328,48 @@ fn add_project(state: State<'_, Arc<AppState>>, path: &str) -> Result<Project> {
 }
 
 #[tauri::command]
-fn list_projects(state: State<'_, Arc<AppState>>) -> Result<Vec<Project>> {
+fn list_projects(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Vec<Project>> {
+    let mut worktrees_to_watch: Vec<(String, String)> = Vec::new();
+    let mut worktrees_to_unwatch: Vec<String> = Vec::new();
+    let mut should_save = false;
+
+    {
+        let mut persisted = state.persisted.write();
+
+        for project in &mut persisted.projects {
+            match sync_project_worktrees_from_git(project) {
+                Ok(sync) => {
+                    if sync.changed {
+                        should_save = true;
+                    }
+
+                    worktrees_to_unwatch.extend(sync.removed_worktree_ids);
+                    if project.is_active {
+                        worktrees_to_watch.extend(sync.added_worktrees);
+                    }
+                }
+                Err(err) => {
+                    info!(
+                        "[list_projects] Failed to sync worktrees for '{}': {}",
+                        project.path, err
+                    );
+                }
+            }
+        }
+    }
+
+    for worktree_id in worktrees_to_unwatch {
+        watcher::stop_watching(&worktree_id);
+    }
+
+    for (id, path) in worktrees_to_watch {
+        watcher::watch_worktree(app.clone(), id, path);
+    }
+
+    if should_save {
+        state.save().map_err(map_err)?;
+    }
+
     Ok(state.persisted.read().projects.clone())
 }
 
@@ -226,10 +443,12 @@ fn create_worktree(
     let mut persisted = state.persisted.write();
     info!("[create_worktree] acquire write lock took {:?}", start.elapsed());
 
+    let project_path_key = normalize_path_for_compare(Path::new(project_path));
+
     let project = persisted
         .projects
         .iter_mut()
-        .find(|p| p.path == project_path)
+        .find(|p| normalize_path_for_compare(Path::new(&p.path)) == project_path_key)
         .ok_or_else(|| format!("Project not found: {}", project_path))?;
 
     let project_path_buf = Path::new(&project.path).to_path_buf();
@@ -294,16 +513,60 @@ fn create_worktree(
 }
 
 #[tauri::command]
-fn list_worktrees(state: State<'_, Arc<AppState>>, project_path: &str) -> Result<Vec<Worktree>> {
-    let persisted = state.persisted.read();
+fn list_worktrees(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    project_path: &str,
+) -> Result<Vec<Worktree>> {
+    let mut worktrees_to_watch: Vec<(String, String)> = Vec::new();
+    let mut worktrees_to_unwatch: Vec<String> = Vec::new();
+    let mut should_save = false;
 
-    let project = persisted
-        .projects
-        .iter()
-        .find(|p| p.path == project_path)
-        .ok_or_else(|| format!("Project not found: {}", project_path))?;
+    let result = {
+        let mut persisted = state.persisted.write();
+        let project_path_key = normalize_path_for_compare(Path::new(project_path));
 
-    Ok(project.worktrees.clone())
+        let project = persisted
+            .projects
+            .iter_mut()
+            .find(|p| normalize_path_for_compare(Path::new(&p.path)) == project_path_key)
+            .ok_or_else(|| format!("Project not found: {}", project_path))?;
+
+        match sync_project_worktrees_from_git(project) {
+            Ok(sync) => {
+                if sync.changed {
+                    should_save = true;
+                }
+
+                worktrees_to_unwatch.extend(sync.removed_worktree_ids);
+                if project.is_active {
+                    worktrees_to_watch.extend(sync.added_worktrees);
+                }
+            }
+            Err(err) => {
+                info!(
+                    "[list_worktrees] Failed to sync worktrees for '{}': {}",
+                    project.path, err
+                );
+            }
+        }
+
+        project.worktrees.clone()
+    };
+
+    for worktree_id in worktrees_to_unwatch {
+        watcher::stop_watching(&worktree_id);
+    }
+
+    for (id, path) in worktrees_to_watch {
+        watcher::watch_worktree(app.clone(), id, path);
+    }
+
+    if should_save {
+        state.save().map_err(map_err)?;
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -326,6 +589,23 @@ fn delete_worktree(state: State<'_, Arc<AppState>>, worktree_id: &str) -> Result
 #[tauri::command]
 fn check_worktree_delete_status(worktree_path: &str, project_path: Option<String>) -> Result<WorktreeDeleteStatus> {
     let path = Path::new(worktree_path);
+
+    // If the worktree path is already missing or no longer a git repository,
+    // treat it as a stale entry and allow deletion to continue without warnings.
+    if !path.exists() || !git::is_git_repo(path) {
+        let fallback_branch = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("detached")
+            .to_string();
+
+        return Ok(WorktreeDeleteStatus {
+            has_uncommitted_changes: false,
+            unpushed_commits: 0,
+            branch_name: fallback_branch,
+        });
+    }
+
     let cfg = config::load_config_for_project(project_path.as_deref());
     git::check_worktree_delete_status(path, &cfg.worktree.base_branch).map_err(map_err)
 }
@@ -395,29 +675,40 @@ fn execute_delete_worktree_workflow(
             },
         );
         let project_path = Path::new(&project_path);
+        let worktree_path_buf = PathBuf::from(&worktree_path);
         if let Err(e) = git::delete_worktree(project_path, &worktree_name) {
-            let _ = app.emit(
-                "delete-worktree-progress",
-                DeleteWorktreeProgress {
-                    phase: "error".to_string(),
-                    message: e.to_string(),
-                },
-            );
-            let _ = app.emit(
-                "delete-worktree-completed",
-                DeleteWorktreeCompleted {
-                    worktree_id,
-                    success: false,
-                    error: Some(e.to_string()),
-                },
-            );
-            return;
+            // If the path is already missing / invalid repo, treat this as stale and
+            // continue cleanup so UI state can be fixed.
+            let is_stale = !worktree_path_buf.exists() || !git::is_git_repo(&worktree_path_buf);
+            if is_stale {
+                info!(
+                    "[execute_delete_worktree_workflow] Stale worktree '{}', continuing cleanup: {}",
+                    worktree_name,
+                    e
+                );
+            } else {
+                let _ = app.emit(
+                    "delete-worktree-progress",
+                    DeleteWorktreeProgress {
+                        phase: "error".to_string(),
+                        message: e.to_string(),
+                    },
+                );
+                let _ = app.emit(
+                    "delete-worktree-completed",
+                    DeleteWorktreeCompleted {
+                        worktree_id,
+                        success: false,
+                        error: Some(e.to_string()),
+                    },
+                );
+                return;
+            }
         }
 
         // Clean up directory if git didn't remove it
-        let worktree_path = Path::new(&worktree_path);
-        if worktree_path.exists() {
-            if let Err(e) = std::fs::remove_dir_all(worktree_path) {
+        if worktree_path_buf.exists() {
+            if let Err(e) = std::fs::remove_dir_all(&worktree_path_buf) {
                 info!("Failed to remove worktree directory: {}", e);
             }
         }
@@ -486,9 +777,14 @@ fn execute_delete_worktree_workflow(
 #[tauri::command]
 fn remove_stale_worktree(state: State<'_, Arc<AppState>>, worktree_path: &str) -> Result<()> {
     let mut persisted = state.persisted.write();
+    let target_key = normalize_path_for_compare(Path::new(worktree_path));
 
     for project in &mut persisted.projects {
-        if let Some(idx) = project.worktrees.iter().position(|w| w.path == worktree_path) {
+        if let Some(idx) = project
+            .worktrees
+            .iter()
+            .position(|w| normalize_path_for_compare(Path::new(&w.path)) == target_key)
+        {
             let worktree = &project.worktrees[idx];
             info!(
                 "[remove_stale_worktree] Removing '{}' from project '{}'",

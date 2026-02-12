@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette, GitCommit } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette, GitCommit, RefreshCw } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal, BranchInfo, ChangedFilesViewMode } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
@@ -83,6 +83,8 @@ interface SidebarProps {
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
+  onRefreshProjects: () => void;
+  isProjectsRefreshing: boolean;
   onAddProject: () => void;
   onAddWorktree: (projectId: string) => void;
   onDeleteWorktree: (worktreeId: string) => void;
@@ -95,6 +97,7 @@ interface SidebarProps {
   onOpenCommitModal: () => void;
   toggleDrawerShortcut?: string | null;
   toggleRightPanelShortcut?: string | null;
+  refreshProjectsShortcut?: string | null;
   onSelectTask: (taskName: string) => void;
   onStartTask: () => void;
   onStopTask: () => void;
@@ -156,6 +159,8 @@ export function Sidebar({
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
+  onRefreshProjects,
+  isProjectsRefreshing,
   onAddProject,
   onAddWorktree,
   onDeleteWorktree,
@@ -168,6 +173,7 @@ export function Sidebar({
   onOpenCommitModal,
   toggleDrawerShortcut,
   toggleRightPanelShortcut,
+  refreshProjectsShortcut,
   onSelectTask,
   onStartTask,
   onStopTask,
@@ -190,12 +196,25 @@ export function Sidebar({
   const toggleRightPanelTitle = toggleRightPanelShortcut
     ? `Toggle right panel (${toggleRightPanelShortcut})`
     : 'Toggle right panel';
+  const refreshProjectsTitle = refreshProjectsShortcut
+    ? `Refresh projects and worktrees (${refreshProjectsShortcut})`
+    : 'Refresh projects and worktrees';
 
-  const [contextMenu, setContextMenu] = useState<{
-    project: Project;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<
+    | {
+        type: 'project';
+        project: Project;
+        x: number;
+        y: number;
+      }
+    | {
+        type: 'worktree';
+        worktree: Worktree;
+        x: number;
+        y: number;
+      }
+    | null
+  >(null);
 
   const [optionsMenu, setOptionsMenu] = useState<{
     x: number;
@@ -336,7 +355,22 @@ export function Sidebar({
   ) => {
     e.preventDefault();
     setContextMenu({
+      type: 'project',
       project,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
+
+  const handleWorktreeContextMenu = (
+    e: React.MouseEvent,
+    worktree: Worktree
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({
+      type: 'worktree',
+      worktree,
       x: e.clientX,
       y: e.clientY,
     });
@@ -349,6 +383,7 @@ export function Sidebar({
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
     setContextMenu({
+      type: 'project',
       project,
       x: rect.left,
       y: rect.bottom + 4,
@@ -356,15 +391,29 @@ export function Sidebar({
   };
 
   const handleCloseProject = () => {
-    if (contextMenu) {
+    if (contextMenu?.type === 'project') {
       onCloseProject(contextMenu.project);
       setContextMenu(null);
     }
   };
 
   const handleHideProject = () => {
-    if (contextMenu) {
+    if (contextMenu?.type === 'project') {
       onHideProject(contextMenu.project);
+      setContextMenu(null);
+    }
+  };
+
+  const handleCloseWorktreeFromMenu = () => {
+    if (contextMenu?.type === 'worktree') {
+      onCloseWorktree(contextMenu.worktree.id);
+      setContextMenu(null);
+    }
+  };
+
+  const handleDeleteWorktreeFromMenu = () => {
+    if (contextMenu?.type === 'worktree') {
+      onDeleteWorktree(contextMenu.worktree.id);
       setContextMenu(null);
     }
   };
@@ -489,6 +538,19 @@ export function Sidebar({
           <span className="text-[10px] font-semibold uppercase tracking-wider text-theme-4">Projects</span>
           {/* Add button - show on hover */}
           <div className="absolute right-1 hidden group-hover:flex items-center gap-0.5 bg-theme-1 rounded">
+            <button
+              onClick={onRefreshProjects}
+              disabled={isProjectsRefreshing}
+              className="p-0.5 rounded hover:bg-theme-3 text-theme-2 hover:text-theme-1 disabled:opacity-60 disabled:cursor-not-allowed"
+              title={refreshProjectsTitle}
+              aria-label="Refresh projects"
+            >
+              {isProjectsRefreshing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+            </button>
             <button
               onClick={onAddProject}
               className="p-0.5 rounded hover:bg-theme-3 text-theme-2 hover:text-theme-1"
@@ -640,6 +702,7 @@ export function Sidebar({
                                   <SortableWorktree key={worktree.id} worktreeId={worktree.id} projectId={project.id}>
                                     <div
                                       onClick={() => onSelectWorktree(worktree)}
+                                      onContextMenu={(e) => handleWorktreeContextMenu(e, worktree)}
                                       className={`group/worktree relative flex items-center py-1 pr-2 text-sm active:cursor-grabbing ${
                                         isSelected
                                           ? 'bg-sidebar-active text-theme-0 border-l-2 border-accent'
@@ -749,17 +812,20 @@ export function Sidebar({
         const fileManagerLabel = fileManagerCommand
           ? `Open in ${fileManagerCommand}`
           : 'Open in File Manager';
-        return (
-          <ContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            items={[
+        const contextPath = contextMenu.type === 'project' ? contextMenu.project.path : contextMenu.worktree.path;
+        const items = contextMenu.type === 'project'
+          ? [
+              {
+                label: refreshProjectsTitle,
+                icon: <RefreshCw size={14} />,
+                onClick: onRefreshProjects,
+              },
               {
                 label: fileManagerLabel,
                 icon: <Folder size={14} />,
                 onClick: () => {
                   invoke('open_in_file_manager', {
-                    path: contextMenu.project.path,
+                    path: contextPath,
                     app: fileManagerCommand ?? null,
                   });
                   setContextMenu(null);
@@ -773,7 +839,39 @@ export function Sidebar({
                 label: 'Hide Project',
                 onClick: handleHideProject,
               },
-            ]}
+            ]
+          : [
+              {
+                label: fileManagerLabel,
+                icon: <Folder size={14} />,
+                onClick: () => {
+                  invoke('open_in_file_manager', {
+                    path: contextPath,
+                    app: fileManagerCommand ?? null,
+                  });
+                  setContextMenu(null);
+                },
+              },
+              {
+                label: refreshProjectsTitle,
+                icon: <RefreshCw size={14} />,
+                onClick: onRefreshProjects,
+              },
+              {
+                label: 'Close Worktree',
+                onClick: handleCloseWorktreeFromMenu,
+              },
+              {
+                label: 'Delete Worktree',
+                onClick: handleDeleteWorktreeFromMenu,
+              },
+            ];
+
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
             onClose={() => setContextMenu(null)}
           />
         );

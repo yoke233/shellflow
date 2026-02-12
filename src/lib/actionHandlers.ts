@@ -53,6 +53,7 @@ export interface ActionHandlerCallbacks {
 
   // Project actions
   onCloseProject: () => void;
+  onRefreshProjects: () => void;
 
   // Navigation actions
   onNavigatePrev: () => void;
@@ -156,6 +157,7 @@ export function createActionHandlers(callbacks: ActionHandlerCallbacks): ActionH
 
     // Project actions
     'project::close': callbacks.onCloseProject,
+    'project::refresh': callbacks.onRefreshProjects,
 
     // Navigation actions
     'navigate::prev': callbacks.onNavigatePrev,

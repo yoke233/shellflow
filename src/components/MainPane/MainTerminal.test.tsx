@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MainTerminal } from './MainTerminal';
 import {
   resetMocks,
@@ -263,6 +264,29 @@ describe('MainTerminal', () => {
       rerender(<MainTerminal {...defaultProps} focusTrigger={1} />);
 
       expect(true).toBe(true);
+    });
+
+    it('opens terminal search with Ctrl+F and allows typing', async () => {
+      const user = userEvent.setup();
+      render(<MainTerminal {...defaultProps} shouldAutoFocus={true} />);
+
+      await waitFor(() => {
+        expect(invokeHistory.some((h) => h.command === 'spawn_main')).toBe(true);
+      });
+
+      const textarea = document.querySelector(
+        `[data-terminal-id="${defaultProps.entityId}"] textarea.xterm-helper-textarea`
+      ) as HTMLTextAreaElement | null;
+      expect(textarea).toBeTruthy();
+      textarea?.focus();
+
+      fireEvent.keyDown(window, { key: 'f', ctrlKey: true });
+
+      const searchInput = await screen.findByPlaceholderText('Find');
+      await user.type(searchInput, 'query');
+
+      expect(searchInput).toHaveValue('query');
+      expect(document.activeElement).toBe(searchInput);
     });
   });
 

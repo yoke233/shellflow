@@ -217,7 +217,6 @@ textarea,
 
 /* Prevent xterm canvas from being scaled during resize */
 .xterm .xterm-screen {
-  contain: strict;
   overflow: hidden;
 }
 

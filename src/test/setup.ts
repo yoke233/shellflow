@@ -280,20 +280,51 @@ class MockTerminal {
   modes = { mouseTrackingMode: 'none' };
 
   constructor(_options?: unknown) {}
-  open() {}
+  open(parent?: Element | DocumentFragment | null) {
+    this.element.classList.add('xterm');
+    this.textarea.classList.add('xterm-helper-textarea');
+
+    if (!this.element.contains(this.textarea)) {
+      this.element.appendChild(this.textarea);
+    }
+
+    if (parent instanceof HTMLElement && !parent.contains(this.element)) {
+      parent.appendChild(this.element);
+    }
+  }
   write() {}
   writeln() {}
   clear() {}
   reset() {}
   dispose() {}
-  focus() {}
-  blur() {}
+  focus() {
+    this.textarea.focus();
+  }
+  blur() {
+    this.textarea.blur();
+  }
   scrollToBottom() {}
-  select() {}
+  select(column?: number, row?: number, length?: number) {
+    if (typeof length === 'number' && length > 0) {
+      this.textarea.value = this.textarea.value || ' '.repeat(length);
+      this.textarea.setSelectionRange(0, length);
+    }
+  }
   selectAll() {}
-  clearSelection() {}
-  hasSelection() { return false; }
-  getSelection() { return ''; }
+  clearSelection() {
+    const cursor = this.textarea.selectionStart ?? 0;
+    this.textarea.setSelectionRange(cursor, cursor);
+  }
+  hasSelection() {
+    const start = this.textarea.selectionStart ?? 0;
+    const end = this.textarea.selectionEnd ?? 0;
+    return end > start;
+  }
+  getSelection() {
+    const start = this.textarea.selectionStart ?? 0;
+    const end = this.textarea.selectionEnd ?? 0;
+    return this.textarea.value.slice(start, end);
+  }
   onData() { return { dispose: () => {} }; }
   onResize() { return { dispose: () => {} }; }
   onTitleChange() { return { dispose: () => {} }; }

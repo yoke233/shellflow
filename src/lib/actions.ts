@@ -42,6 +42,7 @@ export type ActionId =
   | 'scratch::renameSession'
   // Project actions
   | 'project::close'
+  | 'project::refresh'
   // Drawer actions
   | 'drawer::toggle'
   | 'drawer::expand'
@@ -150,6 +151,7 @@ const AVAILABILITY: Record<ActionId, (ctx: ActionContext) => boolean> = {
 
   // Project actions
   'project::close': (ctx) => !!ctx.activeProjectId && !ctx.activeWorktreeId,
+  'project::refresh': () => true,
 
   // Drawer actions
   'drawer::toggle': (ctx) => !!ctx.activeEntityId,
@@ -280,6 +282,7 @@ export const ACTION_METADATA: Record<ActionId, ActionMetadata> = {
 
   // Project actions
   'project::close': { label: 'Close Project', category: 'File', showInPalette: true },
+  'project::refresh': { label: 'Refresh Projects', category: 'File', showInPalette: true },
 
   // Drawer actions
   'drawer::toggle': { label: 'Toggle Drawer', category: 'View', showInPalette: true },

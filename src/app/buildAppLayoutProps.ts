@@ -87,6 +87,8 @@ interface BuildAppLayoutDeps {
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
+  onRefreshProjects: () => void;
+  isProjectsLoading: boolean;
   onAddProject: () => void;
   onAddWorktree: (projectId: string) => void;
   onDeleteWorktree: (worktreeId: string) => void;
@@ -254,6 +256,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
   const shortcuts = {
     drawerToggle: deps.getShortcut('drawer::toggle'),
     rightPanelToggle: deps.getShortcut('rightPanel::toggle'),
+    projectRefresh: deps.getShortcut('project::refresh'),
     diffOpen: deps.getShortcut('diff::open'),
     sessionNewTab: deps.getShortcut('session::newTab'),
     drawerNewTab: deps.getShortcut('drawer::newTab'),
@@ -310,6 +313,8 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onToggleProject: deps.onToggleProject,
     onSelectProject: deps.onSelectProject,
     onSelectWorktree: deps.onSelectWorktree,
+    onRefreshProjects: deps.onRefreshProjects,
+    isProjectsRefreshing: deps.isProjectsLoading,
     onAddProject: deps.onAddProject,
     onAddWorktree: deps.onAddWorktree,
     onDeleteWorktree: deps.onDeleteWorktree,
@@ -321,6 +326,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onToggleRightPanel: deps.onToggleRightPanel,
     toggleDrawerShortcut: shortcuts.drawerToggle,
     toggleRightPanelShortcut: shortcuts.rightPanelToggle,
+    refreshProjectsShortcut: shortcuts.projectRefresh,
     onSelectTask: deps.onSelectTask,
     onStartTask: deps.onStartTask,
     onStopTask: deps.onStopTask,

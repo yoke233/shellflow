@@ -44,7 +44,18 @@ type FocusedPane = 'main' | 'drawer';
 type NavHistoryEntry = { worktreeId: string | null; projectId: string | null; scratchId: string | null };
 
 export function useAppController() {
-  const { projects, addProject, hideProject, activateProject, createWorktree, renameWorktree, reorderProjectsOptimistic, reorderWorktreesOptimistic, refresh: refreshProjects } = useWorktrees();
+  const {
+    projects,
+    loading: isProjectsLoading,
+    addProject,
+    hideProject,
+    activateProject,
+    createWorktree,
+    renameWorktree,
+    reorderProjectsOptimistic,
+    reorderWorktreesOptimistic,
+    refresh: refreshProjects,
+  } = useWorktrees();
 
   // Guard to prevent dialog re-entry when escape key bubbles back from native dialog
   const isAddProjectDialogOpen = useRef(false);
@@ -1864,6 +1875,10 @@ export function useAppController() {
   }, []);
 
   // Worktree handlers
+  const handleRefreshProjects = useCallback(() => {
+    void refreshProjects();
+  }, [refreshProjects]);
+
   const handleAddProject = useCallback(async () => {
     // Prevent re-entry when escape key bubbles back from native dialog
     if (isAddProjectDialogOpen.current) {
@@ -2664,6 +2679,7 @@ export function useAppController() {
     focusToRestoreRef,
     setEditingScratchId,
     setIsDrawerOpen,
+    handleRefreshProjects,
     handleAddProject,
     handleToggleProjectSwitcher,
     handleOpenCommitModal,
@@ -2701,7 +2717,7 @@ export function useAppController() {
   }), [
     activeProjectId, activeWorktreeId, activeScratchId, activeDrawerTabId, isDrawerOpen, activeFocusState,
     projects, config.apps, activeEntityId, scratchCwds,
-    handleAddProject, handleAddWorktree, handleAddScratchTerminal, handleCloseDrawerTab, handleCloseProject,
+    handleRefreshProjects, handleAddProject, handleAddWorktree, handleAddScratchTerminal, handleCloseDrawerTab, handleCloseProject,
     handleAddDrawerTab, handleOpenInDrawer, handleOpenInTab, handleAddSessionTab,
     handleCloseWorktree, handleCloseScratch,
     handleToggleDrawer, handleToggleDrawerExpand, handleToggleRightPanel, handleToggleProjectSwitcher,
@@ -2779,6 +2795,7 @@ export function useAppController() {
 
     // Project actions
     onCloseProject: () => activeProjectId && handleCloseProject(activeProjectId),
+    onRefreshProjects: handleRefreshProjects,
 
     // Navigation actions
     onNavigatePrev: () => actionHandlers['navigate::prev']?.(),
@@ -2892,7 +2909,7 @@ export function useAppController() {
     activeSessionTabId,
     handleCloseDrawerTab, handleToggleDrawer, handleToggleDrawerExpand, handleSelectDrawerTab, handleAddDrawerTab,
     handleAddSessionTab, handleCloseSessionTab, handleCloseCurrentSession, handlePrevSessionTab, handleNextSessionTab, handleSelectSessionTabByIndex,
-    handleCloseScratch, handleAddScratchTerminal, handleCloseWorktree, handleAddWorktree, handleCloseProject,
+    handleCloseScratch, handleAddScratchTerminal, handleCloseWorktree, handleAddWorktree, handleCloseProject, handleRefreshProjects,
     handleNavigateBack, handleNavigateForward, handleSwitchFocus, handleZoomIn, handleZoomOut, handleZoomReset,
     handleToggleRightPanel, handleToggleCommandPalette, handleToggleTaskSwitcher, handleToggleProjectSwitcher,
     handleToggleTask, selectEntityAtIndex, actionHandlers,
@@ -3003,6 +3020,8 @@ export function useAppController() {
     onToggleProject: toggleProject,
     onSelectProject: handleSelectProject,
     onSelectWorktree: handleSelectWorktree,
+    onRefreshProjects: handleRefreshProjects,
+    isProjectsLoading,
     onAddProject: handleAddProject,
     onAddWorktree: handleAddWorktree,
     onDeleteWorktree: handleDeleteWorktree,

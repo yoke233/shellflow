@@ -1,6 +1,202 @@
-import type { Terminal } from '@xterm/xterm';
+import type { ITerminalOptions, Terminal } from '@xterm/xterm';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
+
+/**
+ * Return platform-specific xterm options.
+ *
+ * On Windows, explicitly enabling ConPTY compatibility heuristics prevents
+ * scrollback corruption and missing rows when terminal size changes.
+ */
+export function getPlatformTerminalOptions(): Partial<ITerminalOptions> {
+  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
+    return {
+      windowsPty: { backend: 'conpty' },
+      customGlyphs: false,
+    };
+  }
+
+  return {};
+}
+
+export const TERMINAL_SCROLLBACK = 20000;
+export function resolveTerminalFontFamily(fontFamily: string): string {
+  const trimmed = fontFamily.trim();
+  if (trimmed.length === 0) {
+    return 'Consolas, "Courier New", monospace';
+  }
+
+  const hasGenericFamily = /\b(monospace|sans-serif|serif|system-ui)\b/i.test(trimmed);
+  if (hasGenericFamily) {
+    return trimmed;
+  }
+
+  return `${trimmed}, monospace`;
+}
+/**
+ * 规范化 ANSI SGR 颜色序列，避免部分工具输出的冒号参数在 xterm.js 中
+ * 产生渲染与选区错位（例如 Windows 下彩色块拖拽选择出现白块）。
+ *
+ * 仅处理以 `m` 结尾的 SGR 序列，且只在存在 `:` 参数时转换为 `;`。
+ */
+export function normalizeSgrColorSequences(data: string): string {
+  if (!data.includes('\x1b[') || !data.includes('m') || !data.includes(':')) {
+    return data;
+  }
+
+  return data.replace(/\x1b\[([0-9:;]*)m/g, (full, params: string) => {
+    if (!params.includes(':')) {
+      return full;
+    }
+
+    return `\x1b[${params.replace(/:/g, ';')}m`;
+  });
+}
+
+
+/**
+ * 增量规范化 SGR 颜色序列，处理 ESC 序列跨 chunk 被切开的场景。
+ */
+export function createStreamingSgrColorNormalizer(): {
+  normalize: (data: string) => string;
+  flush: () => string;
+  reset: () => void;
+} {
+  let carry = '';
+
+  const extractIncompleteCsiTail = (input: string): { body: string; tail: string } => {
+    for (let index = input.length - 1; index >= 0; index--) {
+      if (input.charCodeAt(index) !== 0x1b) {
+        continue;
+      }
+
+      if (index + 1 >= input.length || input.charCodeAt(index + 1) !== 0x5b) {
+        continue;
+      }
+
+      const tail = input.slice(index);
+      if (/^\x1b\[[0-9:;?]*$/.test(tail)) {
+        return {
+          body: input.slice(0, index),
+          tail,
+        };
+      }
+
+      break;
+    }
+
+    return { body: input, tail: '' };
+  };
+
+  const normalize = (data: string) => {
+    if (!data) {
+      return '';
+    }
+
+    const merged = carry + data;
+    const { body, tail } = extractIncompleteCsiTail(merged);
+    carry = tail;
+    return normalizeSgrColorSequences(body);
+  };
+
+  const flush = () => {
+    const tail = carry;
+    carry = '';
+    return tail;
+  };
+
+  const reset = () => {
+    carry = '';
+  };
+
+  return { normalize, flush, reset };
+}
+/**
+ * Batch PTY output writes to keep ordering stable under high throughput.
+ *
+ * xterm.js internally buffers writes, but feeding it one tiny chunk per event
+ * can still cause visible jitter when events arrive very quickly.
+ */
+export function createTerminalOutputBuffer(
+  terminal: Terminal,
+  onAfterWrite?: () => void
+): {
+  write: (data: string) => void;
+  dispose: () => void;
+} {
+  let queuedChunks: string[] = [];
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+  let writing = false;
+  let disposed = false;
+
+  const flush = () => {
+    if (disposed || writing || queuedChunks.length === 0) {
+      return;
+    }
+
+    const payload = queuedChunks.join('');
+    queuedChunks = [];
+    writing = true;
+
+    terminal.write(payload, () => {
+      writing = false;
+      onAfterWrite?.();
+
+      if (queuedChunks.length > 0) {
+        scheduleFlush();
+      }
+    });
+  };
+
+  const scheduleFlush = () => {
+    if (disposed || flushTimer !== null) {
+      return;
+    }
+
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flush();
+    }, 0);
+  };
+
+  const write = (data: string) => {
+    if (disposed || data.length === 0) {
+      return;
+    }
+
+    queuedChunks.push(data);
+
+    if (!writing) {
+      scheduleFlush();
+    }
+  };
+
+  const dispose = () => {
+    disposed = true;
+    queuedChunks = [];
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+  };
+
+  return { write, dispose };
+}
+
+/**
+ * Enable modern Unicode width tables so CJK characters are measured correctly.
+ * This improves cursor hit-testing and selection boundaries for Chinese text.
+ */
+export function enableUnicode11Width(terminal: Terminal): void {
+  try {
+    const unicodeAddon = new Unicode11Addon();
+    terminal.loadAddon(unicodeAddon);
+    terminal.unicode.activeVersion = '11';
+  } catch (error) {
+    console.warn('Unicode11 addon failed to load, using default width tables:', error);
+  }
+}
 
 /**
  * Loads the WebGL addon with automatic recovery from context loss.
@@ -17,9 +213,17 @@ import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager';
  * @returns Cleanup function to dispose the addon and stop watching DPR
  */
 export function loadWebGLWithRecovery(terminal: Terminal): () => void {
+  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
+    // xterm WebGL renderer can produce selection artifacts on ANSI-colored text
+    // in Windows (e.g. white blocks at color boundaries while drag-selecting).
+    // Keep canvas renderer on Windows for correctness.
+    return () => {};
+  }
+
   let webglAddon: WebglAddon | null = null;
   let disposed = false;
   let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
+  let selectionDisposable: { dispose: () => void } | null = null;
 
   const loadAddon = () => {
     if (disposed) return;
@@ -35,6 +239,18 @@ export function loadWebGLWithRecovery(terminal: Terminal): () => void {
         recoveryTimeout = setTimeout(loadAddon, 1000);
       });
       terminal.loadAddon(webglAddon);
+
+      // Work around intermittent glyph artifacts on colored lines while dragging
+      // selection in WebGL renderer. Clearing the atlas on selection changes
+      // forces re-rasterization and avoids "white box" overlays.
+      selectionDisposable?.dispose();
+      selectionDisposable = terminal.onSelectionChange(() => {
+        try {
+          webglAddon?.clearTextureAtlas();
+        } catch {
+          // ignore transient renderer states
+        }
+      });
     } catch (e) {
       console.warn('WebGL addon failed to load, using canvas renderer:', e);
       webglAddon = null;
@@ -77,6 +293,8 @@ export function loadWebGLWithRecovery(terminal: Terminal): () => void {
     if (recoveryTimeout) {
       clearTimeout(recoveryTimeout);
     }
+    selectionDisposable?.dispose();
+    selectionDisposable = null;
     dprMediaQuery.removeEventListener('change', handleDprChange);
     webglAddon?.dispose();
     webglAddon = null;
@@ -227,6 +445,14 @@ export function createImeGuard(terminal: Terminal): {
   pin: () => void;
   dispose: () => void;
 } {
+  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
+    return {
+      lock: () => {},
+      unlock: () => {},
+      pin: () => {},
+      dispose: () => {},
+    };
+  }
   let locked = false;
   let lockedX = 0;
   let lockedY = 0;
@@ -276,6 +502,7 @@ export function createImeGuard(terminal: Terminal): {
 
   const pin = () => {
     if (!locked) return;
+    if (terminal.hasSelection()) return;
     const now = performance.now();
     if (now - lastPin < MIN_PIN_INTERVAL) return;
     lastPin = now;
@@ -288,6 +515,7 @@ export function createImeGuard(terminal: Terminal): {
 
   const lock = () => {
     if (locked) return;
+    if (terminal.hasSelection()) return;
     const core = (terminal as any)._core;
     const helper = core?._compositionHelper;
     if (!helper?.updateCompositionElements) return;
@@ -339,9 +567,27 @@ export function createImeGuard(terminal: Terminal): {
     originalUpdate = null;
   };
 
+  const selectionDisposable = terminal.onSelectionChange(() => {
+    const hasSelection = terminal.hasSelection();
+
+    if (hasSelection && locked) {
+      unlock();
+      return;
+    }
+  });
+
+  // Some IME implementations keep composition helper active while the user starts
+  // mouse drag selection. Unlock immediately on mouse down to avoid overlay blocks.
+  const handleMouseDown = () => {
+    unlock();
+  };
+  terminal.element?.addEventListener('mousedown', handleMouseDown, true);
+
   const dispose = () => {
     unlock();
     cursorMoveDisposable.dispose();
+    selectionDisposable.dispose();
+    terminal.element?.removeEventListener('mousedown', handleMouseDown, true);
     if (settleTimer) {
       clearTimeout(settleTimer);
       settleTimer = null;
@@ -359,9 +605,21 @@ export function createCursorVisibilityGuard(
   update: () => void;
   dispose: () => void;
 } {
+  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
+    // Custom cursor hiding can leave stale overlay artifacts on some Windows
+    // terminals with ANSI-colored output during drag selection.
+    return {
+      anchor: () => {},
+      update: () => {},
+      dispose: () => {},
+    };
+  }
+
   let anchorY = terminal.buffer.active.cursorY;
   let hasAnchor = false;
   let hidden = false;
+  let hiddenByAway = false;
+  let hiddenBySelection = false;
   let lastUpdate = 0;
   const rowTolerance = options?.rowTolerance ?? 0;
   const minIntervalMs = options?.minIntervalMs ?? 33;
@@ -376,11 +634,21 @@ export function createCursorVisibilityGuard(
     terminal.refresh(terminal.buffer.active.cursorY, terminal.buffer.active.cursorY);
   };
 
+  const applyHiddenState = () => {
+    setHidden(hiddenByAway || hiddenBySelection);
+  };
+
+  const selectionDisposable = terminal.onSelectionChange(() => {
+    hiddenBySelection = terminal.hasSelection();
+    applyHiddenState();
+  });
+
   const anchor = () => {
     const buffer = terminal.buffer.active;
     anchorY = buffer.cursorY;
     hasAnchor = true;
-    setHidden(false);
+    hiddenByAway = false;
+    applyHiddenState();
   };
 
   const update = () => {
@@ -391,11 +659,15 @@ export function createCursorVisibilityGuard(
     const buffer = terminal.buffer.active;
     const cursorY = buffer.cursorY;
     const away = Math.abs(cursorY - anchorY) > rowTolerance;
-    setHidden(away);
+    hiddenByAway = away;
+    applyHiddenState();
   };
 
   const dispose = () => {
-    setHidden(false);
+    selectionDisposable.dispose();
+    hiddenByAway = false;
+    hiddenBySelection = false;
+    applyHiddenState();
   };
 
   return { anchor, update, dispose };

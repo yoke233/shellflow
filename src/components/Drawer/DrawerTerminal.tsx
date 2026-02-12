@@ -10,34 +10,60 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
+import { useTerminalSearch } from '../../hooks/useTerminalSearch';
+import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
+import { TerminalSearchControl } from '../TerminalSearchControl';
 import '@xterm/xterm/css/xterm.css';
 
-// Fix for xterm.js not handling 5-part colon-separated RGB sequences.
-// Neovim sends 38:2:R:G:B but xterm.js expects 38:2:CS:R:G:B (with colorspace).
-// This adds an empty colorspace to fix the parsing.
-function fixColorSequences(data: string): string {
-  return data.replace(/([34]8:2):(\d+):(\d+):(\d+)(?!:\d)/g, '$1::$2:$3:$4');
-}
 
 // Debounce helper with cancel support
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T & { cancel: () => void } {
   let timeout: ReturnType<typeof setTimeout> | null = null;
+  let lastInvokeTs = 0;
+  let pendingArgs: unknown[] | null = null;
+
+  const invoke = (args: unknown[]) => {
+    lastInvokeTs = Date.now();
+    fn(...args);
+  };
+
   const debounced = ((...args: unknown[]) => {
-    if (timeout) clearTimeout(timeout);
+    const now = Date.now();
+    const elapsed = now - lastInvokeTs;
+
+    if (lastInvokeTs === 0 || elapsed >= ms) {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      pendingArgs = null;
+      invoke(args);
+      return;
+    }
+
+    pendingArgs = args;
+    if (timeout) {
+      return;
+    }
+
     timeout = setTimeout(() => {
       timeout = null;
-      fn(...args);
-    }, ms);
+      const argsToUse = pendingArgs ?? [];
+      pendingArgs = null;
+      invoke(argsToUse);
+    }, ms - elapsed);
   }) as T & { cancel: () => void };
+
   debounced.cancel = () => {
     if (timeout) {
       clearTimeout(timeout);
       timeout = null;
     }
+    pendingArgs = null;
   };
+
   return debounced;
 }
 
@@ -67,7 +93,23 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const isComposingRef = useRef(false);
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
+  const outputBufferRef = useRef<ReturnType<typeof createTerminalOutputBuffer> | null>(null);
+  const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
+
+  const {
+    isSearchOpen,
+    searchQuery,
+    hasMatch,
+    currentMatchIndex,
+    totalMatches,
+    setSearchQuery,
+    openSearch,
+    closeSearch,
+    findNext,
+    findPrevious,
+    onTerminalKeyDown,
+  } = useTerminalSearch(terminalRef);
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
   const xtermTheme = useDrawerXtermTheme();
@@ -76,14 +118,10 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
-    if (terminalRef.current) {
-      terminalRef.current.write(fixColorSequences(data), () => {
-        if (isComposingRef.current) {
-          imeGuardRef.current?.pin();
-        } else {
-          cursorGuardRef.current?.update();
-        }
-      });
+    if (terminalRef.current && outputBufferRef.current) {
+      const payload = sgrNormalizerRef.current.normalize(data);
+      if (payload.length === 0) return;
+      outputBufferRef.current.write(payload);
     }
   }, []);
 
@@ -140,8 +178,10 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
+      scrollback: TERMINAL_SCROLLBACK,
       fontSize: terminalConfig.fontSize,
-      fontFamily: terminalConfig.fontFamily,
+      fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
+      ...getPlatformTerminalOptions(),
       linkHandler: {
         activate: (event, uri) => {
           if (event.metaKey) {
@@ -161,13 +201,15 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    enableUnicode11Width(terminal);
     terminal.open(containerRef.current);
 
     // Load ligatures addon if enabled (incompatible with WebGL)
     // Store WebGL cleanup function if used
     let webglCleanup: (() => void) | null = null;
 
-    if (terminalConfig.fontLigatures) {
+    const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+    if (terminalConfig.fontLigatures && !isWindows) {
       try {
         const ligaturesAddon = new LigaturesAddon();
         terminal.loadAddon(ligaturesAddon);
@@ -181,6 +223,14 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    const outputBuffer = createTerminalOutputBuffer(terminal, () => {
+      if (isComposingRef.current) {
+        imeGuardRef.current?.pin();
+      } else {
+        cursorGuardRef.current?.update();
+      }
+    });
+    outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
     const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data));
@@ -211,6 +261,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    terminal.textarea?.addEventListener('keydown', onTerminalKeyDown, true);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
     const cursorGuard = createCursorVisibilityGuard(terminal, { rowTolerance: 0, minIntervalMs: 33 });
@@ -267,6 +318,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.textarea?.removeEventListener('keydown', onTerminalKeyDown, true);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
@@ -275,6 +327,12 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
+      outputBuffer.dispose();
+      const tail = sgrNormalizerRef.current.flush();
+      if (tail && outputBufferRef.current) {
+        outputBufferRef.current.write(tail);
+      }
+      outputBufferRef.current = null;
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -284,7 +342,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       // 1. The pty-exit event handler (when shell exits naturally)
       // 2. App.tsx cleanup when tab is explicitly closed
     };
-  }, [id, entityId, directory, command]);
+  }, [id, entityId, directory, command, onTerminalKeyDown]);
 
   // Update terminal theme when it changes
   useEffect(() => {
@@ -359,7 +417,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   // Store in ref so immediateResize can cancel it
   const debouncedResizeRef = useRef<ReturnType<typeof debounce> | null>(null);
   const debouncedResize = useMemo(() => {
-    const fn = debounce(immediateResize, 100);
+    const fn = debounce(immediateResize, 1000);
     debouncedResizeRef.current = fn;
     return fn;
   }, [immediateResize]);
@@ -408,7 +466,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   // Focus terminal when shouldAutoFocus is true or when focusTrigger changes
   useEffect(() => {
     log.debug('[DrawerTerminal] Focus effect', { id, shouldAutoFocus, focusTrigger, hasTerminal: !!terminalRef.current });
-    if (shouldAutoFocus) {
+    if (shouldAutoFocus && !isSearchOpen) {
       // Focus the xterm textarea directly
       const textarea = document.querySelector(
         `[data-terminal-id="${id}"] textarea.xterm-helper-textarea`
@@ -418,10 +476,22 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
         textarea.focus();
       }
     }
-  }, [shouldAutoFocus, focusTrigger, id]);
+  }, [shouldAutoFocus, focusTrigger, id, isSearchOpen]);
 
   return (
-    <div className="relative w-full h-full" data-terminal-id={id} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
+    <div className="relative w-full h-full" data-terminal-id={id} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding }}>
+      <TerminalSearchControl
+        isOpen={isSearchOpen}
+        query={searchQuery}
+        hasMatch={hasMatch}
+        currentMatchIndex={currentMatchIndex}
+        totalMatches={totalMatches}
+        onOpen={openSearch}
+        onClose={closeSearch}
+        onQueryChange={setSearchQuery}
+        onNext={findNext}
+        onPrevious={findPrevious}
+      />
       <div
         ref={containerRef}
         className="w-full h-full"

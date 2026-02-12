@@ -7,32 +7,60 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
+import { useTerminalSearch } from '../../hooks/useTerminalSearch';
+import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
+import { TerminalSearchControl } from '../TerminalSearchControl';
 import '@xterm/xterm/css/xterm.css';
 
-// Fix for xterm.js not handling 5-part colon-separated RGB sequences.
-function fixColorSequences(data: string): string {
-  return data.replace(/([34]8:2):(\d+):(\d+):(\d+)(?!:\d)/g, '$1::$2:$3:$4');
-}
 
 // Debounce helper with cancel support
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T & { cancel: () => void } {
   let timeout: ReturnType<typeof setTimeout> | null = null;
+  let lastInvokeTs = 0;
+  let pendingArgs: unknown[] | null = null;
+
+  const invoke = (args: unknown[]) => {
+    lastInvokeTs = Date.now();
+    fn(...args);
+  };
+
   const debounced = ((...args: unknown[]) => {
-    if (timeout) clearTimeout(timeout);
+    const now = Date.now();
+    const elapsed = now - lastInvokeTs;
+
+    if (lastInvokeTs === 0 || elapsed >= ms) {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      pendingArgs = null;
+      invoke(args);
+      return;
+    }
+
+    pendingArgs = args;
+    if (timeout) {
+      return;
+    }
+
     timeout = setTimeout(() => {
       timeout = null;
-      fn(...args);
-    }, ms);
+      const argsToUse = pendingArgs ?? [];
+      pendingArgs = null;
+      invoke(argsToUse);
+    }, ms - elapsed);
   }) as T & { cancel: () => void };
+
   debounced.cancel = () => {
     if (timeout) {
       clearTimeout(timeout);
       timeout = null;
     }
+    pendingArgs = null;
   };
+
   return debounced;
 }
 
@@ -74,12 +102,28 @@ export function TaskTerminal({
   const isComposingRef = useRef(false);
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
+  const outputBufferRef = useRef<ReturnType<typeof createTerminalOutputBuffer> | null>(null);
+  const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
 
   // Get theme from context
   const xtermTheme = useDrawerXtermTheme();
   const [isPtyReady, setIsPtyReady] = useState(false);
+
+  const {
+    isSearchOpen,
+    searchQuery,
+    hasMatch,
+    currentMatchIndex,
+    totalMatches,
+    setSearchQuery,
+    openSearch,
+    closeSearch,
+    findNext,
+    findPrevious,
+    onTerminalKeyDown,
+  } = useTerminalSearch(terminalRef);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
@@ -115,8 +159,10 @@ export function TaskTerminal({
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
+      scrollback: TERMINAL_SCROLLBACK,
       fontSize: terminalConfig.fontSize,
-      fontFamily: terminalConfig.fontFamily,
+      fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
+      ...getPlatformTerminalOptions(),
       linkHandler: {
         activate: (event, uri) => {
           if (event.metaKey) {
@@ -136,6 +182,7 @@ export function TaskTerminal({
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    enableUnicode11Width(terminal);
     terminal.open(containerRef.current);
 
     // Load WebGL addon with automatic recovery from context loss
@@ -143,6 +190,14 @@ export function TaskTerminal({
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    const outputBuffer = createTerminalOutputBuffer(terminal, () => {
+      if (isComposingRef.current) {
+        imeGuardRef.current?.pin();
+      } else {
+        cursorGuardRef.current?.update();
+      }
+    });
+    outputBufferRef.current = outputBuffer;
 
     // Write function for keyboard handlers
     const writeToPty = (data: string) => {
@@ -169,6 +224,7 @@ export function TaskTerminal({
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    terminal.textarea?.addEventListener('keydown', onTerminalKeyDown, true);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
     const cursorGuard = createCursorVisibilityGuard(terminal, { rowTolerance: 0, minIntervalMs: 33 });
@@ -220,13 +276,10 @@ export function TaskTerminal({
         if (!ptyIdKnown) {
           earlyEvents.push(event.payload);
         } else if (event.payload.pty_id === ptyIdRef.current) {
-          terminal.write(fixColorSequences(event.payload.data), () => {
-            if (isComposingRef.current) {
-              imeGuardRef.current?.pin();
-            } else {
-              cursorGuardRef.current?.update();
-            }
-          });
+          const payload = sgrNormalizerRef.current.normalize(event.payload.data);
+          if (payload.length > 0) {
+            outputBuffer.write(payload);
+          }
         }
       });
       unlistenOutput = outputListener;
@@ -240,7 +293,7 @@ export function TaskTerminal({
             const code = event.payload.exitCode;
             // green for 0, grey for signal (128+), red for error (1-127)
             const color = code === 0 ? '32' : code >= 128 ? '90' : '31';
-            terminal.writeln(`\r\n\x1b[${color}m[Process exited with code ${code}]\x1b[0m`);
+            outputBuffer.write(`\r\n\x1b[${color}m[Process exited with code ${code}]\x1b[0m\r\n`);
             onTaskExitRef.current?.(event.payload.exitCode);
           }
         }
@@ -259,13 +312,10 @@ export function TaskTerminal({
       // Replay buffered events that match our ptyId
       for (const event of earlyEvents) {
         if (event.pty_id === newPtyId) {
-          terminal.write(fixColorSequences(event.data), () => {
-            if (isComposingRef.current) {
-              imeGuardRef.current?.pin();
-            } else {
-              cursorGuardRef.current?.update();
-            }
-          });
+          const payload = sgrNormalizerRef.current.normalize(event.data);
+          if (payload.length > 0) {
+            outputBuffer.write(payload);
+          }
         }
       }
 
@@ -277,7 +327,7 @@ export function TaskTerminal({
     initTask().catch((err) => {
       console.error('[TaskTerminal] initTask error:', err);
       // Show error in terminal
-      terminal.writeln(`\x1b[31mError: ${err}\x1b[0m`);
+      outputBuffer.write(`\x1b[31mError: ${err}\x1b[0m\r\n`);
     });
 
     return () => {
@@ -288,6 +338,7 @@ export function TaskTerminal({
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.textarea?.removeEventListener('keydown', onTerminalKeyDown, true);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
       imeGuard.dispose();
@@ -296,6 +347,12 @@ export function TaskTerminal({
       cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
+      const tail = sgrNormalizerRef.current.flush();
+      if (tail) {
+        outputBuffer.write(tail);
+      }
+      outputBuffer.dispose();
+      outputBufferRef.current = null;
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -307,14 +364,14 @@ export function TaskTerminal({
         ptyIdRef.current = null;
       }
     };
-  }, [id, entityId, taskName]);
+  }, [id, entityId, taskName, onTerminalKeyDown]);
 
   // Listen for signal notifications
   useEffect(() => {
     const handleSignal = (e: Event) => {
-      const { ptyId, signal } = (e as CustomEvent).detail;
-      if (ptyId === ptyIdRef.current && terminalRef.current) {
-        terminalRef.current.writeln(`\r\n\x1b[90m[Sending ${signal}...]\x1b[0m`);
+    const { ptyId, signal } = (e as CustomEvent).detail;
+      if (ptyId === ptyIdRef.current && outputBufferRef.current) {
+        outputBufferRef.current.write(`\r\n\x1b[90m[Sending ${signal}...]\x1b[0m\r\n`);
       }
     };
 
@@ -345,7 +402,7 @@ export function TaskTerminal({
   // Store in ref so immediateResize can cancel it
   const debouncedResizeRef = useRef<ReturnType<typeof debounce> | null>(null);
   const debouncedResize = useMemo(() => {
-    const fn = debounce(immediateResize, 100);
+    const fn = debounce(immediateResize, 1000);
     debouncedResizeRef.current = fn;
     return fn;
   }, [immediateResize]);
@@ -393,7 +450,7 @@ export function TaskTerminal({
 
   // Focus terminal when shouldAutoFocus is true or when focusTrigger changes
   useEffect(() => {
-    if (shouldAutoFocus) {
+    if (shouldAutoFocus && !isSearchOpen) {
       // Focus the xterm textarea directly using document.querySelector (same approach as SplitContainer)
       requestAnimationFrame(() => {
         const textarea = document.querySelector(
@@ -404,7 +461,7 @@ export function TaskTerminal({
         }
       });
     }
-  }, [shouldAutoFocus, focusTrigger, id]);
+  }, [shouldAutoFocus, focusTrigger, id, isSearchOpen]);
 
   // Update terminal theme when it changes
   useEffect(() => {
@@ -433,7 +490,19 @@ export function TaskTerminal({
   }, [isActive]);
 
   return (
-    <div className="relative w-full h-full" data-terminal-id={id} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
+    <div className="relative w-full h-full" data-terminal-id={id} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding }}>
+      <TerminalSearchControl
+        isOpen={isSearchOpen}
+        query={searchQuery}
+        hasMatch={hasMatch}
+        currentMatchIndex={currentMatchIndex}
+        totalMatches={totalMatches}
+        onOpen={openSearch}
+        onClose={closeSearch}
+        onQueryChange={setSearchQuery}
+        onNext={findNext}
+        onPrevious={findPrevious}
+      />
       <div ref={containerRef} className="w-full h-full" />
       {isResizing && (
         <div className="absolute inset-0 z-50" style={{ backgroundColor: xtermTheme.background }} />

@@ -1,5 +1,6 @@
 use crate::config::BaseBranch;
 use crate::git;
+use crate::path_utils;
 use crate::state::{Project, Worktree};
 use crate::template::{expand_template, TemplateContext};
 use log::info;
@@ -70,7 +71,7 @@ pub fn resolve_worktree_directory(
     branch: Option<&str>,
     worktree_name: Option<&str>,
 ) -> Result<PathBuf, WorktreeError> {
-    let repo_directory = project_path.to_string_lossy().to_string();
+    let repo_directory = path_utils::normalize_path_string(project_path);
     let template = worktree_directory.unwrap_or("{{ repo_directory }}/.worktrees");
 
     let mut ctx = TemplateContext::new(&repo_directory);
@@ -103,7 +104,7 @@ pub fn create_project(path: &Path) -> Result<Project, WorktreeError> {
     Ok(Project {
         id: Uuid::new_v4().to_string(),
         name: git::get_repo_name(path),
-        path: path.to_string_lossy().to_string(),
+        path: path_utils::normalize_path_string(path),
         worktrees: vec![],
         order: 0,
         is_active: true,
@@ -148,7 +149,7 @@ pub fn create_worktree(
     let worktree = Worktree {
         id: Uuid::new_v4().to_string(),
         name: worktree_name.clone(),
-        path: worktree_path.to_string_lossy().to_string(),
+        path: path_utils::normalize_path_string(&worktree_path),
         branch: worktree_name,
         created_at: chrono_lite_now(),
         order: project.worktrees.len() as i32,

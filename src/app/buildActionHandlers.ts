@@ -26,6 +26,7 @@ interface BuildActionHandlersDeps {
   focusToRestoreRef: MutableRefObject<HTMLElement | null>;
   setEditingScratchId: Dispatch<SetStateAction<string | null>>;
   setIsDrawerOpen: Dispatch<SetStateAction<boolean>>;
+  handleRefreshProjects: () => void;
   handleAddProject: () => void;
   handleToggleProjectSwitcher: () => void;
   handleOpenCommitModal: () => void;
@@ -80,6 +81,7 @@ export function buildActionHandlers(deps: BuildActionHandlersDeps): ActionHandle
     focusToRestoreRef,
     setEditingScratchId,
     setIsDrawerOpen,
+    handleRefreshProjects,
     handleAddProject,
     handleToggleProjectSwitcher,
     handleOpenCommitModal,
@@ -266,6 +268,7 @@ export function buildActionHandlers(deps: BuildActionHandlersDeps): ActionHandle
         handleCloseProject(activeProjectId);
       }
     },
+    'project::refresh': handleRefreshProjects,
     'git::commit': handleOpenCommitModal,
     'palette::toggle': handleToggleCommandPalette,
     'drawer::toggle': handleToggleDrawer,

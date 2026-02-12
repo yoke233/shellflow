@@ -55,6 +55,7 @@
         "ctrl-`": "drawer::toggle",
         "cmd-b": "rightPanel::toggle",
         "cmd-shift-d": "diff::open",
+        "cmd-shift-r": "project::refresh",
         "shift-Escape": "drawer::expand",
 
         // Zoom

@@ -1,6 +1,8 @@
+use crate::path_utils;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 fn default_true() -> bool {
@@ -125,9 +127,25 @@ impl AppState {
                         // Clean up stale worktrees whose directories no longer exist
                         let mut cleaned = false;
                         for project in &mut persisted.projects {
+                            let normalized_project_path =
+                                path_utils::normalize_path_string(Path::new(&project.path));
+                            if project.path != normalized_project_path {
+                                project.path = normalized_project_path;
+                                cleaned = true;
+                            }
+
+                            for worktree in &mut project.worktrees {
+                                let normalized_worktree_path =
+                                    path_utils::normalize_path_string(Path::new(&worktree.path));
+                                if worktree.path != normalized_worktree_path {
+                                    worktree.path = normalized_worktree_path;
+                                    cleaned = true;
+                                }
+                            }
+
                             let before_count = project.worktrees.len();
                             project.worktrees.retain(|w| {
-                                let exists = std::path::Path::new(&w.path).exists();
+                                let exists = Path::new(&w.path).exists();
                                 if !exists {
                                     eprintln!(
                                         "[State] Removing stale worktree '{}' - path no longer exists: {}",

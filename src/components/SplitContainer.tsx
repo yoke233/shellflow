@@ -5,7 +5,7 @@
  * Handles vim-style splits and navigation between panes.
  */
 
-import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle, type FocusEvent, type MouseEvent } from 'react';
 import {
   GridviewReact,
   GridviewReadyEvent,
@@ -50,14 +50,46 @@ function SplitPanel(props: IGridviewPanelProps<{ paneId: string; content: React.
   const { content } = props.params;
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Forward focus to the terminal inside when this panel receives focus
-  const handleFocus = useCallback(() => {
-    // Find the xterm textarea (the element that receives keyboard input)
+    const focusTerminalTextarea = useCallback(() => {
     const textarea = containerRef.current?.querySelector('textarea.xterm-helper-textarea') as HTMLTextAreaElement | null;
     if (textarea) {
       textarea.focus();
     }
   }, []);
+
+  const shouldSkipForwardFocus = useCallback((target: EventTarget | null) => {
+    const element = target as HTMLElement | null;
+    if (!element) {
+      return false;
+    }
+
+    if (element.closest('[data-terminal-search-control="true"]')) {
+      return true;
+    }
+
+    const interactiveElement = element.closest('input, textarea, button, select, [contenteditable="true"]');
+    if (!interactiveElement) {
+      return false;
+    }
+
+    return !(interactiveElement instanceof HTMLTextAreaElement && interactiveElement.classList.contains('xterm-helper-textarea'));
+  }, []);
+
+  const handleFocus = useCallback((event: FocusEvent<HTMLDivElement>) => {
+    if (shouldSkipForwardFocus(event.target)) {
+      return;
+    }
+
+    focusTerminalTextarea();
+  }, [focusTerminalTextarea, shouldSkipForwardFocus]);
+
+  const handleClick = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if (shouldSkipForwardFocus(event.target)) {
+      return;
+    }
+
+    focusTerminalTextarea();
+  }, [focusTerminalTextarea, shouldSkipForwardFocus]);
 
   // Use CSS to fill the panel instead of tracking dimensions in state
   // This avoids re-renders on every resize animation frame
@@ -67,7 +99,7 @@ function SplitPanel(props: IGridviewPanelProps<{ paneId: string; content: React.
       className="absolute inset-0 overflow-hidden"
       tabIndex={-1}
       onFocus={handleFocus}
-      onClick={handleFocus}
+      onClick={handleClick}
     >
       {content}
     </div>

@@ -11,37 +11,63 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, loadWebGLWithRecovery } from '../../lib/terminal';
+import { useTerminalSearch } from '../../hooks/useTerminalSearch';
+import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
+import { TerminalSearchControl } from '../TerminalSearchControl';
 import '@xterm/xterm/css/xterm.css';
 
 const DEFAULT_TERMINAL_COLS = 80;
 const DEFAULT_TERMINAL_ROWS = 24;
 
-// Fix for xterm.js not handling 5-part colon-separated RGB sequences.
-// Neovim sends 38:2:R:G:B but xterm.js expects 38:2:CS:R:G:B (with colorspace).
-// This adds an empty colorspace to fix the parsing.
-function fixColorSequences(data: string): string {
-  return data.replace(/([34]8:2):(\d+):(\d+):(\d+)(?!:\d)/g, '$1::$2:$3:$4');
-}
 
 // Debounce helper with cancel support
 function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number): T & { cancel: () => void } {
   let timeout: ReturnType<typeof setTimeout> | null = null;
+  let lastInvokeTs = 0;
+  let pendingArgs: unknown[] | null = null;
+
+  const invoke = (args: unknown[]) => {
+    lastInvokeTs = Date.now();
+    fn(...args);
+  };
+
   const debounced = ((...args: unknown[]) => {
-    if (timeout) clearTimeout(timeout);
+    const now = Date.now();
+    const elapsed = now - lastInvokeTs;
+
+    if (lastInvokeTs === 0 || elapsed >= ms) {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      pendingArgs = null;
+      invoke(args);
+      return;
+    }
+
+    pendingArgs = args;
+    if (timeout) {
+      return;
+    }
+
     timeout = setTimeout(() => {
       timeout = null;
-      fn(...args);
-    }, ms);
+      const argsToUse = pendingArgs ?? [];
+      pendingArgs = null;
+      invoke(argsToUse);
+    }, ms - elapsed);
   }) as T & { cancel: () => void };
+
   debounced.cancel = () => {
     if (timeout) {
       clearTimeout(timeout);
       timeout = null;
     }
+    pendingArgs = null;
   };
+
   return debounced;
 }
 
@@ -81,8 +107,24 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const isComposingRef = useRef(false);
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
+  const outputBufferRef = useRef<ReturnType<typeof createTerminalOutputBuffer> | null>(null);
+  const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const spawnedAtRef = useRef<number>(0);
   const [isReady, setIsReady] = useState(false);
+
+  const {
+    isSearchOpen,
+    searchQuery,
+    hasMatch,
+    currentMatchIndex,
+    totalMatches,
+    setSearchQuery,
+    openSearch,
+    closeSearch,
+    findNext,
+    findPrevious,
+    onTerminalKeyDown,
+  } = useTerminalSearch(terminalRef);
 
   // Get theme from context
   const xtermTheme = useXtermTheme();
@@ -156,15 +198,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
-    if (terminalRef.current) {
-      const payload = type === 'main' ? fixColorSequences(data) : data;
-      terminalRef.current.write(payload, () => {
-        if (isComposingRef.current) {
-          imeGuardRef.current?.pin();
-        } else {
-          cursorGuardRef.current?.update();
-        }
-      });
+    if (terminalRef.current && outputBufferRef.current) {
+      const payload = sgrNormalizerRef.current.normalize(data);
+      if (payload.length === 0) return;
+      outputBufferRef.current.write(payload);
     }
 
     // Output activity detection when NOT active (for background tab indicators)
@@ -305,8 +342,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
+      scrollback: TERMINAL_SCROLLBACK,
       fontSize: terminalConfig.fontSize,
-      fontFamily: terminalConfig.fontFamily,
+      fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
+      ...getPlatformTerminalOptions(),
       allowProposedApi: true,
       linkHandler: {
         activate: (event, uri) => {
@@ -327,13 +366,15 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    enableUnicode11Width(terminal);
     terminal.open(containerRef.current);
 
     // Load ligatures addon if enabled (incompatible with WebGL)
     // Store WebGL cleanup function if used
     let webglCleanup: (() => void) | null = null;
 
-    if (terminalConfig.fontLigatures) {
+    const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+    if (terminalConfig.fontLigatures && !isWindows) {
       try {
         const ligaturesAddon = new LigaturesAddon();
         terminal.loadAddon(ligaturesAddon);
@@ -347,6 +388,14 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    const outputBuffer = createTerminalOutputBuffer(terminal, () => {
+      if (isComposingRef.current) {
+        imeGuardRef.current?.pin();
+      } else {
+        cursorGuardRef.current?.update();
+      }
+    });
+    outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
     const cleanupKeyboardHandlers = attachKeyboardHandlers(terminal, (data) => writeRef.current(data));
@@ -386,6 +435,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     };
     terminal.textarea?.addEventListener('focus', handleTerminalFocus);
     terminal.textarea?.addEventListener('blur', handleTerminalBlur);
+    terminal.textarea?.addEventListener('keydown', onTerminalKeyDown, true);
     terminal.element?.addEventListener('contextmenu', handleTerminalContextMenu);
     const imeGuard = createImeGuard(terminal);
     imeGuardRef.current = imeGuard;
@@ -583,6 +633,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
+      terminal.textarea?.removeEventListener('keydown', onTerminalKeyDown, true);
       terminal.element?.removeEventListener('contextmenu', handleTerminalContextMenu);
       terminal.textarea?.removeEventListener('compositionstart', handleCompositionStart);
       terminal.textarea?.removeEventListener('compositionend', handleCompositionEnd);
@@ -598,6 +649,12 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       osc99Disposable?.dispose();
       bellDisposable?.dispose();
       titleChangeDisposable?.dispose();
+      outputBuffer.dispose();
+      const tail = sgrNormalizerRef.current.flush();
+      if (tail && outputBufferRef.current) {
+        outputBufferRef.current.write(tail);
+      }
+      outputBufferRef.current = null;
       terminal.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
@@ -610,7 +667,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       // 1. The pty-exit event handler (when process exits naturally)
       // 2. App.tsx cleanup when tab is explicitly closed
     };
-  }, [entityId, type, initialCwd]);
+  }, [entityId, type, initialCwd, onTerminalKeyDown]);
 
   // Update terminal theme when it changes
   useEffect(() => {
@@ -720,7 +777,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   // Store in ref so immediateResize can cancel it
   const debouncedResizeRef = useRef<ReturnType<typeof debounce> | null>(null);
   const debouncedResize = useMemo(() => {
-    const fn = debounce(immediateResize, 150);
+    const fn = debounce(immediateResize, 1000);
     debouncedResizeRef.current = fn;
     return fn;
   }, [immediateResize]);
@@ -769,7 +826,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   // Focus terminal when shouldAutoFocus is true or when focusTrigger changes
   useEffect(() => {
     log.debug('[MainTerminal] Focus effect', { entityId, shouldAutoFocus, focusTrigger, hasTerminal: !!terminalRef.current });
-    if (shouldAutoFocus) {
+    if (shouldAutoFocus && !isSearchOpen) {
       // Focus the xterm textarea directly
       const textarea = document.querySelector(
         `[data-terminal-id="${entityId}"] textarea.xterm-helper-textarea`
@@ -779,10 +836,22 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         textarea.focus();
       }
     }
-  }, [shouldAutoFocus, focusTrigger, entityId]);
+  }, [shouldAutoFocus, focusTrigger, entityId, isSearchOpen]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden" data-terminal-id={entityId} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding, contain: 'strict' }}>
+    <div className="relative w-full h-full overflow-hidden" data-terminal-id={entityId} style={{ backgroundColor: xtermTheme.background, padding: terminalConfig.padding }}>
+      <TerminalSearchControl
+        isOpen={isSearchOpen}
+        query={searchQuery}
+        hasMatch={hasMatch}
+        currentMatchIndex={currentMatchIndex}
+        totalMatches={totalMatches}
+        onOpen={openSearch}
+        onClose={closeSearch}
+        onQueryChange={setSearchQuery}
+        onNext={findNext}
+        onPrevious={findPrevious}
+      />
       {!isReady && (
         <div className="absolute inset-0 flex items-center justify-center z-10 bg-theme-0">
           <div className="flex flex-col items-center gap-3 text-theme-2">

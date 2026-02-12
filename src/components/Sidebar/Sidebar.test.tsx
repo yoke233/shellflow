@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Sidebar } from './Sidebar';
-import { createTestProject, createTestWorktree, resetMocks } from '../../test/setup';
+import { createTestProject, createTestWorktree, invokeHistory, resetMocks } from '../../test/setup';
 import type { Project, Worktree, ScratchTerminal, RunningTask } from '../../types';
 import type { TaskConfig, AppsConfig } from '../../hooks/useConfig';
 
@@ -50,6 +50,8 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   onToggleProject: vi.fn(),
   onSelectProject: vi.fn(),
   onSelectWorktree: vi.fn(),
+  onRefreshProjects: vi.fn(),
+  isProjectsRefreshing: false,
   onAddProject: vi.fn(),
   onAddWorktree: vi.fn(),
   onDeleteWorktree: vi.fn(),
@@ -155,6 +157,51 @@ describe('Sidebar', () => {
       }
     });
 
+    it('calls onRefreshProjects when refresh button is clicked', async () => {
+      const onRefreshProjects = vi.fn();
+      const user = userEvent.setup();
+
+      render(<Sidebar {...createDefaultProps({ onRefreshProjects })} />);
+
+      await user.click(screen.getByRole('button', { name: 'Refresh projects' }));
+      expect(onRefreshProjects).toHaveBeenCalledTimes(1);
+    });
+
+    it('calls onRefreshProjects from project more options menu', async () => {
+      const onRefreshProjects = vi.fn();
+      const user = userEvent.setup();
+      const project = createTestProject({ id: 'p1', name: 'Demo Project', isActive: true });
+
+      render(
+        <Sidebar
+          {...createDefaultProps({
+            projects: [project],
+            onRefreshProjects,
+          })}
+        />
+      );
+
+      await user.click(screen.getByTitle('More options'));
+      await user.click(screen.getByText('Refresh projects and worktrees'));
+
+      expect(onRefreshProjects).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows refresh shortcut in button tooltip when provided', () => {
+      render(
+        <Sidebar
+          {...createDefaultProps({
+            refreshProjectsShortcut: 'Ctrl+Shift+R',
+          })}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: 'Refresh projects' })).toHaveAttribute(
+        'title',
+        'Refresh projects and worktrees (Ctrl+Shift+R)'
+      );
+    });
+
     it('highlights the active project', () => {
       const project = createTestProject({ id: 'p1', name: 'Active Project' });
 
@@ -254,6 +301,41 @@ describe('Sidebar', () => {
 
       await user.click(screen.getByText('clickable-branch'));
       expect(onSelectWorktree).toHaveBeenCalledWith(worktree);
+    });
+
+    it('opens worktree context menu and supports open folder', async () => {
+      const user = userEvent.setup();
+      const worktreePath = '/Users/test/projects/test-project/.worktrees/feature-open-folder';
+      const worktree = createTestWorktree({
+        id: 'wt-open-folder',
+        name: 'feature-open-folder',
+        path: worktreePath,
+      });
+      const project = createTestProject({
+        id: 'p1',
+        name: 'My Project',
+        worktrees: [worktree],
+      });
+
+      render(
+        <Sidebar
+          {...createDefaultProps({
+            projects: [project],
+            expandedProjects: new Set(['p1']),
+          })}
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByText('feature-open-folder'));
+      await user.click(screen.getByText('Open in File Manager'));
+
+      expect(
+        invokeHistory.some(
+          (entry) =>
+            entry.command === 'open_in_file_manager' &&
+            (entry.args as { path?: string } | undefined)?.path === worktreePath
+        )
+      ).toBe(true);
     });
 
     it('shows loading indicator for loading worktrees', () => {
