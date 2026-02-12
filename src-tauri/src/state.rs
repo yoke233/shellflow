@@ -97,6 +97,12 @@ impl Default for PersistedState {
     }
 }
 
+
+#[derive(Debug, Default)]
+pub struct ProjectSyncState {
+    pub last_sync_at_ms: u64,
+}
+
 #[allow(dead_code)]
 pub struct PtySession {
     pub worktree_id: String,
@@ -106,6 +112,7 @@ pub struct PtySession {
 pub struct AppState {
     pub persisted: RwLock<PersistedState>,
     pub pty_sessions: RwLock<HashMap<String, Arc<PtySession>>>,
+    pub project_sync_state: RwLock<ProjectSyncState>,
 }
 
 impl AppState {
@@ -113,6 +120,7 @@ impl AppState {
         Self {
             persisted: RwLock::new(PersistedState::default()),
             pty_sessions: RwLock::new(HashMap::new()),
+            project_sync_state: RwLock::new(ProjectSyncState::default()),
         }
     }
 

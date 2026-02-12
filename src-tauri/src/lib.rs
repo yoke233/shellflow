@@ -19,7 +19,7 @@ use state::{AppState, FileChange, Project, WindowSize, Worktree};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Size, State};
 
 type Result<T> = std::result::Result<T, String>;
@@ -33,6 +33,33 @@ struct ProjectWorktreeSync {
     added_worktrees: Vec<(String, String)>,
     removed_worktree_ids: Vec<String>,
     changed: bool,
+}
+
+
+const PROJECT_SYNC_MIN_INTERVAL_MS: u64 = 1200;
+
+fn now_unix_ms() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_millis() as u64,
+        Err(_) => 0,
+    }
+}
+
+fn should_sync_projects_from_git(state: &AppState, force_sync: bool) -> bool {
+    if force_sync {
+        state.project_sync_state.write().last_sync_at_ms = now_unix_ms();
+        return true;
+    }
+
+    let now = now_unix_ms();
+    let mut sync_state = state.project_sync_state.write();
+
+    if now.saturating_sub(sync_state.last_sync_at_ms) < PROJECT_SYNC_MIN_INTERVAL_MS {
+        return false;
+    }
+
+    sync_state.last_sync_at_ms = now;
+    true
 }
 
 fn canonicalize_or_original(path: &Path) -> PathBuf {
@@ -328,7 +355,16 @@ fn add_project(app: AppHandle, state: State<'_, Arc<AppState>>, path: &str) -> R
 }
 
 #[tauri::command]
-fn list_projects(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Vec<Project>> {
+fn list_projects(
+    app: AppHandle,
+    state: State<'_, Arc<AppState>>,
+    sync_from_git: Option<bool>,
+) -> Result<Vec<Project>> {
+    let force_sync = sync_from_git.unwrap_or(false);
+    if !should_sync_projects_from_git(state.inner().as_ref(), force_sync) {
+        return Ok(state.persisted.read().projects.clone());
+    }
+
     let mut worktrees_to_watch: Vec<(String, String)> = Vec::new();
     let mut worktrees_to_unwatch: Vec<String> = Vec::new();
     let mut should_save = false;
@@ -517,7 +553,21 @@ fn list_worktrees(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
     project_path: &str,
+    sync_from_git: Option<bool>,
 ) -> Result<Vec<Worktree>> {
+    let force_sync = sync_from_git.unwrap_or(false);
+    if !should_sync_projects_from_git(state.inner().as_ref(), force_sync) {
+        let persisted = state.persisted.read();
+        let project_path_key = normalize_path_for_compare(Path::new(project_path));
+        let project = persisted
+            .projects
+            .iter()
+            .find(|p| normalize_path_for_compare(Path::new(&p.path)) == project_path_key)
+            .ok_or_else(|| format!("Project not found: {}", project_path))?;
+
+        return Ok(project.worktrees.clone());
+    }
+
     let mut worktrees_to_watch: Vec<(String, String)> = Vec::new();
     let mut worktrees_to_unwatch: Vec<String> = Vec::new();
     let mut should_save = false;

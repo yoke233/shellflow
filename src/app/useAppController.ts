@@ -1876,7 +1876,7 @@ export function useAppController() {
 
   // Worktree handlers
   const handleRefreshProjects = useCallback(() => {
-    void refreshProjects();
+    void refreshProjects({ syncFromGit: true });
   }, [refreshProjects]);
 
   const handleAddProject = useCallback(async () => {

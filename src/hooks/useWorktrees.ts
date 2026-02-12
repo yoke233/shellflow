@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { Project, Worktree } from '../types';
@@ -7,15 +7,22 @@ interface WorktreeRemoved {
   worktree_path: string;
 }
 
+interface LoadProjectsOptions {
+  syncFromGit?: boolean;
+}
+
 export function useWorktrees() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadProjects = useCallback(async () => {
+  const loadInFlightRef = useRef<Promise<void> | null>(null);
+  const queuedSyncRef = useRef(false);
+
+  const runLoadProjects = useCallback(async (syncFromGit: boolean) => {
     try {
       setLoading(true);
-      const result = await invoke<Project[]>('list_projects');
+      const result = await invoke<Project[]>('list_projects', { syncFromGit });
       setProjects(result);
       setError(null);
     } catch (err) {
@@ -26,8 +33,41 @@ export function useWorktrees() {
     }
   }, []);
 
+  const loadProjects = useCallback(async (options: LoadProjectsOptions = {}) => {
+    const { syncFromGit = false } = options;
+
+    if (syncFromGit) {
+      queuedSyncRef.current = true;
+    }
+
+    if (loadInFlightRef.current) {
+      await loadInFlightRef.current;
+      return;
+    }
+
+    const execute = async () => {
+      let shouldSync = queuedSyncRef.current;
+      queuedSyncRef.current = false;
+
+      await runLoadProjects(shouldSync);
+
+      while (queuedSyncRef.current) {
+        shouldSync = queuedSyncRef.current;
+        queuedSyncRef.current = false;
+        await runLoadProjects(shouldSync);
+      }
+    };
+
+    loadInFlightRef.current = execute();
+    try {
+      await loadInFlightRef.current;
+    } finally {
+      loadInFlightRef.current = null;
+    }
+  }, [runLoadProjects]);
+
   useEffect(() => {
-    loadProjects();
+    void loadProjects({ syncFromGit: true });
   }, [loadProjects]);
 
   // Listen for worktree-removed events (when worktree folder is deleted externally)
@@ -43,7 +83,7 @@ export function useWorktrees() {
           worktreePath: event.payload.worktree_path,
         });
         // Refresh projects to update UI
-        await loadProjects();
+        await loadProjects({ syncFromGit: false });
       } catch (err) {
         console.error('[useWorktrees] Failed to remove stale worktree:', err);
       }
@@ -79,7 +119,7 @@ export function useWorktrees() {
         });
         console.log('[useWorktrees.createWorktree] Success:', worktree.name);
         // Reload projects to get updated worktree list
-        await loadProjects();
+        await loadProjects({ syncFromGit: false });
         return worktree;
       } catch (err) {
         console.error('[useWorktrees.createWorktree] Failed:', err);
@@ -93,7 +133,7 @@ export function useWorktrees() {
     async (worktreeId: string) => {
       try {
         await invoke('delete_worktree', { worktreeId });
-        await loadProjects();
+        await loadProjects({ syncFromGit: false });
       } catch (err) {
         console.error('Failed to delete worktree:', err);
         throw err;
@@ -106,7 +146,7 @@ export function useWorktrees() {
     async (worktreeId: string, newName: string) => {
       try {
         await invoke('rename_worktree', { worktreeId, newName });
-        await loadProjects();
+        await loadProjects({ syncFromGit: false });
       } catch (err) {
         console.error('Failed to rename worktree:', err);
         throw err;
@@ -129,7 +169,7 @@ export function useWorktrees() {
       } catch (err) {
         console.error('Failed to hide project:', err);
         // On error, reload to get correct state
-        await loadProjects();
+        await loadProjects({ syncFromGit: false });
         throw err;
       }
     },
@@ -175,6 +215,11 @@ export function useWorktrees() {
     );
   }, []);
 
+
+  const refresh = useCallback((options: LoadProjectsOptions = {}) => {
+    return loadProjects(options);
+  }, [loadProjects]);
+
   return {
     projects,
     loading,
@@ -187,6 +232,6 @@ export function useWorktrees() {
     renameWorktree,
     reorderProjectsOptimistic,
     reorderWorktreesOptimistic,
-    refresh: loadProjects,
+    refresh,
   };
 }

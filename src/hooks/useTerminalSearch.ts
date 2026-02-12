@@ -71,7 +71,14 @@ function collectMatches(terminal: Terminal, query: string): TerminalSearchMatch[
   return matches;
 }
 
-export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
+interface UseTerminalSearchOptions {
+  enabled?: boolean;
+}
+
+export function useTerminalSearch(
+  terminalRef: RefObject<Terminal | null>,
+  options: UseTerminalSearchOptions = {}
+): {
   isSearchOpen: boolean;
   searchQuery: string;
   hasMatch: boolean;
@@ -84,6 +91,8 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
   findPrevious: () => boolean;
   onTerminalKeyDown: (event: KeyboardEvent) => void;
 } {
+  const { enabled = true } = options;
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQueryState] = useState('');
   const [hasMatch, setHasMatch] = useState(true);
@@ -114,11 +123,44 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
       }
 
       const buffer = terminal.buffer.active;
-      const maxHighlights = 1500;
-      const limited = matches.slice(0, maxHighlights);
+      const rows = Math.max(terminal.rows, 1);
+      const viewportTop = Math.max(buffer.viewportY ?? buffer.cursorY, 0);
+      const viewportBottom = viewportTop + rows - 1;
+      const margin = rows * 2;
+      const minLine = Math.max(0, viewportTop - margin);
+      const maxLine = viewportBottom + margin;
+      const maxHighlights = 600;
 
-      for (let index = 0; index < limited.length; index++) {
-        const match = limited[index];
+      type IndexedMatch = { match: TerminalSearchMatch; index: number };
+      const candidateMatches: IndexedMatch[] = [];
+
+      for (let index = 0; index < matches.length; index++) {
+        const match = matches[index];
+        if (index === activeIndex || (match.line >= minLine && match.line <= maxLine)) {
+          candidateMatches.push({ match, index });
+        }
+      }
+
+      let selectedMatches = candidateMatches;
+      if (candidateMatches.length > maxHighlights) {
+        selectedMatches = [...candidateMatches]
+          .sort((a, b) => {
+            if (a.index === activeIndex) return -1;
+            if (b.index === activeIndex) return 1;
+
+            const aDistance = Math.abs(a.match.line - viewportTop);
+            const bDistance = Math.abs(b.match.line - viewportTop);
+            if (aDistance !== bDistance) {
+              return aDistance - bDistance;
+            }
+
+            return a.index - b.index;
+          })
+          .slice(0, maxHighlights)
+          .sort((a, b) => a.index - b.index);
+      }
+
+      for (const { match, index } of selectedMatches) {
         const marker = terminal.registerMarker(match.line - buffer.cursorY);
         if (!marker) {
           continue;
@@ -414,7 +456,7 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
 
   useEffect(() => {
     const terminal = terminalRef.current;
-    if (!terminal || !isSearchOpen || queryRef.current.trim().length < LIVE_SEARCH_MIN_QUERY_LENGTH) {
+    if (!enabled || !terminal || !isSearchOpen || queryRef.current.trim().length < LIVE_SEARCH_MIN_QUERY_LENGTH) {
       return;
     }
 
@@ -425,9 +467,13 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
     return () => {
       disposable.dispose();
     };
-  }, [isSearchOpen, scheduleLiveSync, terminalRef]);
+  }, [enabled, isSearchOpen, scheduleLiveSync, terminalRef]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const handleWindowKeyDown = (event: KeyboardEvent) => {
       const terminal = terminalRef.current;
       const terminalElement = terminal?.element;
@@ -447,7 +493,7 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
     return () => {
       window.removeEventListener('keydown', handleWindowKeyDown, true);
     };
-  }, [onTerminalKeyDown, terminalRef]);
+  }, [enabled, onTerminalKeyDown, terminalRef]);
 
   useEffect(() => {
     return () => {

@@ -129,7 +129,7 @@ export function ActionTerminal({
     findNext,
     findPrevious,
     onTerminalKeyDown,
-  } = useTerminalSearch(terminalRef);
+  } = useTerminalSearch(terminalRef, { enabled: isActive });
 
   // Get theme from context
   const xtermTheme = useDrawerXtermTheme();

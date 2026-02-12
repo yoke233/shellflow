@@ -327,6 +327,38 @@ describe('useWorktrees', () => {
   });
 
   describe('refresh', () => {
+    it('uses git sync on initial load', async () => {
+      mockInvokeResponses.set('list_projects', []);
+
+      renderHook(() => useWorktrees());
+
+      await waitFor(() => {
+        expect(invokeHistory.some((h) => h.command === 'list_projects')).toBe(true);
+      });
+
+      const firstCall = invokeHistory.find((h) => h.command === 'list_projects');
+      expect(firstCall?.args).toEqual({ syncFromGit: true });
+    });
+
+    it('defaults refresh to lightweight list mode', async () => {
+      mockInvokeResponses.set('list_projects', []);
+
+      const { result } = renderHook(() => useWorktrees());
+
+      await waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      invokeHistory.length = 0;
+
+      await act(async () => {
+        await result.current.refresh();
+      });
+
+      const refreshCall = invokeHistory.find((h) => h.command === 'list_projects');
+      expect(refreshCall?.args).toEqual({ syncFromGit: false });
+    });
+
     it('manually refreshes projects', async () => {
       mockInvokeResponses.set('list_projects', []);
 

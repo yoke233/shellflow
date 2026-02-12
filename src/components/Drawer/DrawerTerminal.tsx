@@ -109,7 +109,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     findNext,
     findPrevious,
     onTerminalKeyDown,
-  } = useTerminalSearch(terminalRef);
+  } = useTerminalSearch(terminalRef, { enabled: isActive });
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
   const xtermTheme = useDrawerXtermTheme();

@@ -123,7 +123,7 @@ export function TaskTerminal({
     findNext,
     findPrevious,
     onTerminalKeyDown,
-  } = useTerminalSearch(terminalRef);
+  } = useTerminalSearch(terminalRef, { enabled: isActive });
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 

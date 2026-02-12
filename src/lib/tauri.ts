@@ -19,8 +19,9 @@ export async function addProject(path: string): Promise<Project> {
   return invoke<Project>('add_project', { path });
 }
 
-export async function listProjects(): Promise<Project[]> {
-  return invoke<Project[]>('list_projects');
+export async function listProjects(options: { syncFromGit?: boolean } = {}): Promise<Project[]> {
+  const { syncFromGit = false } = options;
+  return invoke<Project[]>('list_projects', { syncFromGit });
 }
 
 export async function hideProject(projectId: string): Promise<void> {
@@ -39,8 +40,12 @@ export async function createWorktree(
   return invoke<Worktree>('create_worktree', { projectPath, name });
 }
 
-export async function listWorktrees(projectPath: string): Promise<Worktree[]> {
-  return invoke<Worktree[]>('list_worktrees', { projectPath });
+export async function listWorktrees(
+  projectPath: string,
+  options: { syncFromGit?: boolean } = {}
+): Promise<Worktree[]> {
+  const { syncFromGit = false } = options;
+  return invoke<Worktree[]>('list_worktrees', { projectPath, syncFromGit });
 }
 
 export async function deleteWorktree(worktreeId: string): Promise<void> {
