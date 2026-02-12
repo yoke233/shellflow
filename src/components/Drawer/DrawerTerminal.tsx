@@ -11,7 +11,7 @@ import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -178,7 +178,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
-      scrollback: TERMINAL_SCROLLBACK,
+      scrollback: resolveTerminalScrollback(terminalConfig.scrollback),
       fontSize: terminalConfig.fontSize,
       fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
       ...getPlatformTerminalOptions(),
@@ -216,7 +216,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       } catch (e) {
         console.warn('Ligatures addon failed to load:', e);
       }
-    } else {
+    } else if (terminalConfig.webgl) {
       // Load WebGL addon with automatic recovery from context loss
       webglCleanup = loadWebGLWithRecovery(terminal);
     }
@@ -230,6 +230,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
         cursorGuardRef.current?.update();
       }
     });
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
@@ -327,6 +328,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
+      cleanupSelectionDragPause();
       outputBuffer.dispose();
       const tail = sgrNormalizerRef.current.flush();
       if (tail && outputBufferRef.current) {

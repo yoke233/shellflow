@@ -21,6 +21,23 @@ export function getPlatformTerminalOptions(): Partial<ITerminalOptions> {
 }
 
 export const TERMINAL_SCROLLBACK = 20000;
+export const MAX_TERMINAL_SCROLLBACK = 100000;
+export const MIN_TERMINAL_SCROLLBACK = 0;
+
+export function resolveTerminalScrollback(scrollback: number): number {
+  if (!Number.isFinite(scrollback)) {
+    return TERMINAL_SCROLLBACK;
+  }
+
+  const normalized = Math.trunc(scrollback);
+  if (normalized < MIN_TERMINAL_SCROLLBACK) {
+    return MIN_TERMINAL_SCROLLBACK;
+  }
+  if (normalized > MAX_TERMINAL_SCROLLBACK) {
+    return MAX_TERMINAL_SCROLLBACK;
+  }
+  return normalized;
+}
 export function resolveTerminalFontFamily(fontFamily: string): string {
   const trimmed = fontFamily.trim();
   if (trimmed.length === 0) {
@@ -123,15 +140,18 @@ export function createTerminalOutputBuffer(
   onAfterWrite?: () => void
 ): {
   write: (data: string) => void;
+  pause: () => void;
+  resume: () => void;
   dispose: () => void;
 } {
   let queuedChunks: string[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let writing = false;
+  let paused = false;
   let disposed = false;
 
   const flush = () => {
-    if (disposed || writing || queuedChunks.length === 0) {
+    if (disposed || writing || paused || queuedChunks.length === 0) {
       return;
     }
 
@@ -167,13 +187,31 @@ export function createTerminalOutputBuffer(
 
     queuedChunks.push(data);
 
-    if (!writing) {
+    if (!writing && !paused) {
+      scheduleFlush();
+    }
+  };
+
+  const pause = () => {
+    if (disposed) {
+      return;
+    }
+    paused = true;
+  };
+
+  const resume = () => {
+    if (disposed || !paused) {
+      return;
+    }
+    paused = false;
+    if (!writing && queuedChunks.length > 0) {
       scheduleFlush();
     }
   };
 
   const dispose = () => {
     disposed = true;
+    paused = false;
     queuedChunks = [];
     if (flushTimer !== null) {
       clearTimeout(flushTimer);
@@ -181,7 +219,53 @@ export function createTerminalOutputBuffer(
     }
   };
 
-  return { write, dispose };
+  return { write, pause, resume, dispose };
+}
+
+export function attachSelectionDragPause(
+  terminal: Terminal,
+  outputBuffer: { pause: () => void; resume: () => void }
+): () => void {
+  const element = terminal.element;
+  if (!element) {
+    return () => {};
+  }
+
+  let pausedByDrag = false;
+
+  const handleMouseDown = (event: MouseEvent) => {
+    if (event.button !== 0) {
+      return;
+    }
+    pausedByDrag = true;
+    outputBuffer.pause();
+  };
+
+  const handleMouseUp = () => {
+    if (!pausedByDrag) {
+      return;
+    }
+    pausedByDrag = false;
+    outputBuffer.resume();
+  };
+
+  const handleWindowBlur = () => {
+    if (!pausedByDrag) {
+      return;
+    }
+    pausedByDrag = false;
+    outputBuffer.resume();
+  };
+
+  element.addEventListener('mousedown', handleMouseDown, true);
+  window.addEventListener('mouseup', handleMouseUp, true);
+  window.addEventListener('blur', handleWindowBlur);
+
+  return () => {
+    element.removeEventListener('mousedown', handleMouseDown, true);
+    window.removeEventListener('mouseup', handleMouseUp, true);
+    window.removeEventListener('blur', handleWindowBlur);
+  };
 }
 
 /**
@@ -213,13 +297,6 @@ export function enableUnicode11Width(terminal: Terminal): void {
  * @returns Cleanup function to dispose the addon and stop watching DPR
  */
 export function loadWebGLWithRecovery(terminal: Terminal): () => void {
-  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
-    // xterm WebGL renderer can produce selection artifacts on ANSI-colored text
-    // in Windows (e.g. white blocks at color boundaries while drag-selecting).
-    // Keep canvas renderer on Windows for correctness.
-    return () => {};
-  }
-
   let webglAddon: WebglAddon | null = null;
   let disposed = false;
   let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;

@@ -35,12 +35,24 @@
           "description": "Enable font ligatures (disables WebGL rendering)",
           "default": false
         },
+        "webgl": {
+          "type": "boolean",
+          "description": "Enable WebGL terminal renderer",
+          "default": true
+        },
         "padding": {
           "type": "integer",
           "description": "Padding around the terminal content in pixels",
           "minimum": 0,
           "maximum": 64,
           "default": 8
+        },
+        "scrollback": {
+          "type": "integer",
+          "description": "Maximum scrollback lines kept in terminal memory",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 20000
         },
         "unfocusedOpacity": {
           "type": "number",
@@ -69,11 +81,21 @@
           "type": "boolean",
           "description": "Enable font ligatures (disables WebGL rendering). Inherits from main if not specified."
         },
+        "webgl": {
+          "type": "boolean",
+          "description": "Enable WebGL terminal renderer. Inherits from main if not specified."
+        },
         "padding": {
           "type": "integer",
           "description": "Padding around the terminal content in pixels. Inherits from main if not specified.",
           "minimum": 0,
           "maximum": 64
+        },
+        "scrollback": {
+          "type": "integer",
+          "description": "Maximum scrollback lines kept in terminal memory. Inherits from main if not specified.",
+          "minimum": 0,
+          "maximum": 100000
         },
         "unfocusedOpacity": {
           "type": "number",

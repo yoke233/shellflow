@@ -9,15 +9,19 @@
     "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
     "fontSize": 13,
     "fontLigatures": false,
+    // Enable WebGL terminal renderer (faster, can be disabled if rendering artifacts appear)
+    "webgl": true,
     // Padding around the terminal content in pixels
-    "padding": 8
+    "padding": 8,
+    // Maximum scrollback lines kept in terminal memory
+    "scrollback": 20000
     // Opacity (0.0 to 1.0) applied to the main area when drawer is focused.
     // Defaults to panes.unfocusedOpacity if not specified.
     // "unfocusedOpacity": 0.7
   },
 
   // Drawer terminal configuration. Properties inherit from "main" if not specified:
-  // fontFamily, fontSize, fontLigatures, padding
+  // fontFamily, fontSize, fontLigatures, webgl, padding, scrollback
   // Opacity (0.0 to 1.0) applied to drawer when open but not focused.
   // Defaults to panes.unfocusedOpacity if not specified.
   // "drawer": { "unfocusedOpacity": 0.7 },

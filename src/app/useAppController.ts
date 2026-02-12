@@ -1490,6 +1490,7 @@ export function useAppController() {
     if (patch.fontFamily !== undefined) mainPatch.fontFamily = patch.fontFamily;
     if (patch.fontSize !== undefined) mainPatch.fontSize = patch.fontSize;
     if (patch.fontLigatures !== undefined) mainPatch.fontLigatures = patch.fontLigatures;
+    if (patch.webgl !== undefined) mainPatch.webgl = patch.webgl;
 
     if (Object.keys(mainPatch).length === 0) return;
 

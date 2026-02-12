@@ -178,7 +178,7 @@ interface BuildAppLayoutDeps {
   onProjectSwitcherSelect: (projectId: string) => void;
   onThemeChange: (themeName: string) => void;
   onBorderStyleChange: (style: ThemeBorderStyle) => void;
-  onFontChange: (patch: { fontFamily?: string; fontSize?: number; fontLigatures?: boolean }) => void;
+  onFontChange: (patch: { fontFamily?: string; fontSize?: number; fontLigatures?: boolean; webgl?: boolean }) => void;
   onModalOpen: () => void;
   onModalClose: () => void;
   isCommitModalOpen: boolean;
@@ -459,6 +459,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     fontFamily: deps.config.main.fontFamily,
     fontSize: deps.config.main.fontSize,
     fontLigatures: deps.config.main.fontLigatures,
+    webgl: deps.config.main.webgl,
     onFontChange: deps.onFontChange,
     onBorderStyleChange: deps.onBorderStyleChange,
     onModalOpen: deps.onModalOpen,

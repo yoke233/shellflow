@@ -8,7 +8,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnAction, ptyWrite, ptyResize, ptyKill, watchMergeState, stopMergeWatcher, watchRebaseState, stopRebaseWatcher, cleanupWorktree, MergeOptions, MergeStrategy } from '../../lib/tauri';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -171,7 +171,7 @@ export function ActionTerminal({
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
-      scrollback: TERMINAL_SCROLLBACK,
+      scrollback: resolveTerminalScrollback(terminalConfig.scrollback),
       fontSize: terminalConfig.fontSize,
       fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
       ...getPlatformTerminalOptions(),
@@ -198,7 +198,7 @@ export function ActionTerminal({
     terminal.open(containerRef.current);
 
     // Load WebGL addon with automatic recovery from context loss
-    const webglCleanup = loadWebGLWithRecovery(terminal);
+    const webglCleanup = terminalConfig.webgl ? loadWebGLWithRecovery(terminal) : () => {};
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -209,6 +209,7 @@ export function ActionTerminal({
         cursorGuardRef.current?.update();
       }
     });
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Write function for keyboard handlers
@@ -359,6 +360,7 @@ export function ActionTerminal({
       cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(id);
+      cleanupSelectionDragPause();
       const tail = sgrNormalizerRef.current.flush();
       if (tail) {
         outputBuffer.write(tail);

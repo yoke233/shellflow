@@ -8,7 +8,9 @@ export interface TerminalConfig {
   fontFamily: string;
   fontSize: number;
   fontLigatures: boolean;
+  webgl: boolean;
   padding: number;
+  scrollback: number;
 }
 
 /** Drawer-specific configuration */
@@ -168,14 +170,18 @@ const defaultConfig: Config = {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
+    webgl: true,
     padding: 8,
+    scrollback: 20000,
     unfocusedOpacity: null,
   },
   drawer: {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
+    webgl: true,
     padding: 8,
+    scrollback: 20000,
     unfocusedOpacity: 0.7,
   },
   apps: {

@@ -100,6 +100,7 @@ export type FontSettingsPatch = {
   fontFamily?: string;
   fontSize?: number;
   fontLigatures?: boolean;
+  webgl?: boolean;
 };
 
 interface AppearanceSettingsModalProps {
@@ -108,6 +109,7 @@ interface AppearanceSettingsModalProps {
   fontFamily: string;
   fontSize: number;
   fontLigatures: boolean;
+  webgl: boolean;
   onFontChange: (patch: FontSettingsPatch) => void;
   onBorderStyleChange: (style: ThemeBorderStyle) => void;
   onModalOpen?: () => void;
@@ -120,6 +122,7 @@ export function AppearanceSettingsModal({
   fontFamily,
   fontSize,
   fontLigatures,
+  webgl,
   onFontChange,
   onBorderStyleChange,
   onModalOpen,
@@ -411,6 +414,16 @@ export function AppearanceSettingsModal({
                     className="rounded border-theme-1 bg-theme-3/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-theme-2"
                   />
                   Ligatures
+                </label>
+
+                <label className="flex items-center gap-2 text-[13px] cursor-pointer mt-5" style={{ color: 'var(--modal-item-text)' }}>
+                  <input
+                    type="checkbox"
+                    checked={webgl}
+                    onChange={(e) => onFontChange({ webgl: e.target.checked })}
+                    className="rounded border-theme-1 bg-theme-3/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-theme-2"
+                  />
+                  WebGL Renderer
                 </label>
               </div>
 

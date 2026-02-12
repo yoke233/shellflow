@@ -12,7 +12,7 @@ import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, TERMINAL_SCROLLBACK } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -342,7 +342,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       cursorStyle: 'bar',
       cursorWidth: 1,
       cursorInactiveStyle: 'outline',
-      scrollback: TERMINAL_SCROLLBACK,
+      scrollback: resolveTerminalScrollback(terminalConfig.scrollback),
       fontSize: terminalConfig.fontSize,
       fontFamily: resolveTerminalFontFamily(terminalConfig.fontFamily),
       ...getPlatformTerminalOptions(),
@@ -381,7 +381,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       } catch (e) {
         console.warn('Ligatures addon failed to load:', e);
       }
-    } else {
+    } else if (terminalConfig.webgl) {
       // Load WebGL addon with automatic recovery from context loss
       webglCleanup = loadWebGLWithRecovery(terminal);
     }
@@ -395,6 +395,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         cursorGuardRef.current?.update();
       }
     });
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
@@ -643,6 +644,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
       cursorGuardRef.current = null;
       unregisterActiveTerminal(copyPasteFns);
       unregisterTerminalInstance(entityId);
+      cleanupSelectionDragPause();
       osc7Disposable?.dispose();
       osc777Disposable?.dispose();
       osc9Disposable?.dispose();

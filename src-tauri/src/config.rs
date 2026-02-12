@@ -386,8 +386,11 @@ pub struct MainConfig {
     pub font_size: u16,
     #[serde(rename = "fontLigatures")]
     pub font_ligatures: bool,
+    pub webgl: bool,
     /// Padding around the terminal content in pixels
     pub padding: u16,
+    /// Maximum scrollback lines kept in terminal memory
+    pub scrollback: u32,
     /// Opacity (0.0 to 1.0) applied to the main area when drawer is focused.
     /// If not specified, uses panes.unfocusedOpacity.
     #[serde(rename = "unfocusedOpacity", skip_serializing_if = "Option::is_none")]
@@ -401,7 +404,9 @@ impl Default for MainConfig {
             font_family: "Menlo, Monaco, 'Courier New', monospace".to_string(),
             font_size: 13,
             font_ligatures: false,
+            webgl: true,
             padding: 8,
+            scrollback: 20000,
             unfocused_opacity: None, // Uses panes.unfocusedOpacity when None
         }
     }
@@ -480,7 +485,11 @@ pub struct RawDrawerConfig {
     #[serde(rename = "fontLigatures", skip_serializing_if = "Option::is_none")]
     pub font_ligatures: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub webgl: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub padding: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrollback: Option<u32>,
     /// Opacity (0.0 to 1.0) applied to the drawer when open but not focused.
     /// If not specified, uses panes.unfocusedOpacity.
     #[serde(rename = "unfocusedOpacity", skip_serializing_if = "Option::is_none")]
@@ -496,8 +505,11 @@ pub struct DrawerConfig {
     pub font_size: u16,
     #[serde(rename = "fontLigatures")]
     pub font_ligatures: bool,
+    pub webgl: bool,
     /// Padding around the terminal content in pixels
     pub padding: u16,
+    /// Maximum scrollback lines kept in terminal memory
+    pub scrollback: u32,
     /// Opacity (0.0 to 1.0) applied to the drawer when open but not focused.
     #[serde(rename = "unfocusedOpacity")]
     pub unfocused_opacity: f64,
@@ -511,7 +523,9 @@ impl DrawerConfig {
             font_family: raw.font_family.clone().unwrap_or_else(|| main.font_family.clone()),
             font_size: raw.font_size.unwrap_or(main.font_size),
             font_ligatures: raw.font_ligatures.unwrap_or(main.font_ligatures),
+            webgl: raw.webgl.unwrap_or(main.webgl),
             padding: raw.padding.unwrap_or(main.padding),
+            scrollback: raw.scrollback.unwrap_or(main.scrollback),
             unfocused_opacity: raw.unfocused_opacity.unwrap_or(panes_unfocused_opacity),
         }
     }
@@ -523,7 +537,9 @@ impl Default for DrawerConfig {
             font_family: "Menlo, Monaco, 'Courier New', monospace".to_string(),
             font_size: 13,
             font_ligatures: false,
+            webgl: true,
             padding: 8,
+            scrollback: 20000,
             unfocused_opacity: 0.7, // Same default as panes.unfocusedOpacity
         }
     }
