@@ -12,6 +12,9 @@ interface SearchHighlightHandle {
   decoration?: { dispose: () => void };
 }
 
+const LIVE_SEARCH_MIN_QUERY_LENGTH = 2;
+const LIVE_SEARCH_DEBOUNCE_MS = 160;
+
 function compareMatch(a: TerminalSearchMatch, b: TerminalSearchMatch): number {
   if (a.line !== b.line) {
     return a.line - b.line;
@@ -91,6 +94,7 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
   const isSearchOpenRef = useRef(false);
   const currentMatchRef = useRef<TerminalSearchMatch | null>(null);
   const highlightsRef = useRef<SearchHighlightHandle[]>([]);
+  const liveSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearHighlights = useCallback(() => {
     for (const item of highlightsRef.current) {
@@ -160,6 +164,23 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
     terminalRef.current?.clearSelection();
     clearHighlights();
   }, [clearHighlights, terminalRef]);
+
+
+  const resetLiveSearchState = useCallback(() => {
+    setHasMatch(true);
+    setCurrentMatchIndex(0);
+    setTotalMatches(0);
+    currentMatchRef.current = null;
+    terminalRef.current?.clearSelection();
+    clearHighlights();
+  }, [clearHighlights, terminalRef]);
+
+  const cancelLiveSync = useCallback(() => {
+    if (liveSyncTimerRef.current) {
+      clearTimeout(liveSyncTimerRef.current);
+      liveSyncTimerRef.current = null;
+    }
+  }, []);
 
   const resolveIndexFromCursor = useCallback(
     (matches: TerminalSearchMatch[], direction: 1 | -1): number => {
@@ -291,6 +312,35 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
     [applyActiveMatch, clearHighlights, clearSearchView, resolveIndexFromCursor, terminalRef]
   );
 
+
+  const scheduleLiveSync = useCallback(
+    (query: string, immediate = false) => {
+      const trimmed = query.trim();
+      cancelLiveSync();
+
+      if (trimmed.length === 0) {
+        clearSearchView();
+        return;
+      }
+
+      if (trimmed.length < LIVE_SEARCH_MIN_QUERY_LENGTH) {
+        resetLiveSearchState();
+        return;
+      }
+
+      if (immediate) {
+        syncMatchesFromQuery(trimmed);
+        return;
+      }
+
+      liveSyncTimerRef.current = setTimeout(() => {
+        liveSyncTimerRef.current = null;
+        syncMatchesFromQuery(queryRef.current);
+      }, LIVE_SEARCH_DEBOUNCE_MS);
+    },
+    [cancelLiveSync, clearSearchView, resetLiveSearchState, syncMatchesFromQuery]
+  );
+
   const openSearch = useCallback(() => {
     setIsSearchOpen(true);
     setHasMatch(true);
@@ -299,24 +349,25 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
     const existingQuery = queryRef.current.trim();
     if (existingQuery.length > 0) {
       requestAnimationFrame(() => {
-        syncMatchesFromQuery(existingQuery);
+        scheduleLiveSync(existingQuery, true);
       });
     }
-  }, [syncMatchesFromQuery, terminalRef]);
+  }, [scheduleLiveSync, terminalRef]);
 
   const closeSearch = useCallback(() => {
+    cancelLiveSync();
     setIsSearchOpen(false);
     clearSearchView();
-  }, [clearSearchView]);
+  }, [cancelLiveSync, clearSearchView]);
 
   const setSearchQuery = useCallback(
     (query: string) => {
       setSearchQueryState(query);
       queryRef.current = query;
       currentMatchRef.current = null;
-      syncMatchesFromQuery(query);
+      scheduleLiveSync(query);
     },
-    [syncMatchesFromQuery]
+    [scheduleLiveSync]
   );
 
   const onTerminalKeyDown = useCallback(
@@ -363,27 +414,18 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
 
   useEffect(() => {
     const terminal = terminalRef.current;
-    if (!terminal || !isSearchOpen || queryRef.current.trim().length === 0) {
+    if (!terminal || !isSearchOpen || queryRef.current.trim().length < LIVE_SEARCH_MIN_QUERY_LENGTH) {
       return;
     }
 
-    let timer: ReturnType<typeof setTimeout> | null = null;
     const disposable = terminal.onWriteParsed(() => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-      timer = setTimeout(() => {
-        syncMatchesFromQuery(queryRef.current);
-      }, 16);
+      scheduleLiveSync(queryRef.current);
     });
 
     return () => {
-      if (timer) {
-        clearTimeout(timer);
-      }
       disposable.dispose();
     };
-  }, [isSearchOpen, syncMatchesFromQuery, terminalRef]);
+  }, [isSearchOpen, scheduleLiveSync, terminalRef]);
 
   useEffect(() => {
     const handleWindowKeyDown = (event: KeyboardEvent) => {
@@ -409,9 +451,10 @@ export function useTerminalSearch(terminalRef: RefObject<Terminal | null>): {
 
   useEffect(() => {
     return () => {
+      cancelLiveSync();
       clearHighlights();
     };
-  }, [clearHighlights]);
+  }, [cancelLiveSync, clearHighlights]);
 
   return {
     isSearchOpen,
