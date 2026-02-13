@@ -67,7 +67,7 @@ const FONT_ALIAS_MAP: Record<string, string> = {
 
 const WEBGL_MODE_OPTIONS: Array<{ value: TerminalWebglMode; label: string; description: string }> = [
   { value: 'off', label: 'Off', description: 'Always use canvas renderer.' },
-  { value: 'auto', label: 'Auto', description: 'Use WebGL only for active terminal; auto fallback on instability.' },
+  { value: 'auto', label: 'Auto', description: 'Keep WebGL enabled, auto fallback on instability.' },
   { value: 'on', label: 'On', description: 'Force WebGL unless ligatures disable it.' },
 ];
 

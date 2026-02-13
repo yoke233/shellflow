@@ -363,7 +363,6 @@ export function loadWebGLWithRecoveryController(
   options: WebglRecoveryOptions = {}
 ): WebglRecoveryController {
   let mode = resolveTerminalWebglMode(options.mode);
-  let active = options.active ?? true;
   let suspendedCount = 0;
   let webglAddon: WebglAddon | null = null;
   let disposed = false;
@@ -418,8 +417,9 @@ export function loadWebGLWithRecoveryController(
     if (mode === 'on') {
       return true;
     }
-    // auto 模式：仅活跃终端启用，降低多终端并发渲染冲突
-    return active;
+    // auto 模式：保持 WebGL 稳定启用，仅在异常时自动熔断回退。
+    // 不按 tab 激活状态频繁切换，避免切 tab 时卡顿与渲染抖动。
+    return true;
   };
 
   const scheduleRecover = () => {
@@ -502,8 +502,7 @@ export function loadWebGLWithRecoveryController(
       syncAddonState();
     },
     setActive: (nextActive) => {
-      active = nextActive;
-      syncAddonState();
+      void nextActive;
     },
     suspend: () => {
       suspendedCount += 1;

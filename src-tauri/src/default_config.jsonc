@@ -11,7 +11,7 @@
     "fontLigatures": false,
     // WebGL mode: "off" | "auto" | "on"
     // - off: always canvas renderer
-    // - auto: active terminal uses WebGL, auto fallback on instability
+    // - auto: keep WebGL enabled, auto fallback on instability
     // - on: force WebGL unless ligatures disable it
     "webgl": "auto",
     // Padding around the terminal content in pixels
