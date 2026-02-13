@@ -246,17 +246,41 @@ export function attachSelectionDragPause(
   }
 
   let pausedByDrag = false;
+  let mouseDown = false;
+  let dragMode = false;
+  let startX = 0;
+  let startY = 0;
+  const DRAG_THRESHOLD_PX = 3;
 
   const handleMouseDown = (event: MouseEvent) => {
     if (event.button !== 0) {
       return;
     }
+    mouseDown = true;
+    dragMode = false;
+    startX = event.clientX;
+    startY = event.clientY;
+  };
+
+  const handleMouseMove = (event: MouseEvent) => {
+    if (!mouseDown || dragMode) {
+      return;
+    }
+    const deltaX = Math.abs(event.clientX - startX);
+    const deltaY = Math.abs(event.clientY - startY);
+    if (deltaX < DRAG_THRESHOLD_PX && deltaY < DRAG_THRESHOLD_PX) {
+      return;
+    }
+
+    dragMode = true;
     pausedByDrag = true;
     outputBuffer.pause();
     webglController?.suspend();
   };
 
   const handleMouseUp = () => {
+    mouseDown = false;
+    dragMode = false;
     if (!pausedByDrag) {
       return;
     }
@@ -266,6 +290,8 @@ export function attachSelectionDragPause(
   };
 
   const handleWindowBlur = () => {
+    mouseDown = false;
+    dragMode = false;
     if (!pausedByDrag) {
       return;
     }
@@ -275,11 +301,13 @@ export function attachSelectionDragPause(
   };
 
   element.addEventListener('mousedown', handleMouseDown, true);
+  window.addEventListener('mousemove', handleMouseMove, true);
   window.addEventListener('mouseup', handleMouseUp, true);
   window.addEventListener('blur', handleWindowBlur);
 
   return () => {
     element.removeEventListener('mousedown', handleMouseDown, true);
+    window.removeEventListener('mousemove', handleMouseMove, true);
     window.removeEventListener('mouseup', handleMouseUp, true);
     window.removeEventListener('blur', handleWindowBlur);
   };
