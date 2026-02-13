@@ -8,7 +8,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnTask, ptyWrite, ptyResize, ptyKill } from '../../lib/tauri';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -103,6 +103,7 @@ export function TaskTerminal({
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
   const outputBufferRef = useRef<ReturnType<typeof createTerminalOutputBuffer> | null>(null);
+  const webglControllerRef = useRef<ReturnType<typeof loadWebGLWithRecovery> | null>(null);
   const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
   const ptyIdRef = useRef<string | null>(null);
@@ -186,7 +187,11 @@ export function TaskTerminal({
     terminal.open(containerRef.current);
 
     // Load WebGL addon with automatic recovery from context loss
-    const webglCleanup = terminalConfig.webgl ? loadWebGLWithRecovery(terminal) : () => {};
+    const webglController = loadWebGLWithRecovery(terminal, {
+      mode: resolveTerminalWebglMode(terminalConfig.webgl),
+      active: isActiveRef.current,
+    });
+    webglControllerRef.current = webglController;
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
@@ -197,7 +202,7 @@ export function TaskTerminal({
         cursorGuardRef.current?.update();
       }
     });
-    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer, webglController);
     outputBufferRef.current = outputBuffer;
 
     // Write function for keyboard handlers
@@ -335,7 +340,8 @@ export function TaskTerminal({
       isMounted = false;
       onDataDisposable.dispose();
       cleanupKeyboardHandlers();
-      webglCleanup();
+      webglController.dispose();
+      webglControllerRef.current = null;
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
@@ -433,12 +439,21 @@ export function TaskTerminal({
       immediateResize();
       setTimeout(() => setIsResizing(false), 50);
     };
+    const handleStartWithGpuSuspend = () => {
+      webglControllerRef.current?.suspend();
+      handleStart();
+    };
+    const handleCompleteWithGpuResume = () => {
+      handleComplete();
+      webglControllerRef.current?.resume();
+    };
 
-    window.addEventListener('panel-resize-start', handleStart);
-    window.addEventListener('panel-resize-complete', handleComplete);
+    window.addEventListener('panel-resize-start', handleStartWithGpuSuspend);
+    window.addEventListener('panel-resize-complete', handleCompleteWithGpuResume);
     return () => {
-      window.removeEventListener('panel-resize-start', handleStart);
-      window.removeEventListener('panel-resize-complete', handleComplete);
+      window.removeEventListener('panel-resize-start', handleStartWithGpuSuspend);
+      window.removeEventListener('panel-resize-complete', handleCompleteWithGpuResume);
+      webglControllerRef.current?.resume();
     };
   }, [isPtyReady, isActive, immediateResize]);
 
@@ -472,9 +487,14 @@ export function TaskTerminal({
     }
   }, [xtermTheme]);
 
+  useEffect(() => {
+    webglControllerRef.current?.setMode(resolveTerminalWebglMode(terminalConfig.webgl));
+  }, [terminalConfig.webgl]);
+
   // Track active state for composition handlers
   useEffect(() => {
     isActiveRef.current = isActive;
+    webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
 
   // Control cursor blink and style based on active state

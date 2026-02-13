@@ -11,7 +11,7 @@ import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -94,6 +94,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const imeGuardRef = useRef<ReturnType<typeof createImeGuard> | null>(null);
   const cursorGuardRef = useRef<ReturnType<typeof createCursorVisibilityGuard> | null>(null);
   const outputBufferRef = useRef<ReturnType<typeof createTerminalOutputBuffer> | null>(null);
+  const webglControllerRef = useRef<ReturnType<typeof loadWebGLWithRecovery> | null>(null);
   const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
 
@@ -205,8 +206,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     terminal.open(containerRef.current);
 
     // Load ligatures addon if enabled (incompatible with WebGL)
-    // Store WebGL cleanup function if used
-    let webglCleanup: (() => void) | null = null;
+    let webglController: ReturnType<typeof loadWebGLWithRecovery> | null = null;
 
     const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
     if (terminalConfig.fontLigatures && !isWindows) {
@@ -216,9 +216,13 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       } catch (e) {
         console.warn('Ligatures addon failed to load:', e);
       }
-    } else if (terminalConfig.webgl) {
+    } else {
       // Load WebGL addon with automatic recovery from context loss
-      webglCleanup = loadWebGLWithRecovery(terminal);
+      webglController = loadWebGLWithRecovery(terminal, {
+        mode: resolveTerminalWebglMode(terminalConfig.webgl),
+        active: isActiveRef.current,
+      });
+      webglControllerRef.current = webglController;
     }
 
     terminalRef.current = terminal;
@@ -230,7 +234,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
         cursorGuardRef.current?.update();
       }
     });
-    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer, webglController ?? undefined);
     outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
@@ -315,7 +319,8 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       onDataDisposable.dispose();
       titleChangeDisposable.dispose();
       cleanupKeyboardHandlers();
-      webglCleanup?.();
+      webglController?.dispose();
+      webglControllerRef.current = null;
       containerRef.current?.removeEventListener('focusin', handleFocus);
       terminal.textarea?.removeEventListener('focus', handleTerminalFocus);
       terminal.textarea?.removeEventListener('blur', handleTerminalBlur);
@@ -353,9 +358,14 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     }
   }, [xtermTheme]);
 
+  useEffect(() => {
+    webglControllerRef.current?.setMode(resolveTerminalWebglMode(terminalConfig.webgl));
+  }, [terminalConfig.webgl]);
+
   // Track active state for composition handlers
   useEffect(() => {
     isActiveRef.current = isActive;
+    webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
 
   // Control cursor blink and style based on active state
@@ -448,12 +458,21 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
       immediateResize();
       setTimeout(() => setIsResizing(false), 50);
     };
+    const handleStartWithGpuSuspend = () => {
+      webglControllerRef.current?.suspend();
+      handleStart();
+    };
+    const handleCompleteWithGpuResume = () => {
+      handleComplete();
+      webglControllerRef.current?.resume();
+    };
 
-    window.addEventListener('panel-resize-start', handleStart);
-    window.addEventListener('panel-resize-complete', handleComplete);
+    window.addEventListener('panel-resize-start', handleStartWithGpuSuspend);
+    window.addEventListener('panel-resize-complete', handleCompleteWithGpuResume);
     return () => {
-      window.removeEventListener('panel-resize-start', handleStart);
-      window.removeEventListener('panel-resize-complete', handleComplete);
+      window.removeEventListener('panel-resize-start', handleStartWithGpuSuspend);
+      window.removeEventListener('panel-resize-complete', handleCompleteWithGpuResume);
+      webglControllerRef.current?.resume();
     };
   }, [ptyId, isActive, immediateResize]);
 

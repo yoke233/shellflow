@@ -375,6 +375,69 @@ impl Default for PanesConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum WebglMode {
+    Off,
+    #[default]
+    Auto,
+    On,
+}
+
+fn deserialize_webgl_mode<'de, D>(deserializer: D) -> Result<WebglMode, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Bool(enabled) => Ok(if enabled {
+            WebglMode::Auto
+        } else {
+            WebglMode::Off
+        }),
+        serde_json::Value::String(mode) => match mode.trim().to_lowercase().as_str() {
+            "off" => Ok(WebglMode::Off),
+            "auto" => Ok(WebglMode::Auto),
+            "on" => Ok(WebglMode::On),
+            _ => Err(serde::de::Error::custom(format!(
+                "invalid webgl mode '{}', expected off|auto|on",
+                mode
+            ))),
+        },
+        serde_json::Value::Null => Ok(WebglMode::Auto),
+        _ => Err(serde::de::Error::custom(
+            "invalid webgl value, expected bool or string",
+        )),
+    }
+}
+
+fn deserialize_optional_webgl_mode<'de, D>(deserializer: D) -> Result<Option<WebglMode>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Null => Ok(None),
+        serde_json::Value::Bool(enabled) => Ok(Some(if enabled {
+            WebglMode::Auto
+        } else {
+            WebglMode::Off
+        })),
+        serde_json::Value::String(mode) => match mode.trim().to_lowercase().as_str() {
+            "off" => Ok(Some(WebglMode::Off)),
+            "auto" => Ok(Some(WebglMode::Auto)),
+            "on" => Ok(Some(WebglMode::On)),
+            _ => Err(serde::de::Error::custom(format!(
+                "invalid webgl mode '{}', expected off|auto|on",
+                mode
+            ))),
+        },
+        _ => Err(serde::de::Error::custom(
+            "invalid webgl value, expected bool or string",
+        )),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct MainConfig {
@@ -386,7 +449,8 @@ pub struct MainConfig {
     pub font_size: u16,
     #[serde(rename = "fontLigatures")]
     pub font_ligatures: bool,
-    pub webgl: bool,
+    #[serde(rename = "webgl", default, deserialize_with = "deserialize_webgl_mode")]
+    pub webgl: WebglMode,
     /// Padding around the terminal content in pixels
     pub padding: u16,
     /// Maximum scrollback lines kept in terminal memory
@@ -404,7 +468,7 @@ impl Default for MainConfig {
             font_family: "Menlo, Monaco, 'Courier New', monospace".to_string(),
             font_size: 13,
             font_ligatures: false,
-            webgl: true,
+            webgl: WebglMode::Auto,
             padding: 8,
             scrollback: 20000,
             unfocused_opacity: None, // Uses panes.unfocusedOpacity when None
@@ -484,8 +548,12 @@ pub struct RawDrawerConfig {
     pub font_size: Option<u16>,
     #[serde(rename = "fontLigatures", skip_serializing_if = "Option::is_none")]
     pub font_ligatures: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub webgl: Option<bool>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        default,
+        deserialize_with = "deserialize_optional_webgl_mode"
+    )]
+    pub webgl: Option<WebglMode>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub padding: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -505,7 +573,7 @@ pub struct DrawerConfig {
     pub font_size: u16,
     #[serde(rename = "fontLigatures")]
     pub font_ligatures: bool,
-    pub webgl: bool,
+    pub webgl: WebglMode,
     /// Padding around the terminal content in pixels
     pub padding: u16,
     /// Maximum scrollback lines kept in terminal memory
@@ -537,7 +605,7 @@ impl Default for DrawerConfig {
             font_family: "Menlo, Monaco, 'Courier New', monospace".to_string(),
             font_size: 13,
             font_ligatures: false,
-            webgl: true,
+            webgl: WebglMode::Auto,
             padding: 8,
             scrollback: 20000,
             unfocused_opacity: 0.7, // Same default as panes.unfocusedOpacity

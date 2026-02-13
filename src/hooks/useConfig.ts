@@ -4,11 +4,13 @@ import { listen } from '@tauri-apps/api/event';
 import { MergeStrategy } from '../types';
 
 /** Shared terminal display configuration used by both main and drawer terminals */
+export type TerminalWebglMode = 'off' | 'auto' | 'on';
+
 export interface TerminalConfig {
   fontFamily: string;
   fontSize: number;
   fontLigatures: boolean;
-  webgl: boolean;
+  webgl: TerminalWebglMode;
   padding: number;
   scrollback: number;
 }
@@ -170,7 +172,7 @@ const defaultConfig: Config = {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
-    webgl: true,
+    webgl: 'auto',
     padding: 8,
     scrollback: 20000,
     unfocusedOpacity: null,
@@ -179,7 +181,7 @@ const defaultConfig: Config = {
     fontFamily: "Menlo, Monaco, 'Courier New', monospace",
     fontSize: 13,
     fontLigatures: false,
-    webgl: true,
+    webgl: 'auto',
     padding: 8,
     scrollback: 20000,
     unfocusedOpacity: 0.7,

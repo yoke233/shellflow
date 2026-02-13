@@ -9,8 +9,11 @@
     "fontFamily": "Menlo, Monaco, 'Courier New', monospace",
     "fontSize": 13,
     "fontLigatures": false,
-    // Enable WebGL terminal renderer (faster, can be disabled if rendering artifacts appear)
-    "webgl": true,
+    // WebGL mode: "off" | "auto" | "on"
+    // - off: always canvas renderer
+    // - auto: active terminal uses WebGL, auto fallback on instability
+    // - on: force WebGL unless ligatures disable it
+    "webgl": "auto",
     // Padding around the terminal content in pixels
     "padding": 8,
     // Maximum scrollback lines kept in terminal memory

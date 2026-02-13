@@ -23,6 +23,7 @@ export function getPlatformTerminalOptions(): Partial<ITerminalOptions> {
 export const TERMINAL_SCROLLBACK = 20000;
 export const MAX_TERMINAL_SCROLLBACK = 100000;
 export const MIN_TERMINAL_SCROLLBACK = 0;
+export type TerminalWebglMode = 'off' | 'auto' | 'on';
 
 export function resolveTerminalScrollback(scrollback: number): number {
   if (!Number.isFinite(scrollback)) {
@@ -37,6 +38,18 @@ export function resolveTerminalScrollback(scrollback: number): number {
     return MAX_TERMINAL_SCROLLBACK;
   }
   return normalized;
+}
+
+export function resolveTerminalWebglMode(value: unknown): TerminalWebglMode {
+  if (value === false) return 'off';
+  if (value === true) return 'auto';
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'off' || normalized === 'auto' || normalized === 'on') {
+      return normalized;
+    }
+  }
+  return 'auto';
 }
 export function resolveTerminalFontFamily(fontFamily: string): string {
   const trimmed = fontFamily.trim();
@@ -224,7 +237,8 @@ export function createTerminalOutputBuffer(
 
 export function attachSelectionDragPause(
   terminal: Terminal,
-  outputBuffer: { pause: () => void; resume: () => void }
+  outputBuffer: { pause: () => void; resume: () => void },
+  webglController?: { suspend: () => void; resume: () => void }
 ): () => void {
   const element = terminal.element;
   if (!element) {
@@ -239,6 +253,7 @@ export function attachSelectionDragPause(
     }
     pausedByDrag = true;
     outputBuffer.pause();
+    webglController?.suspend();
   };
 
   const handleMouseUp = () => {
@@ -247,6 +262,7 @@ export function attachSelectionDragPause(
     }
     pausedByDrag = false;
     outputBuffer.resume();
+    webglController?.resume();
   };
 
   const handleWindowBlur = () => {
@@ -255,6 +271,7 @@ export function attachSelectionDragPause(
     }
     pausedByDrag = false;
     outputBuffer.resume();
+    webglController?.resume();
   };
 
   element.addEventListener('mousedown', handleMouseDown, true);
@@ -294,87 +311,190 @@ export function enableUnicode11Width(terminal: Terminal): void {
  * zooming) and clears the texture atlas to prevent blurriness.
  *
  * @param terminal - The xterm.js Terminal instance
- * @returns Cleanup function to dispose the addon and stop watching DPR
+ * @returns WebGL controller (setMode / setActive / suspend / resume / dispose)
  */
-export function loadWebGLWithRecovery(terminal: Terminal): () => void {
+export function loadWebGLWithRecovery(
+  terminal: Terminal,
+  options: WebglRecoveryOptions = {}
+): WebglRecoveryController {
+  return loadWebGLWithRecoveryController(terminal, options);
+}
+
+type WebglRecoveryOptions = {
+  mode?: TerminalWebglMode | boolean;
+  active?: boolean;
+};
+
+type WebglRecoveryController = {
+  setMode: (mode: TerminalWebglMode | boolean) => void;
+  setActive: (active: boolean) => void;
+  suspend: () => void;
+  resume: () => void;
+  isEnabled: () => boolean;
+  dispose: () => void;
+};
+
+export function loadWebGLWithRecoveryController(
+  terminal: Terminal,
+  options: WebglRecoveryOptions = {}
+): WebglRecoveryController {
+  let mode = resolveTerminalWebglMode(options.mode);
+  let active = options.active ?? true;
+  let suspendedCount = 0;
   let webglAddon: WebglAddon | null = null;
   let disposed = false;
   let recoveryTimeout: ReturnType<typeof setTimeout> | null = null;
   let selectionDisposable: { dispose: () => void } | null = null;
+  let atlasRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let fusedOff = false;
+  const contextLossTimestamps: number[] = [];
+  const CONTEXT_LOSS_WINDOW_MS = 30000;
+  const CONTEXT_LOSS_FUSE_THRESHOLD = 2;
 
-  const loadAddon = () => {
-    if (disposed) return;
+  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+  let currentDpr = window.devicePixelRatio;
+  const dprMediaQuery = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
+
+  const queueAtlasRefresh = () => {
+    if (!webglAddon || disposed) return;
+    if (atlasRefreshTimer) return;
+    atlasRefreshTimer = setTimeout(() => {
+      atlasRefreshTimer = null;
+      if (!webglAddon) return;
+      try {
+        webglAddon.clearTextureAtlas();
+      } catch {
+        // ignore transient renderer states
+      }
+    }, 120);
+  };
+
+  const disableAddon = () => {
+    if (recoveryTimeout) {
+      clearTimeout(recoveryTimeout);
+      recoveryTimeout = null;
+    }
+    if (atlasRefreshTimer) {
+      clearTimeout(atlasRefreshTimer);
+      atlasRefreshTimer = null;
+    }
+    selectionDisposable?.dispose();
+    selectionDisposable = null;
+    webglAddon?.dispose();
+    webglAddon = null;
+  };
+
+  const shouldEnableAddon = () => {
+    if (disposed || fusedOff || suspendedCount > 0) {
+      return false;
+    }
+    if (mode === 'off') {
+      return false;
+    }
+    if (mode === 'on') {
+      return true;
+    }
+    // auto 模式：仅活跃终端启用，降低多终端并发渲染冲突
+    return active;
+  };
+
+  const scheduleRecover = () => {
+    if (recoveryTimeout || disposed) {
+      return;
+    }
+    recoveryTimeout = setTimeout(() => {
+      recoveryTimeout = null;
+      syncAddonState();
+    }, 1000);
+  };
+
+  const onContextLoss = () => {
+    const now = Date.now();
+    contextLossTimestamps.push(now);
+    while (contextLossTimestamps.length > 0 && now - contextLossTimestamps[0] > CONTEXT_LOSS_WINDOW_MS) {
+      contextLossTimestamps.shift();
+    }
+
+    disableAddon();
+    if (mode === 'auto' && (contextLossTimestamps.length >= CONTEXT_LOSS_FUSE_THRESHOLD || isWindows)) {
+      fusedOff = true;
+      console.warn('WebGL fused off due to instability; using canvas renderer.');
+      return;
+    }
+
+    scheduleRecover();
+  };
+
+  const enableAddon = () => {
+    if (webglAddon || disposed) {
+      return;
+    }
 
     try {
-      webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        console.warn('WebGL context lost, will recover...');
-        webglAddon?.dispose();
-        webglAddon = null;
+      const addon = new WebglAddon();
+      addon.onContextLoss(onContextLoss);
+      terminal.loadAddon(addon);
+      webglAddon = addon;
+      queueAtlasRefresh();
 
-        // Recreate after a delay to allow GPU to recover
-        recoveryTimeout = setTimeout(loadAddon, 1000);
-      });
-      terminal.loadAddon(webglAddon);
-
-      // Work around intermittent glyph artifacts on colored lines while dragging
-      // selection in WebGL renderer. Clearing the atlas on selection changes
-      // forces re-rasterization and avoids "white box" overlays.
       selectionDisposable?.dispose();
       selectionDisposable = terminal.onSelectionChange(() => {
-        try {
-          webglAddon?.clearTextureAtlas();
-        } catch {
-          // ignore transient renderer states
-        }
+        queueAtlasRefresh();
       });
     } catch (e) {
       console.warn('WebGL addon failed to load, using canvas renderer:', e);
       webglAddon = null;
+      if (mode === 'auto') {
+        fusedOff = true;
+      }
     }
   };
 
-  // Initial load
-  loadAddon();
-
-  // Watch for device pixel ratio changes (display switching, zooming)
-  // This can cause blurriness if the texture atlas isn't cleared
-  let currentDpr = window.devicePixelRatio;
-  const dprMediaQuery = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
+  const syncAddonState = () => {
+    if (shouldEnableAddon()) {
+      enableAddon();
+    } else {
+      disableAddon();
+    }
+  };
 
   const handleDprChange = () => {
     const newDpr = window.devicePixelRatio;
     if (newDpr !== currentDpr) {
       currentDpr = newDpr;
-      // Clear texture atlas to force re-render at new DPR
-      if (webglAddon) {
-        try {
-          webglAddon.clearTextureAtlas();
-        } catch {
-          // Addon may have been disposed, try to reload
-          loadAddon();
-        }
-      }
+      queueAtlasRefresh();
     }
-    // Re-register since the media query is now stale
-    dprMediaQuery.removeEventListener('change', handleDprChange);
-    const newQuery = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
-    newQuery.addEventListener('change', handleDprChange);
   };
 
   dprMediaQuery.addEventListener('change', handleDprChange);
+  syncAddonState();
 
-  // Cleanup function
-  return () => {
-    disposed = true;
-    if (recoveryTimeout) {
-      clearTimeout(recoveryTimeout);
-    }
-    selectionDisposable?.dispose();
-    selectionDisposable = null;
-    dprMediaQuery.removeEventListener('change', handleDprChange);
-    webglAddon?.dispose();
-    webglAddon = null;
+  return {
+    setMode: (nextMode) => {
+      mode = resolveTerminalWebglMode(nextMode);
+      // 用户明确切换模式时重置熔断状态
+      fusedOff = false;
+      contextLossTimestamps.length = 0;
+      syncAddonState();
+    },
+    setActive: (nextActive) => {
+      active = nextActive;
+      syncAddonState();
+    },
+    suspend: () => {
+      suspendedCount += 1;
+      syncAddonState();
+    },
+    resume: () => {
+      suspendedCount = Math.max(0, suspendedCount - 1);
+      syncAddonState();
+    },
+    isEnabled: () => webglAddon !== null,
+    dispose: () => {
+      disposed = true;
+      disableAddon();
+      dprMediaQuery.removeEventListener('change', handleDprChange);
+    },
   };
 }
 

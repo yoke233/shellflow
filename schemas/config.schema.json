@@ -36,9 +36,12 @@
           "default": false
         },
         "webgl": {
-          "type": "boolean",
-          "description": "Enable WebGL terminal renderer",
-          "default": true
+          "anyOf": [
+            { "type": "boolean" },
+            { "type": "string", "enum": ["off", "auto", "on"] }
+          ],
+          "description": "WebGL renderer mode. Supports legacy boolean for compatibility (true=auto, false=off).",
+          "default": "auto"
         },
         "padding": {
           "type": "integer",
@@ -82,8 +85,11 @@
           "description": "Enable font ligatures (disables WebGL rendering). Inherits from main if not specified."
         },
         "webgl": {
-          "type": "boolean",
-          "description": "Enable WebGL terminal renderer. Inherits from main if not specified."
+          "anyOf": [
+            { "type": "boolean" },
+            { "type": "string", "enum": ["off", "auto", "on"] }
+          ],
+          "description": "WebGL renderer mode. Inherits from main if not specified. Supports legacy boolean (true=auto, false=off)."
         },
         "padding": {
           "type": "integer",

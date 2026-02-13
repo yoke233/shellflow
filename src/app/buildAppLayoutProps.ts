@@ -10,7 +10,7 @@ import { CommandPalette } from '../components/CommandPalette';
 import { ProjectSwitcher } from '../components/ProjectSwitcher';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { AppearanceSettingsModal } from '../components/Settings/AppearanceSettingsModal';
-import type { Config, TerminalConfig, TaskConfig, AppsConfig } from '../hooks/useConfig';
+import type { Config, TerminalConfig, TaskConfig, AppsConfig, TerminalWebglMode } from '../hooks/useConfig';
 import type { Project, Worktree, ScratchTerminal, RunningTask, ChangedFilesViewMode, BranchInfo } from '../types';
 import type { ThemeBorderStyle } from '../theme';
 import type { ActionContext, ActionId as PaletteActionId } from '../lib/actions';
@@ -178,7 +178,7 @@ interface BuildAppLayoutDeps {
   onProjectSwitcherSelect: (projectId: string) => void;
   onThemeChange: (themeName: string) => void;
   onBorderStyleChange: (style: ThemeBorderStyle) => void;
-  onFontChange: (patch: { fontFamily?: string; fontSize?: number; fontLigatures?: boolean; webgl?: boolean }) => void;
+  onFontChange: (patch: { fontFamily?: string; fontSize?: number; fontLigatures?: boolean; webgl?: TerminalWebglMode }) => void;
   onModalOpen: () => void;
   onModalClose: () => void;
   isCommitModalOpen: boolean;

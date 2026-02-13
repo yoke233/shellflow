@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTheme } from '../../theme';
 import type { ThemeBorderStyle } from '../../theme/types';
+import type { TerminalWebglMode } from '../../hooks/useConfig';
 import {
   Modal,
   ModalBody,
@@ -64,6 +65,12 @@ const FONT_ALIAS_MAP: Record<string, string> = {
   'cascadia code nerd font': 'CaskaydiaCove Nerd Font',
 };
 
+const WEBGL_MODE_OPTIONS: Array<{ value: TerminalWebglMode; label: string; description: string }> = [
+  { value: 'off', label: 'Off', description: 'Always use canvas renderer.' },
+  { value: 'auto', label: 'Auto', description: 'Use WebGL only for active terminal; auto fallback on instability.' },
+  { value: 'on', label: 'On', description: 'Force WebGL unless ligatures disable it.' },
+];
+
 function normalizeFontFamily(input: string): string {
   const trimmed = input.trim();
   const key = trimmed.toLowerCase();
@@ -100,7 +107,7 @@ export type FontSettingsPatch = {
   fontFamily?: string;
   fontSize?: number;
   fontLigatures?: boolean;
-  webgl?: boolean;
+  webgl?: TerminalWebglMode;
 };
 
 interface AppearanceSettingsModalProps {
@@ -109,7 +116,7 @@ interface AppearanceSettingsModalProps {
   fontFamily: string;
   fontSize: number;
   fontLigatures: boolean;
-  webgl: boolean;
+  webgl: TerminalWebglMode;
   onFontChange: (patch: FontSettingsPatch) => void;
   onBorderStyleChange: (style: ThemeBorderStyle) => void;
   onModalOpen?: () => void;
@@ -416,16 +423,32 @@ export function AppearanceSettingsModal({
                   Ligatures
                 </label>
 
-                <label className="flex items-center gap-2 text-[13px] cursor-pointer mt-5" style={{ color: 'var(--modal-item-text)' }}>
-                  <input
-                    type="checkbox"
-                    checked={webgl}
-                    onChange={(e) => onFontChange({ webgl: e.target.checked })}
-                    className="rounded border-theme-1 bg-theme-3/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-theme-2"
-                  />
-                  WebGL Renderer
-                </label>
+                <div className="mt-3 min-w-[260px]">
+                  <label className="block text-[12px] mb-1" style={{ color: 'var(--modal-item-text-muted)' }}>
+                    WebGL Renderer
+                  </label>
+                  <div className="flex gap-1.5">
+                    {WEBGL_MODE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => onFontChange({ webgl: option.value })}
+                        className="modal-toggle flex-1 px-2.5 py-1.5 text-[12px] rounded-[4px] border transition-all duration-100"
+                        style={{
+                          background: webgl === option.value ? 'var(--modal-item-highlight)' : 'transparent',
+                          borderColor: 'var(--modal-input-border)',
+                          color: webgl === option.value ? 'var(--modal-item-text)' : 'var(--modal-item-text-muted)',
+                        }}
+                        title={option.description}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
+              <ModalText muted size="xs">
+                建议 Windows 使用 Auto；出现渲染异常会自动熔断回退到 canvas。
+              </ModalText>
 
               <div
                 className="rounded px-2.5 py-2 text-xs"
