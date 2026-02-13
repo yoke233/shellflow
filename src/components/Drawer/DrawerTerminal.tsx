@@ -234,7 +234,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
         cursorGuardRef.current?.update();
       }
     });
-    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer, webglController ?? undefined);
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)

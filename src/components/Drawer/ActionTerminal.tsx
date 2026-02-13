@@ -214,7 +214,7 @@ export function ActionTerminal({
         cursorGuardRef.current?.update();
       }
     });
-    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer, webglController);
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Write function for keyboard handlers

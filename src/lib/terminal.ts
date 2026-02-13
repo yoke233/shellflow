@@ -237,8 +237,7 @@ export function createTerminalOutputBuffer(
 
 export function attachSelectionDragPause(
   terminal: Terminal,
-  outputBuffer: { pause: () => void; resume: () => void },
-  webglController?: { suspend: () => void; resume: () => void }
+  outputBuffer: { pause: () => void; resume: () => void }
 ): () => void {
   const element = terminal.element;
   if (!element) {
@@ -275,7 +274,6 @@ export function attachSelectionDragPause(
     dragMode = true;
     pausedByDrag = true;
     outputBuffer.pause();
-    webglController?.suspend();
   };
 
   const handleMouseUp = () => {
@@ -286,7 +284,6 @@ export function attachSelectionDragPause(
     }
     pausedByDrag = false;
     outputBuffer.resume();
-    webglController?.resume();
   };
 
   const handleWindowBlur = () => {
@@ -297,7 +294,6 @@ export function attachSelectionDragPause(
     }
     pausedByDrag = false;
     outputBuffer.resume();
-    webglController?.resume();
   };
 
   element.addEventListener('mousedown', handleMouseDown, true);

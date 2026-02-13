@@ -399,7 +399,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         cursorGuardRef.current?.update();
       }
     });
-    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer, webglController ?? undefined);
+    const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
     // Attach custom keyboard handlers (Shift+Enter for newline)
