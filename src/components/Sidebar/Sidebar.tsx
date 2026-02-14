@@ -1,4 +1,4 @@
-import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, Terminal, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette, GitCommit, RefreshCw } from 'lucide-react';
+import { FolderGit2, Plus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Loader2, GitMerge, GitBranch, X, PanelRight, Settings, Circle, Folder, ExternalLink, Hash, SquareTerminal, Code, Keyboard, Palette, GitCommit, RefreshCw } from 'lucide-react';
 import { Project, Worktree, RunningTask, ScratchTerminal, BranchInfo, ChangedFilesViewMode } from '../../types';
 import { StatusIndicators } from '../StatusIndicators';
 import { TaskConfig, AppsConfig, getAppCommand, getAppTarget } from '../../hooks/useConfig';
@@ -54,7 +54,6 @@ interface SidebarProps {
   idleScratchIds: Set<string>;
   runningTaskCounts: Map<string, number>;
   expandedProjects: Set<string>;
-  isDrawerOpen: boolean;
   isRightPanelOpen: boolean;
   tasks: TaskConfig[];
   selectedTask: string | null;
@@ -76,8 +75,6 @@ interface SidebarProps {
   focusToRestoreRef: React.RefObject<HTMLElement | null>;
   /** Called to focus the main terminal area */
   onFocusMain: () => void;
-  /** Called to open a command in the drawer (for TUI editors) */
-  onOpenInDrawer: (directory: string, command: string) => void;
   /** Called to open a command in a new session tab (for TUI editors) */
   onOpenInTab: (directory: string, command: string) => void;
   onToggleProject: (projectId: string) => void;
@@ -92,10 +89,8 @@ interface SidebarProps {
   onCloseProject: (projectOrId: Project | string) => void;
   onHideProject: (projectOrId: Project | string) => void;
   onMergeWorktree: (worktreeId: string) => void;
-  onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
   onOpenCommitModal: () => void;
-  toggleDrawerShortcut?: string | null;
   toggleRightPanelShortcut?: string | null;
   refreshProjectsShortcut?: string | null;
   onSelectTask: (taskName: string) => void;
@@ -138,7 +133,6 @@ export function Sidebar({
   idleScratchIds,
   runningTaskCounts,
   expandedProjects,
-  isDrawerOpen,
   isRightPanelOpen,
   tasks,
   selectedTask,
@@ -168,10 +162,8 @@ export function Sidebar({
   onCloseProject,
   onHideProject,
   onMergeWorktree,
-  onToggleDrawer,
   onToggleRightPanel,
   onOpenCommitModal,
-  toggleDrawerShortcut,
   toggleRightPanelShortcut,
   refreshProjectsShortcut,
   onSelectTask,
@@ -188,11 +180,9 @@ export function Sidebar({
   onReorderScratchTerminals,
   onAutoEditConsumed,
   onEditingScratchConsumed,
-  onOpenInDrawer,
   onOpenInTab,
   onOpenAppearanceSettings,
 }: SidebarProps) {
-  const toggleDrawerTitle = toggleDrawerShortcut ? `Toggle terminal (${toggleDrawerShortcut})` : 'Toggle terminal';
   const toggleRightPanelTitle = toggleRightPanelShortcut
     ? `Toggle right panel (${toggleRightPanelShortcut})`
     : 'Toggle right panel';
@@ -416,6 +406,33 @@ export function Sidebar({
       onDeleteWorktree(contextMenu.worktree.id);
       setContextMenu(null);
     }
+  };
+
+  const handleOpenEditorAtPath = (path: string) => {
+    const terminalCommand = getAppCommand(appsConfig.terminal);
+    const editorCommand = getAppCommand(appsConfig.editor);
+    const editorTarget = getAppTarget(appsConfig.editor, 'terminal');
+
+    if (!editorCommand) {
+      invoke('open_default', { path }).catch((err) => {
+        console.error('Failed to open path:', err);
+      });
+      return;
+    }
+
+    if (editorTarget === 'drawer' || editorTarget === 'tab') {
+      onOpenInTab(path, substitutePathTemplate(editorCommand, path));
+      return;
+    }
+
+    invoke('open_in_editor', {
+      path,
+      app: editorCommand,
+      target: editorTarget,
+      terminalApp: terminalCommand ?? null,
+    }).catch((err) => {
+      console.error('Failed to open editor:', err);
+    });
   };
 
   return (
@@ -809,9 +826,13 @@ export function Sidebar({
 
       {contextMenu && (() => {
         const fileManagerCommand = getAppCommand(appsConfig.fileManager);
+        const editorCommand = getAppCommand(appsConfig.editor);
         const fileManagerLabel = fileManagerCommand
           ? `Open in ${fileManagerCommand}`
           : 'Open in File Manager';
+        const editorLabel = editorCommand
+          ? `Open in ${editorCommand}`
+          : 'Open in Editor';
         const contextPath = contextMenu.type === 'project' ? contextMenu.project.path : contextMenu.worktree.path;
         const items = contextMenu.type === 'project'
           ? [
@@ -828,6 +849,14 @@ export function Sidebar({
                     path: contextPath,
                     app: fileManagerCommand ?? null,
                   });
+                  setContextMenu(null);
+                },
+              },
+              {
+                label: editorLabel,
+                icon: <Code size={14} />,
+                onClick: () => {
+                  handleOpenEditorAtPath(contextPath);
                   setContextMenu(null);
                 },
               },
@@ -849,6 +878,14 @@ export function Sidebar({
                     path: contextPath,
                     app: fileManagerCommand ?? null,
                   });
+                  setContextMenu(null);
+                },
+              },
+              {
+                label: editorLabel,
+                icon: <Code size={14} />,
+                onClick: () => {
+                  handleOpenEditorAtPath(contextPath);
                   setContextMenu(null);
                 },
               },
@@ -987,7 +1024,6 @@ export function Sidebar({
         const fileManagerCommand = getAppCommand(appsConfig.fileManager);
         const terminalCommand = getAppCommand(appsConfig.terminal);
         const editorCommand = getAppCommand(appsConfig.editor);
-        const editorTarget = getAppTarget(appsConfig.editor, 'terminal'); // Editor defaults to terminal target
 
         // Build labels
         const fileManagerLabel = fileManagerCommand
@@ -1001,33 +1037,6 @@ export function Sidebar({
         const editorLabel = editorCommand
           ? `Open in ${editorCommand}`
           : 'Open in Editor';
-
-        const handleOpenEditor = () => {
-          if (!editorCommand) {
-            invoke('open_default', { path: activePath }).catch((err) => {
-              console.error('Failed to open path:', err);
-            });
-            return;
-          }
-
-          if (editorTarget === 'drawer') {
-            // Open in shellflow's drawer with template substitution
-            onOpenInDrawer(activePath, substitutePathTemplate(editorCommand, activePath));
-          } else if (editorTarget === 'tab') {
-            // Open in a new session tab with template substitution
-            onOpenInTab(activePath, substitutePathTemplate(editorCommand, activePath));
-          } else {
-            // External or terminal target - handled by backend (which also does template substitution)
-            invoke('open_in_editor', {
-              path: activePath,
-              app: editorCommand,
-              target: editorTarget,
-              terminalApp: terminalCommand ?? null,
-            }).catch((err) => {
-              console.error('Failed to open editor:', err);
-            });
-          }
-        };
 
         return (
           <ContextMenu
@@ -1047,7 +1056,7 @@ export function Sidebar({
               {
                 label: editorLabel,
                 icon: <Code size={14} />,
-                onClick: handleOpenEditor,
+                onClick: () => handleOpenEditorAtPath(activePath),
               },
             ]}
             onClose={() => setFolderMenu(null)}
@@ -1087,20 +1096,11 @@ export function Sidebar({
       )}
 
       {/* Status bar - shows different actions for project vs worktree vs scratch */}
-      {(activeWorktreeId || activeProjectId || activeScratchId) && (
+      {(activeWorktreeId || activeProjectId) && (
         <div className="flex items-center h-8 px-1 border-t border-sidebar flex-shrink-0">
           {activeWorktreeId ? (
             <>
               {/* Worktree-specific actions */}
-              <button
-                onClick={onToggleDrawer}
-                className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
-                  isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
-                }`}
-                title={toggleDrawerTitle}
-              >
-                <Terminal size={16} />
-              </button>
               <button
                 onClick={onToggleRightPanel}
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
@@ -1133,32 +1133,9 @@ export function Sidebar({
                 <Trash2 size={16} />
               </button>
             </>
-          ) : activeScratchId ? (
-            <>
-              {/* Scratch-specific actions - just drawer toggle */}
-              <button
-                onClick={onToggleDrawer}
-                className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
-                  isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
-                }`}
-                title={toggleDrawerTitle}
-              >
-                <Terminal size={16} />
-              </button>
-              <div className="flex-1" />
-            </>
           ) : (
             <>
-              {/* Project-specific actions - drawer toggle and right panel toggle */}
-              <button
-                onClick={onToggleDrawer}
-                className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${
-                  isDrawerOpen ? 'text-blue-400' : 'text-theme-3 hover:text-theme-1'
-                }`}
-                title={toggleDrawerTitle}
-              >
-                <Terminal size={16} />
-              </button>
+              {/* Project-specific actions */}
               <button
                 onClick={onToggleRightPanel}
                 className={`p-1.5 rounded hover:bg-theme-2 flex-shrink-0 ${

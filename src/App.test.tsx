@@ -363,7 +363,7 @@ describe('App', () => {
   });
 
   describe('Task Running', () => {
-    it('opens task switcher when tasks are configured', async () => {
+    it('does not open task switcher even when tasks are configured', async () => {
       const worktree = createTestWorktree({ id: 'wt-1', name: 'feature-branch' });
       const project = createTestProject({
         id: 'proj-1',
@@ -400,22 +400,18 @@ describe('App', () => {
       });
       await user.click(screen.getByText('feature-branch'));
 
-      // Open task switcher via menu action
+      // 尝试打开任务切换器（底部 Drawer 已下线）
       await act(async () => {
         emitEvent('menu-action', 'task::switcher');
       });
 
-      // Task switcher should open and show tasks
+      // 任务切换器不应出现
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Search tasks...')).not.toBeInTheDocument();
       });
-
-      // Both tasks should be visible
-      expect(screen.getByText('build')).toBeInTheDocument();
-      expect(screen.getByText('npm run build')).toBeInTheDocument();
     });
 
-    it('spawns task when run from task switcher with Cmd+Enter', async () => {
+    it('does not open task switcher when drawer terminal is disabled', async () => {
       const worktree = createTestWorktree({ id: 'wt-1', name: 'feature-branch' });
       const project = createTestProject({
         id: 'proj-1',
@@ -455,26 +451,16 @@ describe('App', () => {
         expect(invokeHistory.some((h) => h.command === 'spawn_main')).toBe(true);
       });
 
-      // Open task switcher
+      // Try opening task switcher
       await act(async () => {
         emitEvent('menu-action', 'task::switcher');
       });
 
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument();
-      });
+        expect(screen.queryByPlaceholderText('Search tasks...')).not.toBeInTheDocument();
+      }, { timeout: 1000 });
 
-      // Run task with Cmd+Enter (first task is pre-selected)
-      await user.keyboard('{Meta>}{Enter}{/Meta}');
-
-      // Task should spawn
-      await waitFor(() => {
-        expect(invokeHistory.some((h) => h.command === 'spawn_task')).toBe(true);
-      }, { timeout: 3000 });
-
-      // Verify spawn_task was called with correct args
-      const spawnCall = invokeHistory.find((h) => h.command === 'spawn_task');
-      expect(spawnCall?.args).toHaveProperty('taskName', 'dev');
+      expect(invokeHistory.some((h) => h.command === 'spawn_task')).toBe(false);
     });
   });
 

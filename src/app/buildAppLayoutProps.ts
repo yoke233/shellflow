@@ -3,7 +3,6 @@ import type { PanelImperativeHandle } from 'react-resizable-panels';
 import { AppLayout } from './AppLayout';
 import { Sidebar } from '../components/Sidebar/Sidebar';
 import { MainPane } from '../components/MainPane/MainPane';
-import { Drawer } from '../components/Drawer/Drawer';
 import { RightPanel } from '../components/RightPanel/RightPanel';
 import { TaskSwitcher } from '../components/TaskSwitcher/TaskSwitcher';
 import { CommandPalette } from '../components/CommandPalette';
@@ -26,8 +25,6 @@ type AppLayoutProps = ComponentProps<typeof AppLayout>;
 type SidebarProps = ComponentProps<typeof Sidebar>;
 
 type MainPaneProps = ComponentProps<typeof MainPane>;
-
-type DrawerProps = ComponentProps<typeof Drawer>;
 
 type RightPanelProps = ComponentProps<typeof RightPanel>;
 
@@ -96,7 +93,6 @@ interface BuildAppLayoutDeps {
   onCloseProject: (projectOrId: Project | string) => void;
   onHideProject: (projectOrId: Project | string) => void;
   onMergeWorktree: (worktreeId: string) => void;
-  onToggleDrawer: () => void;
   onToggleRightPanel: () => void;
   onSelectTask: (taskName: string) => void;
   onStartTask: (taskNameOverride?: string) => void;
@@ -112,7 +108,6 @@ interface BuildAppLayoutDeps {
   onReorderScratchTerminals: (scratchIds: string[]) => void;
   onAutoEditConsumed: () => void;
   onEditingScratchConsumed: () => void;
-  onOpenInDrawer: (directory: string, command: string) => void;
   onOpenInTab: (directory: string, command: string) => void;
   onOpenAppearanceSettings: () => void;
   onOpenCommitModal: () => void;
@@ -147,14 +142,14 @@ interface BuildAppLayoutDeps {
   onTabTitleChange: MainPaneProps['onTabTitleChange'];
   onPtyIdReady: MainPaneProps['onPtyIdReady'];
   drawerTabs: Map<string, DrawerTab[]>;
-  activeDrawerTabs: DrawerProps['tabs'];
-  activeDrawerTabId: DrawerProps['activeTabId'];
-  activeTaskStatuses: DrawerProps['taskStatuses'];
-  onSelectDrawerTab: DrawerProps['onSelectTab'];
-  onCloseDrawerTab: DrawerProps['onCloseTab'];
-  onAddDrawerTab: DrawerProps['onAddTab'];
-  onToggleExpand: DrawerProps['onToggleExpand'];
-  onReorderDrawerTabs: DrawerProps['onReorderTabs'];
+  activeDrawerTabs: DrawerTab[];
+  activeDrawerTabId: string | null;
+  activeTaskStatuses: Map<string, { status: 'running' | 'stopping' | 'stopped'; exitCode?: number }>;
+  onSelectDrawerTab: (tabId: string) => void;
+  onCloseDrawerTab: (tabId: string) => void;
+  onAddDrawerTab: () => void;
+  onToggleExpand: () => void;
+  onReorderDrawerTabs: (oldIndex: number, newIndex: number) => void;
   changedFiles: RightPanelProps['changedFiles'];
   isGitRepo: RightPanelProps['isGitRepo'];
   loading: RightPanelProps['loading'];
@@ -254,7 +249,6 @@ interface AppLayoutParts {
 
 export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
   const shortcuts = {
-    drawerToggle: deps.getShortcut('drawer::toggle'),
     rightPanelToggle: deps.getShortcut('rightPanel::toggle'),
     projectRefresh: deps.getShortcut('project::refresh'),
     diffOpen: deps.getShortcut('diff::open'),
@@ -286,9 +280,8 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     idleScratchIds: deps.idleScratchIds,
     runningTaskCounts: deps.runningTaskCounts,
     expandedProjects: deps.expandedProjects,
-    isDrawerOpen: deps.isDrawerOpen,
     isRightPanelOpen: deps.isRightPanelOpen,
-    tasks: deps.tasks,
+    tasks: [],
     selectedTask: deps.activeSelectedTask,
     runningTask: deps.activeRunningTask && deps.activeEntityId
       ? {
@@ -322,9 +315,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onCloseProject: deps.onCloseProject,
     onHideProject: deps.onHideProject,
     onMergeWorktree: deps.onMergeWorktree,
-    onToggleDrawer: deps.onToggleDrawer,
     onToggleRightPanel: deps.onToggleRightPanel,
-    toggleDrawerShortcut: shortcuts.drawerToggle,
     toggleRightPanelShortcut: shortcuts.rightPanelToggle,
     refreshProjectsShortcut: shortcuts.projectRefresh,
     onSelectTask: deps.onSelectTask,
@@ -341,7 +332,6 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onReorderScratchTerminals: deps.onReorderScratchTerminals,
     onAutoEditConsumed: deps.onAutoEditConsumed,
     onEditingScratchConsumed: deps.onEditingScratchConsumed,
-    onOpenInDrawer: deps.onOpenInDrawer,
     onOpenInTab: deps.onOpenInTab,
     onOpenAppearanceSettings: deps.onOpenAppearanceSettings,
     onOpenCommitModal: deps.onOpenCommitModal,
@@ -380,22 +370,6 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onClearNotification: deps.onClearNotification,
     onTabTitleChange: deps.onTabTitleChange,
     onPtyIdReady: deps.onPtyIdReady,
-  };
-
-  const drawerProps: DrawerProps = {
-    isOpen: deps.isDrawerOpen,
-    isExpanded: deps.isDrawerExpanded,
-    worktreeId: deps.activeEntityId,
-    tabs: deps.activeDrawerTabs,
-    activeTabId: deps.activeDrawerTabId,
-    taskStatuses: deps.activeTaskStatuses,
-    isCtrlKeyHeld: deps.isCtrlKeyHeld && !deps.isPickerOpen,
-    onSelectTab: deps.onSelectDrawerTab,
-    onCloseTab: deps.onCloseDrawerTab,
-    onAddTab: deps.onAddDrawerTab,
-    onToggleExpand: deps.onToggleExpand,
-    onReorderTabs: deps.onReorderDrawerTabs,
-    newTabShortcut: shortcuts.drawerNewTab,
   };
 
   const rightPanelProps: RightPanelProps = {
@@ -514,7 +488,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
   };
 
   const pickersProps: AppLayoutProps['pickers'] = {
-    showTaskSwitcher: deps.isTaskSwitcherOpen && !!deps.activeEntityId,
+    showTaskSwitcher: false,
     taskSwitcherProps,
     showCommandPalette: deps.isCommandPaletteOpen,
     commandPaletteProps,
@@ -529,27 +503,9 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
   const layoutProps: AppLayoutProps['layout'] = {
     sidebarProps,
     mainPaneProps,
-    drawerProps,
     rightPanelProps,
-    mainPanelRef: deps.mainPanelRef,
-    drawerPanelRef: deps.drawerPanelRef,
     rightPanelRef: deps.rightPanelRef,
-    isDrawerOpen: deps.isDrawerOpen,
-    isDrawerExpanded: deps.isDrawerExpanded,
     isRightPanelOpen: deps.isRightPanelOpen,
-    activeEntityId: deps.activeEntityId,
-    activeDrawerTabId: deps.activeDrawerTabId,
-    activeFocusState: deps.activeFocusState,
-    drawerTabs: deps.drawerTabs,
-    drawerTerminalConfig: deps.drawerTerminalConfig,
-    getEntityDirectory: deps.getEntityDirectory,
-    onTaskPtyIdReady: deps.onTaskPtyIdReady,
-    onTaskExit: deps.onTaskExit,
-    onDrawerFocused: deps.onDrawerFocused,
-    onCloseDrawerTab: deps.onCloseDrawerTab,
-    onDrawerPtyIdReady: deps.onDrawerPtyIdReady,
-    onDrawerTabTitleChange: deps.onDrawerTabTitleChange,
-    onDrawerResize: deps.onDrawerResize,
     onRightPanelResize: deps.onRightPanelResize,
   };
 

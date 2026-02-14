@@ -75,6 +75,7 @@ interface ActionTerminalProps {
   actionType?: string;
   actionPrompt: string;
   isActive: boolean;
+  isVisible?: boolean;
   shouldAutoFocus: boolean;
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
@@ -94,6 +95,7 @@ export function ActionTerminal({
   actionType,
   actionPrompt,
   isActive,
+  isVisible = true,
   shouldAutoFocus,
   focusTrigger,
   terminalConfig,
@@ -114,6 +116,7 @@ export function ActionTerminal({
   const webglControllerRef = useRef<ReturnType<typeof loadWebGLWithRecovery> | null>(null);
   const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
+  const isVisibleRef = useRef(isVisible);
   const ptyIdRef = useRef<string | null>(null);
   const [isPtyReady, setIsPtyReady] = useState(false);
   const [isMergeComplete, setIsMergeComplete] = useState(false);
@@ -141,6 +144,10 @@ export function ActionTerminal({
   const [deleteRemoteBranch, setDeleteRemoteBranch] = useState(initialMergeOptions?.deleteRemoteBranch ?? false);
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   // Store callbacks in refs
   const onFocusRef = useRef(onFocus);
@@ -214,6 +221,9 @@ export function ActionTerminal({
         cursorGuardRef.current?.update();
       }
     });
+    if (!isVisibleRef.current) {
+      outputBuffer.pause();
+    }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
@@ -458,6 +468,7 @@ export function ActionTerminal({
     }
 
     fitAddon.fit();
+    webglControllerRef.current?.refresh();
     ptyResize(ptyIdRef.current, terminal.cols, terminal.rows);
   }, []);
 
@@ -580,6 +591,18 @@ export function ActionTerminal({
     isActiveRef.current = isActive;
     webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
+
+  useEffect(() => {
+    const outputBuffer = outputBufferRef.current;
+    if (!outputBuffer) return;
+
+    if (isVisible) {
+      outputBuffer.resume();
+      return;
+    }
+
+    outputBuffer.pause();
+  }, [isVisible]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {

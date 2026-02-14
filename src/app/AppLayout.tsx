@@ -3,10 +3,6 @@ import type { ComponentProps, RefObject } from 'react';
 import { Sidebar } from '../components/Sidebar/Sidebar';
 import { MainPane } from '../components/MainPane/MainPane';
 import { RightPanel } from '../components/RightPanel/RightPanel';
-import { Drawer, DrawerTab } from '../components/Drawer/Drawer';
-import { DrawerTerminal } from '../components/Drawer/DrawerTerminal';
-import { TaskTerminal } from '../components/Drawer/TaskTerminal';
-import { ActionTerminal } from '../components/Drawer/ActionTerminal';
 import { DeleteWorktreeModal } from '../components/DeleteWorktreeModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { MergeModal } from '../components/MergeModal';
@@ -22,13 +18,12 @@ import { ToastContainer } from '../components/Toast';
 import type { ToastData } from '../components/Toast';
 import { ThemeProvider } from '../theme';
 import type { ThemeBorderStyle, ThemeConfig } from '../theme';
-import type { Config, TerminalConfig } from '../hooks/useConfig';
+import type { Config } from '../hooks/useConfig';
 import type { Project, Worktree } from '../types';
 import type { ActionPromptContext } from '../lib/tauri';
 
 type SidebarProps = ComponentProps<typeof Sidebar>;
 type MainPaneProps = ComponentProps<typeof MainPane>;
-type DrawerProps = ComponentProps<typeof Drawer>;
 type RightPanelProps = ComponentProps<typeof RightPanel>;
 type TaskSwitcherProps = ComponentProps<typeof TaskSwitcher>;
 type CommandPaletteProps = ComponentProps<typeof CommandPalette>;
@@ -37,8 +32,6 @@ type ThemeSwitcherProps = ComponentProps<typeof ThemeSwitcher>;
 type AppearanceSettingsProps = ComponentProps<typeof AppearanceSettingsModal>;
 
 type PanelRef = RefObject<PanelImperativeHandle | null>;
-
-type FocusedPane = 'main' | 'drawer';
 
 interface AppLayoutThemeProps {
   themeConfig?: ThemeConfig;
@@ -91,27 +84,9 @@ interface AppLayoutPickersProps {
 interface AppLayoutPanelsProps {
   sidebarProps: SidebarProps;
   mainPaneProps: MainPaneProps;
-  drawerProps: DrawerProps;
   rightPanelProps: RightPanelProps;
-  mainPanelRef: PanelRef;
-  drawerPanelRef: PanelRef;
   rightPanelRef: PanelRef;
-  isDrawerOpen: boolean;
-  isDrawerExpanded: boolean;
   isRightPanelOpen: boolean;
-  activeEntityId: string | null;
-  activeDrawerTabId: string | null;
-  activeFocusState: FocusedPane;
-  drawerTabs: Map<string, DrawerTab[]>;
-  drawerTerminalConfig: TerminalConfig;
-  getEntityDirectory: (entityId: string) => string | undefined;
-  onTaskPtyIdReady: (entityId: string, taskName: string, ptyId: string) => void;
-  onTaskExit: (entityId: string, taskName: string, exitCode: number) => void;
-  onDrawerFocused: (entityId: string) => void;
-  onCloseDrawerTab: (tabId: string, entityId?: string) => void;
-  onDrawerPtyIdReady: (tabId: string, ptyId: string) => void;
-  onDrawerTabTitleChange: (entityId: string, tabId: string, title: string) => void;
-  onDrawerResize: (size: { inPixels: number }) => void;
   onRightPanelResize: (size: { inPixels: number }) => void;
 }
 
@@ -169,27 +144,9 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
   const {
     sidebarProps,
     mainPaneProps,
-    drawerProps,
     rightPanelProps,
-    mainPanelRef,
-    drawerPanelRef,
     rightPanelRef,
-    isDrawerOpen,
-    isDrawerExpanded,
     isRightPanelOpen,
-    activeEntityId,
-    activeDrawerTabId,
-    activeFocusState,
-    drawerTabs,
-    drawerTerminalConfig,
-    getEntityDirectory,
-    onTaskPtyIdReady,
-    onTaskExit,
-    onDrawerFocused,
-    onCloseDrawerTab,
-    onDrawerPtyIdReady,
-    onDrawerTabTitleChange,
-    onDrawerResize,
     onRightPanelResize,
   } = layout;
 
@@ -295,135 +252,9 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
           <PanelResizeHandle className="w-px bg-resize-handle hover:bg-resize-handle-hover transition-colors focus:outline-none cursor-col-resize" />
 
           <Panel minSize="300px">
-            <PanelGroup orientation="vertical" className="h-full">
-              <Panel panelRef={mainPanelRef} minSize="0px" collapsible collapsedSize="0px">
-                <div
-                  className="h-full transition-opacity duration-150"
-                  style={{
-                    opacity:
-                      isDrawerOpen && activeFocusState === 'drawer'
-                        ? (config.main.unfocusedOpacity ?? config.panes.unfocusedOpacity)
-                        : 1,
-                  }}
-                >
-                  <MainPane {...mainPaneProps} />
-                </div>
-              </Panel>
-
-              <PanelResizeHandle
-                className={`transition-colors focus:outline-none !cursor-row-resize ${
-                  isDrawerOpen && !isDrawerExpanded
-                    ? 'h-px bg-resize-handle hover:bg-resize-handle-hover'
-                    : 'h-0 pointer-events-none'
-                }`}
-              />
-              <Panel
-                panelRef={drawerPanelRef}
-                defaultSize="0px"
-                minSize="100px"
-                maxSize={isDrawerExpanded ? '100%' : '70%'}
-                collapsible
-                collapsedSize="0px"
-                onResize={onDrawerResize}
-              >
-                <div
-                  className="h-full overflow-hidden transition-opacity duration-150"
-                  style={{
-                    opacity: isDrawerOpen && activeFocusState !== 'drawer'
-                      ? config.drawer.unfocusedOpacity
-                      : 1,
-                  }}
-                >
-                  <Drawer {...drawerProps}>
-                    {Array.from(drawerTabs.entries()).flatMap(([entityId, tabs]) =>
-                      tabs.map((tab) => (
-                        <div
-                          key={tab.id}
-                          className={`absolute inset-0 ${
-                            entityId === activeEntityId &&
-                            isDrawerOpen &&
-                            tab.id === activeDrawerTabId
-                              ? 'z-10'
-                              : 'opacity-0 z-0 pointer-events-none'
-                          }`}
-                        >
-                          {tab.type === 'task' && tab.taskName ? (
-                            <TaskTerminal
-                              id={tab.id}
-                              entityId={entityId}
-                              taskName={tab.taskName}
-                              isActive={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              shouldAutoFocus={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              terminalConfig={drawerTerminalConfig}
-                              onPtyIdReady={(ptyId) => onTaskPtyIdReady(entityId, tab.taskName!, ptyId)}
-                              onTaskExit={(exitCode) => onTaskExit(entityId, tab.taskName!, exitCode)}
-                              onFocus={() => onDrawerFocused(entityId)}
-                            />
-                          ) : tab.type === 'action' && tab.actionPrompt ? (
-                            <ActionTerminal
-                              id={tab.id}
-                              worktreeId={entityId}
-                              actionType={tab.actionType}
-                              actionPrompt={tab.actionPrompt}
-                              mergeOptions={tab.mergeOptions}
-                              strategy={tab.strategy}
-                              isActive={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              shouldAutoFocus={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              terminalConfig={drawerTerminalConfig}
-                              onFocus={() => onDrawerFocused(entityId)}
-                            />
-                          ) : (
-                            <DrawerTerminal
-                              id={tab.id}
-                              entityId={entityId}
-                              directory={tab.directory ?? getEntityDirectory(entityId)}
-                              command={tab.command}
-                              isActive={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              shouldAutoFocus={
-                                entityId === activeEntityId &&
-                                isDrawerOpen &&
-                                tab.id === activeDrawerTabId &&
-                                activeFocusState === 'drawer'
-                              }
-                              terminalConfig={drawerTerminalConfig}
-                              onClose={() => onCloseDrawerTab(tab.id, entityId)}
-                              onFocus={() => onDrawerFocused(entityId)}
-                              onPtyIdReady={(ptyId) => onDrawerPtyIdReady(tab.id, ptyId)}
-                              onTitleChange={(title) => onDrawerTabTitleChange(entityId, tab.id, title)}
-                            />
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </Drawer>
-                </div>
-              </Panel>
-            </PanelGroup>
+            <div className="h-full">
+              <MainPane {...mainPaneProps} />
+            </div>
           </Panel>
 
           <PanelResizeHandle

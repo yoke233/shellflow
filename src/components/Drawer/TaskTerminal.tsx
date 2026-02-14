@@ -74,6 +74,7 @@ interface TaskTerminalProps {
   entityId: string;
   taskName: string;
   isActive: boolean;
+  isVisible?: boolean;
   shouldAutoFocus: boolean;
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
@@ -88,6 +89,7 @@ export function TaskTerminal({
   entityId,
   taskName,
   isActive,
+  isVisible = true,
   shouldAutoFocus,
   focusTrigger,
   terminalConfig,
@@ -106,6 +108,7 @@ export function TaskTerminal({
   const webglControllerRef = useRef<ReturnType<typeof loadWebGLWithRecovery> | null>(null);
   const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
+  const isVisibleRef = useRef(isVisible);
   const ptyIdRef = useRef<string | null>(null);
 
   // Get theme from context
@@ -127,6 +130,10 @@ export function TaskTerminal({
   } = useTerminalSearch(terminalRef, { enabled: isActive });
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   // Store onFocus in ref for use in terminal events
   const onFocusRef = useRef(onFocus);
@@ -202,6 +209,9 @@ export function TaskTerminal({
         cursorGuardRef.current?.update();
       }
     });
+    if (!isVisibleRef.current) {
+      outputBuffer.pause();
+    }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
@@ -403,6 +413,7 @@ export function TaskTerminal({
     }
 
     fitAddon.fit();
+    webglControllerRef.current?.refresh();
     ptyResize(ptyIdRef.current, terminal.cols, terminal.rows);
   }, []);
 
@@ -496,6 +507,18 @@ export function TaskTerminal({
     isActiveRef.current = isActive;
     webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
+
+  useEffect(() => {
+    const outputBuffer = outputBufferRef.current;
+    if (!outputBuffer) return;
+
+    if (isVisible) {
+      outputBuffer.resume();
+      return;
+    }
+
+    outputBuffer.pause();
+  }, [isVisible]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {

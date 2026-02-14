@@ -74,6 +74,7 @@ interface DrawerTerminalProps {
   /** Command to run instead of shell (for editors, etc.) */
   command?: string;
   isActive: boolean;
+  isVisible?: boolean;
   shouldAutoFocus: boolean;
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
@@ -85,7 +86,7 @@ interface DrawerTerminalProps {
   onTitleChange?: (title: string) => void;
 }
 
-export function DrawerTerminal({ id, entityId, directory, command, isActive, shouldAutoFocus, focusTrigger, terminalConfig, onClose, onFocus, onPtyIdReady, onTitleChange }: DrawerTerminalProps) {
+export function DrawerTerminal({ id, entityId, directory, command, isActive, isVisible = true, shouldAutoFocus, focusTrigger, terminalConfig, onClose, onFocus, onPtyIdReady, onTitleChange }: DrawerTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -97,6 +98,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const webglControllerRef = useRef<ReturnType<typeof loadWebGLWithRecovery> | null>(null);
   const sgrNormalizerRef = useRef(createStreamingSgrColorNormalizer());
   const isActiveRef = useRef(isActive);
+  const isVisibleRef = useRef(isVisible);
 
   const {
     isSearchOpen,
@@ -116,6 +118,10 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
   const xtermTheme = useDrawerXtermTheme();
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   // Handle PTY output by writing directly to terminal
   const handleOutput = useCallback((data: string) => {
@@ -234,6 +240,9 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
         cursorGuardRef.current?.update();
       }
     });
+    if (!isVisibleRef.current) {
+      outputBuffer.pause();
+    }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
@@ -368,6 +377,19 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
 
+  // Hidden tabs keep receiving PTY output; pause painting until visible.
+  useEffect(() => {
+    const outputBuffer = outputBufferRef.current;
+    if (!outputBuffer) return;
+
+    if (isVisible) {
+      outputBuffer.resume();
+      return;
+    }
+
+    outputBuffer.pause();
+  }, [isVisible]);
+
   // Control cursor blink and style based on active state
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -422,6 +444,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, sho
     }
 
     fitAddon.fit();
+    webglControllerRef.current?.refresh();
     resizeRef.current(terminal.cols, terminal.rows);
   }, []);
 

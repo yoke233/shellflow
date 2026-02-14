@@ -30,7 +30,6 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   idleScratchIds: new Set<string>(),
   runningTaskCounts: new Map<string, number>(),
   expandedProjects: new Set<string>(),
-  isDrawerOpen: false,
   isRightPanelOpen: false,
   tasks: [] as TaskConfig[],
   selectedTask: null,
@@ -59,7 +58,6 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   onCloseProject: vi.fn(),
   onHideProject: vi.fn(),
   onMergeWorktree: vi.fn(),
-  onToggleDrawer: vi.fn(),
   onToggleRightPanel: vi.fn(),
   onOpenCommitModal: vi.fn(),
   onSelectTask: vi.fn(),
@@ -334,6 +332,39 @@ describe('Sidebar', () => {
           (entry) =>
             entry.command === 'open_in_file_manager' &&
             (entry.args as { path?: string } | undefined)?.path === worktreePath
+        )
+      ).toBe(true);
+    });
+
+    it('opens project context menu and supports open editor', async () => {
+      const user = userEvent.setup();
+      const projectPath = '/Users/test/projects/editor-target';
+      const project = createTestProject({
+        id: 'p-editor',
+        name: 'Editor Project',
+        path: projectPath,
+      });
+
+      render(
+        <Sidebar
+          {...createDefaultProps({
+            projects: [project],
+            appsConfig: {
+              editor: 'code',
+            },
+          })}
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByText('Editor Project'));
+      await user.click(screen.getByText('Open in code'));
+
+      expect(
+        invokeHistory.some(
+          (entry) =>
+            entry.command === 'open_in_editor' &&
+            (entry.args as { path?: string; app?: string } | undefined)?.path === projectPath &&
+            (entry.args as { path?: string; app?: string } | undefined)?.app === 'code'
         )
       ).toBe(true);
     });
@@ -614,28 +645,17 @@ describe('Sidebar', () => {
   });
 
   describe('Panel Toggle Buttons', () => {
-    it('calls onToggleDrawer when drawer button is clicked', async () => {
-      const onToggleDrawer = vi.fn();
-      const user = userEvent.setup();
-
+    it('does not show drawer button in status bar', () => {
       render(
         <Sidebar
           {...createDefaultProps({
-            onToggleDrawer,
-            // Need an active entity for toggles to show
             scratchTerminals: [{ id: 's1', name: 'Terminal', order: 0 }],
             activeScratchId: 's1',
           })}
         />
       );
 
-      // Find drawer toggle button
-      const buttons = screen.getAllByRole('button');
-      const drawerButton = buttons.find((b) => b.getAttribute('aria-label')?.includes('drawer'));
-      if (drawerButton) {
-        await user.click(drawerButton);
-        expect(onToggleDrawer).toHaveBeenCalled();
-      }
+      expect(screen.queryByTitle(/toggle terminal/i)).not.toBeInTheDocument();
     });
 
     it('calls onToggleRightPanel when right panel button is clicked', async () => {
@@ -646,8 +666,8 @@ describe('Sidebar', () => {
         <Sidebar
           {...createDefaultProps({
             onToggleRightPanel,
-            scratchTerminals: [{ id: 's1', name: 'Terminal', order: 0 }],
-            activeScratchId: 's1',
+            activeProjectId: 'p-right-panel',
+            projects: [createTestProject({ id: 'p-right-panel', name: 'Panel Project' })],
           })}
         />
       );

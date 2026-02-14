@@ -160,16 +160,44 @@ export function createTerminalOutputBuffer(
   let queuedChunks: string[] = [];
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let writing = false;
-  let paused = false;
+  let pauseDepth = 0;
   let disposed = false;
+  const MAX_FLUSH_CHARS = 16384;
+
+  const dequeuePayload = (): string => {
+    if (queuedChunks.length === 0) {
+      return '';
+    }
+
+    let remaining = MAX_FLUSH_CHARS;
+    let payload = '';
+
+    while (remaining > 0 && queuedChunks.length > 0) {
+      const head = queuedChunks[0];
+      if (head.length <= remaining) {
+        payload += head;
+        remaining -= head.length;
+        queuedChunks.shift();
+        continue;
+      }
+
+      payload += head.slice(0, remaining);
+      queuedChunks[0] = head.slice(remaining);
+      remaining = 0;
+    }
+
+    return payload;
+  };
 
   const flush = () => {
-    if (disposed || writing || paused || queuedChunks.length === 0) {
+    if (disposed || writing || pauseDepth > 0 || queuedChunks.length === 0) {
       return;
     }
 
-    const payload = queuedChunks.join('');
-    queuedChunks = [];
+    const payload = dequeuePayload();
+    if (payload.length === 0) {
+      return;
+    }
     writing = true;
 
     terminal.write(payload, () => {
@@ -200,7 +228,7 @@ export function createTerminalOutputBuffer(
 
     queuedChunks.push(data);
 
-    if (!writing && !paused) {
+    if (!writing && pauseDepth === 0) {
       scheduleFlush();
     }
   };
@@ -209,22 +237,22 @@ export function createTerminalOutputBuffer(
     if (disposed) {
       return;
     }
-    paused = true;
+    pauseDepth += 1;
   };
 
   const resume = () => {
-    if (disposed || !paused) {
+    if (disposed || pauseDepth === 0) {
       return;
     }
-    paused = false;
-    if (!writing && queuedChunks.length > 0) {
+    pauseDepth = Math.max(0, pauseDepth - 1);
+    if (!writing && pauseDepth === 0 && queuedChunks.length > 0) {
       scheduleFlush();
     }
   };
 
   const dispose = () => {
     disposed = true;
-    paused = false;
+    pauseDepth = 0;
     queuedChunks = [];
     if (flushTimer !== null) {
       clearTimeout(flushTimer);
@@ -354,6 +382,7 @@ type WebglRecoveryController = {
   setActive: (active: boolean) => void;
   suspend: () => void;
   resume: () => void;
+  refresh: () => void;
   isEnabled: () => boolean;
   dispose: () => void;
 };
@@ -363,6 +392,7 @@ export function loadWebGLWithRecoveryController(
   options: WebglRecoveryOptions = {}
 ): WebglRecoveryController {
   let mode = resolveTerminalWebglMode(options.mode);
+  let active = options.active ?? true;
   let suspendedCount = 0;
   let webglAddon: WebglAddon | null = null;
   let disposed = false;
@@ -374,7 +404,6 @@ export function loadWebGLWithRecoveryController(
   const CONTEXT_LOSS_WINDOW_MS = 30000;
   const CONTEXT_LOSS_FUSE_THRESHOLD = 2;
 
-  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
   let currentDpr = window.devicePixelRatio;
   const dprMediaQuery = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
 
@@ -390,6 +419,16 @@ export function loadWebGLWithRecoveryController(
         // ignore transient renderer states
       }
     }, 120);
+  };
+
+  const refreshViewport = () => {
+    if (!webglAddon || disposed) return;
+    queueAtlasRefresh();
+    try {
+      terminal.refresh(0, Math.max(terminal.rows - 1, 0));
+    } catch {
+      // ignore renderer transitional states
+    }
   };
 
   const disableAddon = () => {
@@ -440,7 +479,7 @@ export function loadWebGLWithRecoveryController(
     }
 
     disableAddon();
-    if (mode === 'auto' && (contextLossTimestamps.length >= CONTEXT_LOSS_FUSE_THRESHOLD || isWindows)) {
+    if (mode === 'auto' && contextLossTimestamps.length >= CONTEXT_LOSS_FUSE_THRESHOLD) {
       fusedOff = true;
       console.warn('WebGL fused off due to instability; using canvas renderer.');
       return;
@@ -459,7 +498,7 @@ export function loadWebGLWithRecoveryController(
       addon.onContextLoss(onContextLoss);
       terminal.loadAddon(addon);
       webglAddon = addon;
-      queueAtlasRefresh();
+      refreshViewport();
 
       selectionDisposable?.dispose();
       selectionDisposable = terminal.onSelectionChange(() => {
@@ -500,9 +539,22 @@ export function loadWebGLWithRecoveryController(
       fusedOff = false;
       contextLossTimestamps.length = 0;
       syncAddonState();
+      refreshViewport();
     },
     setActive: (nextActive) => {
-      void nextActive;
+      const wasActive = active;
+      active = nextActive;
+      syncAddonState();
+      if (nextActive && !wasActive) {
+        requestAnimationFrame(() => {
+          if (disposed) return;
+          refreshViewport();
+          requestAnimationFrame(() => {
+            if (disposed) return;
+            refreshViewport();
+          });
+        });
+      }
     },
     suspend: () => {
       suspendedCount += 1;
@@ -511,7 +563,11 @@ export function loadWebGLWithRecoveryController(
     resume: () => {
       suspendedCount = Math.max(0, suspendedCount - 1);
       syncAddonState();
+      if (suspendedCount === 0) {
+        refreshViewport();
+      }
     },
+    refresh: refreshViewport,
     isEnabled: () => webglAddon !== null,
     dispose: () => {
       disposed = true;

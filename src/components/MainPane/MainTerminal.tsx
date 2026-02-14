@@ -78,6 +78,7 @@ interface MainTerminalProps {
   sessionId?: string;
   type?: 'main' | 'project' | 'scratch';
   isActive: boolean;
+  isVisible?: boolean;
   shouldAutoFocus: boolean;
   /** Counter that triggers focus when incremented */
   focusTrigger?: number;
@@ -97,7 +98,7 @@ interface MainTerminalProps {
   onExit?: () => void;
 }
 
-export function MainTerminal({ entityId, sessionId, type = 'main', isActive, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange, onPtyIdReady, onExit }: MainTerminalProps) {
+export function MainTerminal({ entityId, sessionId, type = 'main', isActive, isVisible = true, shouldAutoFocus, focusTrigger, terminalConfig, activityTimeout = 250, initialCwd, onFocus, onNotification, onThinkingChange, onCwdChange, onTitleChange, onPtyIdReady, onExit }: MainTerminalProps) {
   // Use sessionId for spawn if provided, otherwise fall back to entityId (for backward compatibility)
   const spawnId = sessionId ?? entityId;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,6 +143,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   const isActivityThinkingRef = useRef(false);
   const isOscThinkingRef = useRef(false);
   const isActiveRef = useRef(isActive);
+  const isVisibleRef = useRef(isVisible);
   const activityTimeoutMsRef = useRef(activityTimeout);
   // Grace period after becoming inactive before tracking starts (prevents false triggers from tab switch events)
   const gracePeriodTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,6 +155,10 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
   useEffect(() => {
     activityTimeoutMsRef.current = activityTimeout;
   }, [activityTimeout]);
+
+  useEffect(() => {
+    isVisibleRef.current = isVisible;
+  }, [isVisible]);
 
   // Keep isActiveRef in sync and clear thinking state when becoming active
   useEffect(() => {
@@ -399,6 +405,9 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
         cursorGuardRef.current?.update();
       }
     });
+    if (!isVisibleRef.current) {
+      outputBuffer.pause();
+    }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
     outputBufferRef.current = outputBuffer;
 
@@ -738,6 +747,19 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
 
+  // Keep hidden terminals lightweight without changing user-visible behavior.
+  useEffect(() => {
+    const outputBuffer = outputBufferRef.current;
+    if (!outputBuffer) return;
+
+    if (isVisible) {
+      outputBuffer.resume();
+      return;
+    }
+
+    outputBuffer.pause();
+  }, [isVisible]);
+
   // Control cursor blink and style based on active state
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -779,6 +801,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, sho
     }
 
     fitAddon.fit();
+    webglControllerRef.current?.refresh();
     if (terminal.cols <= 0 || terminal.rows <= 0) {
       return;
     }
