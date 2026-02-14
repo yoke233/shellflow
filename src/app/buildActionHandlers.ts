@@ -208,6 +208,8 @@ export function buildActionHandlers(deps: BuildActionHandlersDeps): ActionHandle
           terminalApp: terminalCommand ?? null,
         }).catch((err) => {
           console.error('Failed to open editor:', err);
+          const message = err instanceof Error ? err.message : String(err);
+          showWarning(`打开编辑器失败：${message}`);
         });
       }
     },

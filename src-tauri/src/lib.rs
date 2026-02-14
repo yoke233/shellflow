@@ -2073,9 +2073,23 @@ fn open_with_app(path: &str, app: &str) -> Result<()> {
     let mut command = Command::new(program);
     command.args(&args).env("PATH", &user_path);
     apply_command_process_options(&mut command);
-    command
-        .spawn()
-        .map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
+    let spawn_result = command.spawn();
+
+    #[cfg(windows)]
+    let spawn_result = match spawn_result {
+        Ok(child) => Ok(child),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            // Windows 上 `code` 常是 `code.cmd`，CreateProcess 直接启动可能失败。
+            // 回退到 cmd /C 执行，并保持 CREATE_NO_WINDOW 防止黑框闪烁。
+            let mut cmd = Command::new("cmd");
+            cmd.arg("/C").arg(program).args(&args).env("PATH", &user_path);
+            apply_command_process_options(&mut cmd);
+            cmd.spawn()
+        }
+        Err(err) => Err(err),
+    };
+
+    spawn_result.map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
 
     Ok(())
 }
