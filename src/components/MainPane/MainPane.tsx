@@ -386,8 +386,10 @@ export const MainPane = memo(function MainPane({
 
       if (!propagatingTabId) continue;
 
-      const tabState = tabIndicators.get(propagatingTabId);
-      const isThinking = tabState?.thinking ?? false;
+      // Thinking: session is thinking if ANY tab in the session is thinking
+      const thinkingTab = tabs.find(t => tabIndicators.get(t.id)?.thinking);
+      const isThinking = Boolean(thinkingTab);
+      const thinkingTabId = thinkingTab?.id ?? propagatingTabId;
       const lastPropagatedThinking = lastPropagatedThinkingRef.current.get(sessionId);
 
       // Only propagate thinking if the state has changed
@@ -395,7 +397,7 @@ export const MainPane = memo(function MainPane({
         lastPropagatedThinkingRef.current.set(sessionId, isThinking);
 
         if (onThinkingChange) {
-          onThinkingChange(sessionId, propagatingTabId, isThinking);
+          onThinkingChange(sessionId, thinkingTabId, isThinking);
         } else {
           // Legacy handlers
           if (session.kind === 'worktree') {

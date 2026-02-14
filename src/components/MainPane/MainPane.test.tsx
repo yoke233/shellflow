@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MainPane } from './MainPane';
 import { Session, SessionTab, TabSplitState, SplitPaneConfig } from '../../types';
 import { resetMocks, mockInvokeResponses, defaultTestConfig } from '../../test/setup';
@@ -531,6 +531,61 @@ describe('MainPane', () => {
 
       // Terminal should render
       expect(screen.getByTestId(`terminal-${sessionTabs[0].id}`)).toBeInTheDocument();
+    });
+  });
+
+  describe('thinking indicator propagation', () => {
+    it('propagates thinking when non-active tab changes thinking state', async () => {
+      const onScratchThinkingChange = vi.fn();
+      const sessions = [createSession('scratch-1', 'scratch', 'Terminal 1', '/home')];
+      const sessionTabs = [
+        createSessionTab('scratch-1', 1, true),
+        createSessionTab('scratch-1', 2, false),
+      ];
+
+      render(
+        <MainPane
+          {...defaultProps}
+          sessions={sessions}
+          openSessionIds={new Set(['scratch-1'])}
+          activeSessionId="scratch-1"
+          allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
+          activeSessionTabId={sessionTabs[0].id}
+          sessionLastActiveTabIds={new Map([['scratch-1', sessionTabs[0].id]])}
+          onScratchThinkingChange={onScratchThinkingChange}
+        />,
+      );
+
+      onScratchThinkingChange.mockClear();
+
+      const { MainTerminal } = await import('./MainTerminal');
+      const mainTerminalMock = vi.mocked(MainTerminal);
+
+      const getTabThinkingChange = (tabId: string) => {
+        const tabCall = [...mainTerminalMock.mock.calls]
+          .reverse()
+          .find(([props]) => props.entityId === tabId);
+        expect(tabCall).toBeTruthy();
+        return tabCall![0].onThinkingChange as ((isThinking: boolean) => void);
+      };
+
+      await act(async () => {
+        getTabThinkingChange(sessionTabs[1].id)(true);
+      });
+
+      await waitFor(() => {
+        expect(onScratchThinkingChange).toHaveBeenCalledWith('scratch-1', true);
+      });
+
+      onScratchThinkingChange.mockClear();
+
+      await act(async () => {
+        getTabThinkingChange(sessionTabs[1].id)(false);
+      });
+
+      await waitFor(() => {
+        expect(onScratchThinkingChange).toHaveBeenCalledWith('scratch-1', false);
+      });
     });
   });
 
