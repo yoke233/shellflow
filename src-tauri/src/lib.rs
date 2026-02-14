@@ -22,7 +22,13 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, PhysicalSize, Size, State};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 type Result<T> = std::result::Result<T, String>;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 fn map_err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
@@ -77,6 +83,13 @@ fn normalize_path_for_compare(path: &Path) -> String {
     #[cfg(not(windows))]
     {
         normalized
+    }
+}
+
+fn apply_command_process_options(command: &mut std::process::Command) {
+    #[cfg(windows)]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
     }
 }
 
@@ -1935,6 +1948,89 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace("'", "'\\''"))
 }
 
+/// Parse command string into argv parts (supports single/double quotes).
+fn parse_command_parts(command: &str) -> Result<Vec<String>> {
+    let mut parts = Vec::<String>::new();
+    let mut current = String::new();
+    let mut chars = command.chars().peekable();
+    let mut quote: Option<char> = None;
+
+    while let Some(ch) = chars.next() {
+        if let Some(active_quote) = quote {
+            if ch == active_quote {
+                quote = None;
+                continue;
+            }
+
+            if ch == '\\' && active_quote == '"' {
+                if let Some(next) = chars.peek().copied() {
+                    if next == '"' || next == '\\' {
+                        current.push(next);
+                        chars.next();
+                        continue;
+                    }
+                }
+            }
+
+            current.push(ch);
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            c if c.is_whitespace() => {
+                if !current.is_empty() {
+                    parts.push(current.clone());
+                    current.clear();
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if quote.is_some() {
+        return Err(format!("Invalid command '{}': unterminated quote", command));
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    if parts.is_empty() {
+        return Err("Command is empty".to_string());
+    }
+
+    Ok(parts)
+}
+
+/// Build argv for launching an app command with a path.
+/// - If `{{ path }}` exists, it is replaced in-place in command parts.
+/// - Otherwise, path is appended as a final argument.
+fn build_app_command_parts(command: &str, path: &str) -> Result<Vec<String>> {
+    const PATH_MARKER: &str = "__SHELLFLOW_PATH__";
+
+    if command.contains("{{ path }}") {
+        let rendered = command.replace("{{ path }}", PATH_MARKER);
+        let mut parts = parse_command_parts(&rendered)?;
+        for part in &mut parts {
+            if part.contains(PATH_MARKER) {
+                *part = part.replace(PATH_MARKER, path);
+            }
+        }
+        return Ok(parts);
+    }
+
+    let mut parts = parse_command_parts(command)?;
+    parts.push(path.to_string());
+    Ok(parts)
+}
+
+fn command_has_shell_control_chars(command: &str) -> bool {
+    ['|', '&', ';', '<', '>']
+        .iter()
+        .any(|c| command.contains(*c))
+}
+
 /// Open a path with a specific application by running the command directly.
 /// Supports `{{ path }}` template substitution. If not present, path is appended.
 /// This is for GUI apps that can be launched via command line (code, zed, etc).
@@ -1946,18 +2042,38 @@ fn open_with_app(path: &str, app: &str) -> Result<()> {
     let user_path = pty::get_cached_user_path();
     let full_command = substitute_path_template(app, path);
 
-    // Use shell to handle complex commands with arguments
-    #[cfg(unix)]
-    Command::new("sh")
-        .args(["-c", &full_command])
-        .env("PATH", &user_path)
-        .spawn()
-        .map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
+    // Keep shell fallback for advanced shell expressions.
+    if command_has_shell_control_chars(app) {
+        #[cfg(unix)]
+        {
+            let mut cmd = Command::new("sh");
+            cmd.args(["-c", &full_command]).env("PATH", &user_path);
+            apply_command_process_options(&mut cmd);
+            cmd.spawn()
+                .map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
+        }
 
-    #[cfg(windows)]
-    Command::new("cmd")
-        .args(["/C", &full_command])
-        .env("PATH", &user_path)
+        #[cfg(windows)]
+        {
+            let mut cmd = Command::new("cmd");
+            cmd.args(["/C", &full_command]).env("PATH", &user_path);
+            apply_command_process_options(&mut cmd);
+            cmd.spawn()
+                .map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
+        }
+        return Ok(());
+    }
+
+    let parts = build_app_command_parts(app, path)?;
+    let program = parts
+        .first()
+        .ok_or_else(|| format!("Invalid command '{}': empty executable", app))?;
+    let args: Vec<&str> = parts.iter().skip(1).map(String::as_str).collect();
+
+    let mut command = Command::new(program);
+    command.args(&args).env("PATH", &user_path);
+    apply_command_process_options(&mut command);
+    command
         .spawn()
         .map_err(|e| format!("Failed to launch '{}': {}", full_command, e))?;
 
