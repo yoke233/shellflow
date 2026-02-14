@@ -81,6 +81,7 @@ interface BuildAppLayoutDeps {
   editingScratchId: string | null;
   focusToRestoreRef: MutableRefObject<HTMLElement | null>;
   onFocusMain: () => void;
+  onShowWarning: (message: string) => void;
   onToggleProject: (projectId: string) => void;
   onSelectProject: (project: Project) => void;
   onSelectWorktree: (worktree: Worktree) => void;
@@ -303,6 +304,7 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     editingScratchId: deps.editingScratchId,
     focusToRestoreRef: deps.focusToRestoreRef,
     onFocusMain: deps.onFocusMain,
+    onShowWarning: deps.onShowWarning,
     onToggleProject: deps.onToggleProject,
     onSelectProject: deps.onSelectProject,
     onSelectWorktree: deps.onSelectWorktree,

@@ -75,6 +75,8 @@ interface SidebarProps {
   focusToRestoreRef: React.RefObject<HTMLElement | null>;
   /** Called to focus the main terminal area */
   onFocusMain: () => void;
+  /** Non-modal warning toast */
+  onShowWarning: (message: string) => void;
   /** Called to open a command in a new session tab (for TUI editors) */
   onOpenInTab: (directory: string, command: string) => void;
   onToggleProject: (projectId: string) => void;
@@ -150,6 +152,7 @@ export function Sidebar({
   editingScratchId,
   focusToRestoreRef,
   onFocusMain,
+  onShowWarning,
   onToggleProject,
   onSelectProject,
   onSelectWorktree,
@@ -414,9 +417,7 @@ export function Sidebar({
     const editorTarget = getAppTarget(appsConfig.editor, 'terminal');
 
     if (!editorCommand) {
-      invoke('open_default', { path }).catch((err) => {
-        console.error('Failed to open path:', err);
-      });
+      onShowWarning('未配置 editor。请在配置文件中设置 apps.editor 后重试。');
       return;
     }
 

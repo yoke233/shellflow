@@ -470,7 +470,7 @@ impl Default for MainConfig {
             font_ligatures: false,
             webgl: WebglMode::Auto,
             padding: 8,
-            scrollback: 20000,
+            scrollback: 1000,
             unfocused_opacity: None, // Uses panes.unfocusedOpacity when None
         }
     }
@@ -607,7 +607,7 @@ impl Default for DrawerConfig {
             font_ligatures: false,
             webgl: WebglMode::Auto,
             padding: 8,
-            scrollback: 20000,
+            scrollback: 1000,
             unfocused_opacity: 0.7, // Same default as panes.unfocusedOpacity
         }
     }

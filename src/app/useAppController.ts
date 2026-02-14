@@ -123,7 +123,7 @@ export function useAppController() {
   const { resolveKeyEvent, getShortcut } = useMappings();
 
   // Toast notifications
-  const { toasts, dismissToast, showError } = useToast();
+  const { toasts, dismissToast, showError, showWarning } = useToast();
 
   // Open worktrees (main terminals are kept alive for these)
   const [openWorktreeIds, setOpenWorktreeIds] = useState<Set<string>>(new Set());
@@ -2674,6 +2674,7 @@ export function useAppController() {
     projects,
     scratchCwds,
     appsConfig: config.apps,
+    showWarning,
     openEntitiesInOrder,
     getCurrentEntityIndex,
     selectEntityAtIndex,
@@ -2717,7 +2718,7 @@ export function useAppController() {
     handleToggleDiffMode,
   }), [
     activeProjectId, activeWorktreeId, activeScratchId, activeDrawerTabId, isDrawerOpen, activeFocusState,
-    projects, config.apps, activeEntityId, scratchCwds,
+    projects, config.apps, activeEntityId, scratchCwds, showWarning,
     handleRefreshProjects, handleAddProject, handleAddWorktree, handleAddScratchTerminal, handleCloseDrawerTab, handleCloseProject,
     handleAddDrawerTab, handleOpenInDrawer, handleOpenInTab, handleAddSessionTab,
     handleCloseWorktree, handleCloseScratch,
@@ -3018,6 +3019,7 @@ export function useAppController() {
     editingScratchId,
     focusToRestoreRef,
     onFocusMain: handleFocusMain,
+    onShowWarning: showWarning,
     onToggleProject: toggleProject,
     onSelectProject: handleSelectProject,
     onSelectWorktree: handleSelectWorktree,

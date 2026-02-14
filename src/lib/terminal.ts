@@ -20,7 +20,7 @@ export function getPlatformTerminalOptions(): Partial<ITerminalOptions> {
   return {};
 }
 
-export const TERMINAL_SCROLLBACK = 20000;
+export const TERMINAL_SCROLLBACK = 1000;
 export const MAX_TERMINAL_SCROLLBACK = 100000;
 export const MIN_TERMINAL_SCROLLBACK = 0;
 export type TerminalWebglMode = 'off' | 'auto' | 'on';

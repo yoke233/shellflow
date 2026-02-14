@@ -174,7 +174,7 @@ const defaultConfig: Config = {
     fontLigatures: false,
     webgl: 'auto',
     padding: 8,
-    scrollback: 20000,
+    scrollback: 1000,
     unfocusedOpacity: null,
   },
   drawer: {
@@ -183,7 +183,7 @@ const defaultConfig: Config = {
     fontLigatures: false,
     webgl: 'auto',
     padding: 8,
-    scrollback: 20000,
+    scrollback: 1000,
     unfocusedOpacity: 0.7,
   },
   apps: {

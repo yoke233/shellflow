@@ -55,7 +55,7 @@
           "description": "Maximum scrollback lines kept in terminal memory",
           "minimum": 0,
           "maximum": 100000,
-          "default": 20000
+          "default": 1000
         },
         "unfocusedOpacity": {
           "type": "number",

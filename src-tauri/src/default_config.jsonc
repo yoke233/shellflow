@@ -17,7 +17,7 @@
     // Padding around the terminal content in pixels
     "padding": 8,
     // Maximum scrollback lines kept in terminal memory
-    "scrollback": 20000
+    "scrollback": 1000
     // Opacity (0.0 to 1.0) applied to the main area when drawer is focused.
     // Defaults to panes.unfocusedOpacity if not specified.
     // "unfocusedOpacity": 0.7

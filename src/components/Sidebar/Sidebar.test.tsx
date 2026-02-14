@@ -74,6 +74,7 @@ const createDefaultProps = (overrides: Partial<Parameters<typeof Sidebar>[0]> = 
   onReorderScratchTerminals: vi.fn(),
   onAutoEditConsumed: vi.fn(),
   onEditingScratchConsumed: vi.fn(),
+  onShowWarning: vi.fn(),
   ...overrides,
 });
 
@@ -367,6 +368,33 @@ describe('Sidebar', () => {
             (entry.args as { path?: string; app?: string } | undefined)?.app === 'code'
         )
       ).toBe(true);
+    });
+
+    it('shows warning when editor is not configured', async () => {
+      const user = userEvent.setup();
+      const onShowWarning = vi.fn();
+      const project = createTestProject({
+        id: 'p-no-editor',
+        name: 'No Editor Project',
+        path: '/Users/test/projects/no-editor',
+      });
+
+      render(
+        <Sidebar
+          {...createDefaultProps({
+            projects: [project],
+            appsConfig: {},
+            onShowWarning,
+          })}
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByText('No Editor Project'));
+      await user.click(screen.getByText('Open in Editor'));
+
+      expect(onShowWarning).toHaveBeenCalledWith('未配置 editor。请在配置文件中设置 apps.editor 后重试。');
+      expect(invokeHistory.some((entry) => entry.command === 'open_default')).toBe(false);
+      expect(invokeHistory.some((entry) => entry.command === 'open_in_editor')).toBe(false);
     });
 
     it('shows loading indicator for loading worktrees', () => {

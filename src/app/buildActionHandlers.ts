@@ -20,6 +20,7 @@ interface BuildActionHandlersDeps {
   projects: Project[];
   scratchCwds: Map<string, string>;
   appsConfig: AppsConfig;
+  showWarning: (message: string) => void;
   openEntitiesInOrder: EntityOrderEntry[];
   getCurrentEntityIndex: () => number;
   selectEntityAtIndex: (index: number) => void;
@@ -75,6 +76,7 @@ export function buildActionHandlers(deps: BuildActionHandlersDeps): ActionHandle
     projects,
     scratchCwds,
     appsConfig,
+    showWarning,
     openEntitiesInOrder,
     getCurrentEntityIndex,
     selectEntityAtIndex,
@@ -190,9 +192,7 @@ export function buildActionHandlers(deps: BuildActionHandlersDeps): ActionHandle
       if (!path) return;
 
       if (!command) {
-        invoke('open_default', { path }).catch((err) => {
-          console.error('Failed to open path:', err);
-        });
+        showWarning('未配置 editor。请在配置文件中设置 apps.editor 后重试。');
         return;
       }
 
