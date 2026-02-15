@@ -455,6 +455,10 @@ pub struct MainConfig {
     pub padding: u16,
     /// Maximum scrollback lines kept in terminal memory
     pub scrollback: u32,
+    /// Pause terminal output buffering while the tab is hidden.
+    /// Default false to keep background state indicators up to date.
+    #[serde(rename = "pauseOutputWhenHidden")]
+    pub pause_output_when_hidden: bool,
     /// Opacity (0.0 to 1.0) applied to the main area when drawer is focused.
     /// If not specified, uses panes.unfocusedOpacity.
     #[serde(rename = "unfocusedOpacity", skip_serializing_if = "Option::is_none")]
@@ -471,6 +475,7 @@ impl Default for MainConfig {
             webgl: WebglMode::Auto,
             padding: 8,
             scrollback: 1000,
+            pause_output_when_hidden: false,
             unfocused_opacity: None, // Uses panes.unfocusedOpacity when None
         }
     }
@@ -558,6 +563,8 @@ pub struct RawDrawerConfig {
     pub padding: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scrollback: Option<u32>,
+    #[serde(rename = "pauseOutputWhenHidden", skip_serializing_if = "Option::is_none")]
+    pub pause_output_when_hidden: Option<bool>,
     /// Opacity (0.0 to 1.0) applied to the drawer when open but not focused.
     /// If not specified, uses panes.unfocusedOpacity.
     #[serde(rename = "unfocusedOpacity", skip_serializing_if = "Option::is_none")]
@@ -578,6 +585,9 @@ pub struct DrawerConfig {
     pub padding: u16,
     /// Maximum scrollback lines kept in terminal memory
     pub scrollback: u32,
+    /// Pause terminal output buffering while the tab is hidden.
+    #[serde(rename = "pauseOutputWhenHidden")]
+    pub pause_output_when_hidden: bool,
     /// Opacity (0.0 to 1.0) applied to the drawer when open but not focused.
     #[serde(rename = "unfocusedOpacity")]
     pub unfocused_opacity: f64,
@@ -594,6 +604,9 @@ impl DrawerConfig {
             webgl: raw.webgl.unwrap_or(main.webgl),
             padding: raw.padding.unwrap_or(main.padding),
             scrollback: raw.scrollback.unwrap_or(main.scrollback),
+            pause_output_when_hidden: raw
+                .pause_output_when_hidden
+                .unwrap_or(main.pause_output_when_hidden),
             unfocused_opacity: raw.unfocused_opacity.unwrap_or(panes_unfocused_opacity),
         }
     }
@@ -608,6 +621,7 @@ impl Default for DrawerConfig {
             webgl: WebglMode::Auto,
             padding: 8,
             scrollback: 1000,
+            pause_output_when_hidden: false,
             unfocused_opacity: 0.7, // Same default as panes.unfocusedOpacity
         }
     }

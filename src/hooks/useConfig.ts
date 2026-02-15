@@ -13,6 +13,8 @@ export interface TerminalConfig {
   webgl: TerminalWebglMode;
   padding: number;
   scrollback: number;
+  /** Whether to pause xterm output buffering when terminal tab is hidden. */
+  pauseOutputWhenHidden?: boolean;
 }
 
 /** Drawer-specific configuration */
@@ -175,6 +177,7 @@ const defaultConfig: Config = {
     webgl: 'auto',
     padding: 8,
     scrollback: 1000,
+    pauseOutputWhenHidden: false,
     unfocusedOpacity: null,
   },
   drawer: {
@@ -184,6 +187,7 @@ const defaultConfig: Config = {
     webgl: 'auto',
     padding: 8,
     scrollback: 1000,
+    pauseOutputWhenHidden: false,
     unfocusedOpacity: 0.7,
   },
   apps: {

@@ -116,6 +116,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
 
   // Get theme from context (uses sideBar.background for visual hierarchy)
   const xtermTheme = useDrawerXtermTheme();
+  const shouldPauseOutputWhenHidden = terminalConfig.pauseOutputWhenHidden === true;
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
@@ -240,7 +241,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
         cursorGuardRef.current?.update();
       }
     });
-    if (!isVisibleRef.current) {
+    if (shouldPauseOutputWhenHidden && !isVisibleRef.current) {
       outputBuffer.pause();
     }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
@@ -358,7 +359,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
       // 1. The pty-exit event handler (when shell exits naturally)
       // 2. App.tsx cleanup when tab is explicitly closed
     };
-  }, [id, entityId, directory, command, onTerminalKeyDown]);
+  }, [id, entityId, directory, command, onTerminalKeyDown, shouldPauseOutputWhenHidden]);
 
   // Update terminal theme when it changes
   useEffect(() => {
@@ -377,10 +378,15 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
     webglControllerRef.current?.setActive(isActive);
   }, [isActive]);
 
-  // Hidden tabs keep receiving PTY output; pause painting until visible.
+  // Hidden tabs keep receiving PTY output; optionally pause painting until visible.
   useEffect(() => {
     const outputBuffer = outputBufferRef.current;
     if (!outputBuffer) return;
+
+    if (!shouldPauseOutputWhenHidden) {
+      outputBuffer.resume();
+      return;
+    }
 
     if (isVisible) {
       outputBuffer.resume();
@@ -388,7 +394,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
     }
 
     outputBuffer.pause();
-  }, [isVisible]);
+  }, [isVisible, shouldPauseOutputWhenHidden]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {

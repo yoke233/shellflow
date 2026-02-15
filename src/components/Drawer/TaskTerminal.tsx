@@ -113,6 +113,7 @@ export function TaskTerminal({
 
   // Get theme from context
   const xtermTheme = useDrawerXtermTheme();
+  const shouldPauseOutputWhenHidden = terminalConfig.pauseOutputWhenHidden === true;
   const [isPtyReady, setIsPtyReady] = useState(false);
 
   const {
@@ -209,7 +210,7 @@ export function TaskTerminal({
         cursorGuardRef.current?.update();
       }
     });
-    if (!isVisibleRef.current) {
+    if (shouldPauseOutputWhenHidden && !isVisibleRef.current) {
       outputBuffer.pause();
     }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
@@ -382,7 +383,7 @@ export function TaskTerminal({
         ptyIdRef.current = null;
       }
     };
-  }, [id, entityId, taskName, onTerminalKeyDown]);
+  }, [id, entityId, taskName, onTerminalKeyDown, shouldPauseOutputWhenHidden]);
 
   // Listen for signal notifications
   useEffect(() => {
@@ -512,13 +513,18 @@ export function TaskTerminal({
     const outputBuffer = outputBufferRef.current;
     if (!outputBuffer) return;
 
+    if (!shouldPauseOutputWhenHidden) {
+      outputBuffer.resume();
+      return;
+    }
+
     if (isVisible) {
       outputBuffer.resume();
       return;
     }
 
     outputBuffer.pause();
-  }, [isVisible]);
+  }, [isVisible, shouldPauseOutputWhenHidden]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {

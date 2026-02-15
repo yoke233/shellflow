@@ -130,6 +130,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, isV
 
   // Get theme from context
   const xtermTheme = useXtermTheme();
+  const shouldPauseOutputWhenHidden = terminalConfig.pauseOutputWhenHidden === true;
 
   useTerminalFontSync(terminalRef, fitAddonRef, terminalConfig);
 
@@ -405,7 +406,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, isV
         cursorGuardRef.current?.update();
       }
     });
-    if (!isVisibleRef.current) {
+    if (shouldPauseOutputWhenHidden && !isVisibleRef.current) {
       outputBuffer.pause();
     }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
@@ -683,7 +684,7 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, isV
       // 1. The pty-exit event handler (when process exits naturally)
       // 2. App.tsx cleanup when tab is explicitly closed
     };
-  }, [entityId, type, initialCwd, onTerminalKeyDown]);
+  }, [entityId, type, initialCwd, onTerminalKeyDown, shouldPauseOutputWhenHidden]);
 
   // Update terminal theme when it changes
   useEffect(() => {
@@ -752,13 +753,18 @@ export function MainTerminal({ entityId, sessionId, type = 'main', isActive, isV
     const outputBuffer = outputBufferRef.current;
     if (!outputBuffer) return;
 
+    if (!shouldPauseOutputWhenHidden) {
+      outputBuffer.resume();
+      return;
+    }
+
     if (isVisible) {
       outputBuffer.resume();
       return;
     }
 
     outputBuffer.pause();
-  }, [isVisible]);
+  }, [isVisible, shouldPauseOutputWhenHidden]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {

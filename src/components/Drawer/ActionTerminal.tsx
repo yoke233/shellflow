@@ -137,6 +137,7 @@ export function ActionTerminal({
 
   // Get theme from context
   const xtermTheme = useDrawerXtermTheme();
+  const shouldPauseOutputWhenHidden = terminalConfig.pauseOutputWhenHidden === true;
 
   // Editable merge options (initialized from props)
   const [deleteWorktree, setDeleteWorktree] = useState(initialMergeOptions?.deleteWorktree ?? false);
@@ -221,7 +222,7 @@ export function ActionTerminal({
         cursorGuardRef.current?.update();
       }
     });
-    if (!isVisibleRef.current) {
+    if (shouldPauseOutputWhenHidden && !isVisibleRef.current) {
       outputBuffer.pause();
     }
     const cleanupSelectionDragPause = attachSelectionDragPause(terminal, outputBuffer);
@@ -394,7 +395,7 @@ export function ActionTerminal({
         ptyIdRef.current = null;
       }
     };
-  }, [id, worktreeId, actionPrompt, onTerminalKeyDown]);
+  }, [id, worktreeId, actionPrompt, onTerminalKeyDown, shouldPauseOutputWhenHidden]);
 
   // Listen for signal notifications
   useEffect(() => {
@@ -596,13 +597,18 @@ export function ActionTerminal({
     const outputBuffer = outputBufferRef.current;
     if (!outputBuffer) return;
 
+    if (!shouldPauseOutputWhenHidden) {
+      outputBuffer.resume();
+      return;
+    }
+
     if (isVisible) {
       outputBuffer.resume();
       return;
     }
 
     outputBuffer.pause();
-  }, [isVisible]);
+  }, [isVisible, shouldPauseOutputWhenHidden]);
 
   // Control cursor blink and style based on active state
   useEffect(() => {
