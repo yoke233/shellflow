@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0](https://github.com/yoke233/shellflow/compare/v0.13.0...v0.14.0) (2026-02-15)
+
+
+### Features
+
+* add hidden output pause toggle and bump 0.15.3 ([b1daf32](https://github.com/yoke233/shellflow/commit/b1daf32e9de262a952910233df338f7aad37ce03))
+* add worktree naming modal and ctrl/cmd terminal link opening ([2ad3568](https://github.com/yoke233/shellflow/commit/2ad3568c2a23ab12d69d9f2619a02541eace8e3c))
+* remove drawer terminal entry and add editor context actions ([d9b262f](https://github.com/yoke233/shellflow/commit/d9b262fc212973905702897278b67decdce830f9))
+* update commit workflow and shortcuts ([c240793](https://github.com/yoke233/shellflow/commit/c240793f318a13ed1eff41c67be86438d8cafd69))
+* 修复终端选择渲染并增强搜索与工作树处理 ([4569e4b](https://github.com/yoke233/shellflow/commit/4569e4bf81ec4c301ab86cbbaf75389a8eddd285))
+
+
+### Bug Fixes
+
+* avoid stale idle badge after active tab completion ([610e519](https://github.com/yoke233/shellflow/commit/610e519857958b634ebbbffd26a576f51ef702d1))
+* improve windows code launch fallback and show editor errors ([13aa21e](https://github.com/yoke233/shellflow/commit/13aa21e6dc8c896bfa67540b487392eff7b89584))
+* refresh session indicators from any tab and bump 0.15.2 ([49a29d2](https://github.com/yoke233/shellflow/commit/49a29d26e778ffdf7755511d68cb4c5d4902c5b1))
+* robust editor launch command parsing on windows ([b004c7b](https://github.com/yoke233/shellflow/commit/b004c7be57b2f477121b3389954b1caa3ec1a377))
+* **terminal:** avoid webgl toggle on simple cursor click ([27a051e](https://github.com/yoke233/shellflow/commit/27a051e94ab22218bb9faab2bacc077fd9843e68))
+* **terminal:** keep auto webgl stable across tab switches ([b26a01a](https://github.com/yoke233/shellflow/commit/b26a01aa37f95e8481e21da35f1f87775efb582d))
+* **terminal:** keep renderer stable during drag selection ([b58a406](https://github.com/yoke233/shellflow/commit/b58a406a7d5d9f1576046e34e5c8e7b01e05ce05))
+
+
+### Performance Improvements
+
+* **terminal:** add adaptive webgl mode and dynamic fallback ([5f7d126](https://github.com/yoke233/shellflow/commit/5f7d126e7b8758b916e0d377ff7acf46c36b31ed))
+* **terminal:** reduce selection lag and add WebGL toggle ([90a3216](https://github.com/yoke233/shellflow/commit/90a3216cf2885e9180306d2341c3afa419b99f88))
+* 优化终端搜索与项目同步的CPU开销 ([ba2aa77](https://github.com/yoke233/shellflow/commit/ba2aa77a3a4755ff1de6493d3534275b704a6329))
+* 降低终端搜索实时扫描的CPU开销 ([c0520f3](https://github.com/yoke233/shellflow/commit/c0520f30458a14ba664f3018229d530b18912214))
+
 ## [0.13.0](https://github.com/yoke233/shellflow/compare/v0.12.0...v0.13.0) (2026-02-08)
 
 
