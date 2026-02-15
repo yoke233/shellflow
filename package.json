@@ -3,7 +3,7 @@
   "description": "Git Worktree Orchestrator",
   "license": "MIT",
   "private": true,
-  "version": "0.15.5",
+  "version": "0.14.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
