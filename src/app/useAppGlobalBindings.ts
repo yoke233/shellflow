@@ -22,6 +22,7 @@ interface GlobalBindingsOptions {
   pendingCloseProject: unknown;
   pendingDeleteId: string | null;
   pendingMergeId: string | null;
+  pendingCreateWorktreeProject: unknown;
   pendingStashProject: unknown;
   isAppearanceSettingsOpen: boolean;
   openEntityCount: number;
@@ -54,6 +55,7 @@ export function useAppGlobalBindings(options: GlobalBindingsOptions) {
     pendingCloseProject,
     pendingDeleteId,
     pendingMergeId,
+    pendingCreateWorktreeProject,
     pendingStashProject,
     isAppearanceSettingsOpen,
     openEntityCount,
@@ -85,7 +87,14 @@ export function useAppGlobalBindings(options: GlobalBindingsOptions) {
         isCommandPaletteOpen,
         isTaskSwitcherOpen,
         isProjectSwitcherOpen,
-        hasOpenModal: !!(pendingCloseProject || pendingDeleteId || pendingMergeId || pendingStashProject || isAppearanceSettingsOpen),
+        hasOpenModal: !!(
+          pendingCloseProject ||
+          pendingDeleteId ||
+          pendingMergeId ||
+          pendingCreateWorktreeProject ||
+          pendingStashProject ||
+          isAppearanceSettingsOpen
+        ),
         openEntityCount,
         canGoBack,
         canGoForward,
@@ -125,6 +134,7 @@ export function useAppGlobalBindings(options: GlobalBindingsOptions) {
     pendingCloseProject,
     pendingDeleteId,
     pendingMergeId,
+    pendingCreateWorktreeProject,
     pendingStashProject,
     isAppearanceSettingsOpen,
     openEntityCount,

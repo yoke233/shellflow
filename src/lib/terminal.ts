@@ -64,6 +64,20 @@ export function resolveTerminalFontFamily(fontFamily: string): string {
 
   return `${trimmed}, monospace`;
 }
+
+/**
+ * Terminal hyperlink activation rule:
+ * - Requires primary mouse button
+ * - Requires Ctrl (Windows/Linux) or Cmd (macOS)
+ */
+export function shouldOpenTerminalLink(event: MouseEvent | null | undefined): boolean {
+  if (!event) return false;
+
+  const isPrimaryButton = event.button === 0;
+  if (!isPrimaryButton) return false;
+
+  return event.ctrlKey || event.metaKey;
+}
 /**
  * 规范化 ANSI SGR 颜色序列，避免部分工具输出的冒号参数在 xterm.js 中
  * 产生渲染与选区错位（例如 Windows 下彩色块拖拽选择出现白块）。

@@ -11,7 +11,7 @@ import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalFileDrop } from '../../hooks/useTerminalFileDrop';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode, shouldOpenTerminalLink } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { log } from '../../lib/log';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -192,7 +192,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
       ...getPlatformTerminalOptions(),
       linkHandler: {
         activate: (event, uri) => {
-          if (event.metaKey) {
+          if (shouldOpenTerminalLink(event)) {
             openUrl(uri).catch(console.error);
           }
         },
@@ -202,7 +202,7 @@ export function DrawerTerminal({ id, entityId, directory, command, isActive, isV
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon((event, uri) => {
-      if (event.metaKey) {
+      if (shouldOpenTerminalLink(event)) {
         openUrl(uri).catch(console.error);
       }
     });

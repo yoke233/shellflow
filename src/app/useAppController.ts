@@ -336,6 +336,11 @@ export function useAppController() {
   // Modal state
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [pendingMergeId, setPendingMergeId] = useState<string | null>(null);
+  const [pendingCreateWorktreeProjectId, setPendingCreateWorktreeProjectId] = useState<string | null>(null);
+  const [pendingCreateWorktreeName, setPendingCreateWorktreeName] = useState('');
+  const [createWorktreeError, setCreateWorktreeError] = useState<string | null>(null);
+  const [isCreatingWorktree, setIsCreatingWorktree] = useState(false);
+  const [pendingStashWorktreeName, setPendingStashWorktreeName] = useState<string | null>(null);
   const [pendingStashProject, setPendingStashProject] = useState<Project | null>(null);
   const [pendingCloseProject, setPendingCloseProject] = useState<Project | null>(null);
   const [isTaskSwitcherOpen, setIsTaskSwitcherOpen] = useState(false);
@@ -1907,41 +1912,95 @@ export function useAppController() {
     }
   }, [addProject]);
 
+  const activateCreatedWorktree = useCallback((worktree: Worktree) => {
+    setLoadingWorktrees((prev) => new Set([...prev, worktree.id]));
+    setOpenWorktreeIds((prev) => new Set([...prev, worktree.id]));
+    setActiveWorktreeId(worktree.id);
+    setActiveScratchId(null);
+    if (config.worktree.focusNewBranchNames) {
+      focusToRestoreRef.current = null;
+      setAutoEditWorktreeId(worktree.id);
+    }
+  }, [config.worktree.focusNewBranchNames]);
+
+  const createWorktreeForProject = useCallback(async (project: Project, name?: string) => {
+    const worktree = await createWorktree(project.path, name);
+    activateCreatedWorktree(worktree);
+    return worktree;
+  }, [createWorktree, activateCreatedWorktree]);
+
   const handleAddWorktree = useCallback(
-    async (projectId: string) => {
+    (projectId: string) => {
       const project = projects.find((p) => p.id === projectId);
       if (!project) {
         return;
       }
       setExpandedProjects((prev) => new Set([...prev, projectId]));
-
-      try {
-        const worktree = await createWorktree(project.path);
-        setLoadingWorktrees((prev) => new Set([...prev, worktree.id]));
-        setOpenWorktreeIds((prev) => new Set([...prev, worktree.id]));
-        setActiveWorktreeId(worktree.id);
-        setActiveScratchId(null);
-        // Auto-focus branch name for editing if configured
-        if (config.worktree.focusNewBranchNames) {
-          // For new worktrees, don't set a focusToRestoreRef - the worktree didn't exist before,
-          // so there's no valid prior focus within it. We'll fall back to onFocusMain().
-          focusToRestoreRef.current = null;
-          setAutoEditWorktreeId(worktree.id);
-        }
-      } catch (err) {
-        const errorMessage = String(err);
-        // Check if this is an uncommitted changes error
-        if (errorMessage.includes('uncommitted changes')) {
-          setStashError(null); // Clear any previous error
-          setPendingStashProject(project);
-        } else {
-          console.error('Failed to create worktree:', err);
-          showError(`Failed to create worktree: ${errorMessage}`);
-        }
-      }
+      setPendingCreateWorktreeProjectId(projectId);
+      setPendingCreateWorktreeName('');
+      setCreateWorktreeError(null);
+      setPendingStashWorktreeName(null);
     },
-    [projects, createWorktree, config.worktree.focusNewBranchNames, showError]
+    [projects]
   );
+
+  const handleCancelCreateWorktree = useCallback(() => {
+    if (isCreatingWorktree) return;
+    setPendingCreateWorktreeProjectId(null);
+    setPendingCreateWorktreeName('');
+    setCreateWorktreeError(null);
+  }, [isCreatingWorktree]);
+
+  const createPendingWorktree = useCallback(async (name?: string) => {
+    if (!pendingCreateWorktreeProjectId) return;
+    const project = projects.find((p) => p.id === pendingCreateWorktreeProjectId);
+    if (!project) {
+      setPendingCreateWorktreeProjectId(null);
+      setPendingCreateWorktreeName('');
+      setCreateWorktreeError(null);
+      return;
+    }
+
+    setIsCreatingWorktree(true);
+    setCreateWorktreeError(null);
+
+    try {
+      await createWorktreeForProject(project, name);
+      setPendingCreateWorktreeProjectId(null);
+      setPendingCreateWorktreeName('');
+      setCreateWorktreeError(null);
+      setPendingStashWorktreeName(null);
+    } catch (err) {
+      const errorMessage = String(err);
+      if (errorMessage.includes('uncommitted changes')) {
+        setPendingCreateWorktreeProjectId(null);
+        setPendingCreateWorktreeName('');
+        setCreateWorktreeError(null);
+        setStashError(null);
+        setPendingStashProject(project);
+        setPendingStashWorktreeName(name ?? null);
+      } else {
+        console.error('Failed to create worktree:', err);
+        setCreateWorktreeError(errorMessage);
+        showError(`Failed to create worktree: ${errorMessage}`);
+      }
+    } finally {
+      setIsCreatingWorktree(false);
+    }
+  }, [pendingCreateWorktreeProjectId, projects, createWorktreeForProject, showError]);
+
+  const handleCreateWorktreeWithDefault = useCallback(() => {
+    void createPendingWorktree();
+  }, [createPendingWorktree]);
+
+  const handleCreateWorktreeWithCustom = useCallback(() => {
+    const trimmed = pendingCreateWorktreeName.trim();
+    if (!trimmed) {
+      setCreateWorktreeError('Please enter a worktree name or use the default button.');
+      return;
+    }
+    void createPendingWorktree(trimmed);
+  }, [pendingCreateWorktreeName, createPendingWorktree]);
 
   const handleStashAndCreate = useCallback(async () => {
     if (!pendingStashProject) return;
@@ -1956,7 +2015,7 @@ export function useAppController() {
       stashId = await stashChanges(project.path);
 
       // Create the worktree
-      const worktree = await createWorktree(project.path);
+      const worktree = await createWorktree(project.path, pendingStashWorktreeName ?? undefined);
       setActiveScratchId(null);
 
       // Pop the stash to restore changes
@@ -1967,6 +2026,7 @@ export function useAppController() {
       setOpenWorktreeIds((prev) => new Set([...prev, worktree.id]));
       setActiveWorktreeId(worktree.id);
       setPendingStashProject(null);
+      setPendingStashWorktreeName(null);
       // Auto-focus branch name for editing if configured
       if (config.worktree.focusNewBranchNames) {
         // For new worktrees, don't set a focusToRestoreRef - the worktree didn't exist before,
@@ -1988,10 +2048,11 @@ export function useAppController() {
     } finally {
       setIsStashing(false);
     }
-  }, [pendingStashProject, createWorktree, config.worktree.focusNewBranchNames]);
+  }, [pendingStashProject, pendingStashWorktreeName, createWorktree, config.worktree.focusNewBranchNames]);
 
   const handleCancelStash = useCallback(() => {
     setPendingStashProject(null);
+    setPendingStashWorktreeName(null);
     setStashError(null);
   }, []);
 
@@ -2852,6 +2913,11 @@ export function useAppController() {
       if (pendingCloseProject) setPendingCloseProject(null);
       if (pendingDeleteId) setPendingDeleteId(null);
       if (pendingMergeId) setPendingMergeId(null);
+      if (pendingCreateWorktreeProjectId) {
+        setPendingCreateWorktreeProjectId(null);
+        setPendingCreateWorktreeName('');
+        setCreateWorktreeError(null);
+      }
     },
 
     // Diff navigation actions
@@ -2916,7 +2982,7 @@ export function useAppController() {
     handleToggleRightPanel, handleToggleCommandPalette, handleToggleTaskSwitcher, handleToggleProjectSwitcher,
     handleToggleTask, selectEntityAtIndex, actionHandlers,
     isCommandPaletteOpen, isTaskSwitcherOpen, isProjectSwitcherOpen,
-    pendingCloseProject, pendingDeleteId, pendingMergeId,
+    pendingCloseProject, pendingDeleteId, pendingMergeId, pendingCreateWorktreeProjectId,
     handleOpenDiff, handleNextChangedFile, handlePrevChangedFile, handleToggleDiffMode,
     splitPane, focusSplitDirection, tabHasSplits, getActivePaneId, closeSplitPane,
   ]);
@@ -2936,6 +3002,7 @@ export function useAppController() {
     pendingCloseProject,
     pendingDeleteId,
     pendingMergeId,
+    pendingCreateWorktreeProject: pendingCreateWorktreeProjectId,
     pendingStashProject,
     isAppearanceSettingsOpen,
     openEntityCount: openEntitiesInOrder.length,
@@ -2974,6 +3041,10 @@ export function useAppController() {
         }
         return null;
       })()
+    : null;
+
+  const pendingCreateWorktreeProject = pendingCreateWorktreeProjectId
+    ? projects.find((project) => project.id === pendingCreateWorktreeProjectId) ?? null
     : null;
 
   const { themeProps, overlaysProps, pickersProps, layoutProps, toastProps } = buildAppLayoutProps({
@@ -3166,6 +3237,10 @@ export function useAppController() {
     pendingDeleteInfo,
     pendingCloseProject,
     pendingMergeInfo,
+    pendingCreateWorktreeProject,
+    pendingCreateWorktreeName,
+    createWorktreeError,
+    isCreatingWorktree,
     pendingStashProject,
     stashError,
     isStashing,
@@ -3176,6 +3251,10 @@ export function useAppController() {
     onConfirmCloseProject: confirmCloseProject,
     onMergeComplete: handleMergeComplete,
     onTriggerAction: handleTriggerAction,
+    onPendingCreateWorktreeNameChange: setPendingCreateWorktreeName,
+    onCreateWorktreeWithDefault: handleCreateWorktreeWithDefault,
+    onCreateWorktreeWithCustom: handleCreateWorktreeWithCustom,
+    onCancelCreateWorktree: handleCancelCreateWorktree,
     onStashAndCreate: handleStashAndCreate,
     onCancelStash: handleCancelStash,
     mainPanelRef,

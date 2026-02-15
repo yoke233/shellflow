@@ -7,6 +7,7 @@ import { DeleteWorktreeModal } from '../components/DeleteWorktreeModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { MergeModal } from '../components/MergeModal';
 import { StashModal } from '../components/StashModal';
+import { CreateWorktreeModal } from '../components/CreateWorktreeModal';
 import { CommitModal } from '../components/CommitModal';
 import { ShutdownScreen } from '../components/ShutdownScreen';
 import { TaskSwitcher } from '../components/TaskSwitcher/TaskSwitcher';
@@ -45,6 +46,10 @@ interface AppLayoutOverlaysProps {
   pendingDeleteInfo: { worktree: Worktree; projectPath: string } | null;
   pendingCloseProject: Project | null;
   pendingMergeInfo: { worktree: Worktree; projectPath: string } | null;
+  pendingCreateWorktreeProject: Project | null;
+  pendingCreateWorktreeName: string;
+  createWorktreeError: string | null;
+  isCreatingWorktree: boolean;
   pendingStashProject: Project | null;
   showCommitModal: boolean;
   commitModalProps: ComponentProps<typeof CommitModal>;
@@ -62,6 +67,10 @@ interface AppLayoutOverlaysProps {
     actionType: string,
     context: ActionPromptContext
   ) => void;
+  onPendingCreateWorktreeNameChange: (name: string) => void;
+  onCreateWorktreeWithDefault: () => void;
+  onCreateWorktreeWithCustom: () => void;
+  onCancelCreateWorktree: () => void;
   onStashAndCreate: () => void;
   onCancelStash: () => void;
   onModalOpen: () => void;
@@ -110,6 +119,10 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
     pendingDeleteInfo,
     pendingCloseProject,
     pendingMergeInfo,
+    pendingCreateWorktreeProject,
+    pendingCreateWorktreeName,
+    createWorktreeError,
+    isCreatingWorktree,
     pendingStashProject,
     showCommitModal,
     commitModalProps,
@@ -122,6 +135,10 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
     onConfirmCloseProject,
     onMergeComplete,
     onTriggerAction,
+    onPendingCreateWorktreeNameChange,
+    onCreateWorktreeWithDefault,
+    onCreateWorktreeWithCustom,
+    onCancelCreateWorktree,
     onStashAndCreate,
     onCancelStash,
     onModalOpen,
@@ -201,6 +218,21 @@ export function AppLayout({ theme, config, overlays, pickers, layout, toasts }: 
                 context
               );
             }}
+            onModalOpen={onModalOpen}
+            onModalClose={onModalClose}
+          />
+        )}
+
+        {pendingCreateWorktreeProject && (
+          <CreateWorktreeModal
+            projectName={pendingCreateWorktreeProject.name}
+            worktreeName={pendingCreateWorktreeName}
+            error={createWorktreeError}
+            isCreating={isCreatingWorktree}
+            onWorktreeNameChange={onPendingCreateWorktreeNameChange}
+            onCreateWithDefault={onCreateWorktreeWithDefault}
+            onCreateWithCustomName={onCreateWorktreeWithCustom}
+            onCancel={onCancelCreateWorktree}
             onModalOpen={onModalOpen}
             onModalClose={onModalClose}
           />

@@ -208,6 +208,10 @@ interface BuildAppLayoutDeps {
   pendingDeleteInfo: { worktree: Worktree; projectPath: string } | null;
   pendingCloseProject: Project | null;
   pendingMergeInfo: { worktree: Worktree; projectPath: string } | null;
+  pendingCreateWorktreeProject: Project | null;
+  pendingCreateWorktreeName: string;
+  createWorktreeError: string | null;
+  isCreatingWorktree: boolean;
   pendingStashProject: Project | null;
   stashError: string | null;
   isStashing: boolean;
@@ -218,6 +222,10 @@ interface BuildAppLayoutDeps {
   onConfirmCloseProject: () => void;
   onMergeComplete: (worktreeId: string, deletedWorktree: boolean) => void;
   onTriggerAction: (worktreeId: string, projectPath: string, actionType: string, context: ActionPromptContext) => void;
+  onPendingCreateWorktreeNameChange: (name: string) => void;
+  onCreateWorktreeWithDefault: () => void;
+  onCreateWorktreeWithCustom: () => void;
+  onCancelCreateWorktree: () => void;
   onStashAndCreate: () => void;
   onCancelStash: () => void;
   mainPanelRef: RefObject<PanelImperativeHandle | null>;
@@ -447,6 +455,10 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     pendingDeleteInfo: deps.pendingDeleteInfo,
     pendingCloseProject: deps.pendingCloseProject,
     pendingMergeInfo: deps.pendingMergeInfo,
+    pendingCreateWorktreeProject: deps.pendingCreateWorktreeProject,
+    pendingCreateWorktreeName: deps.pendingCreateWorktreeName,
+    createWorktreeError: deps.createWorktreeError,
+    isCreatingWorktree: deps.isCreatingWorktree,
     pendingStashProject: deps.pendingStashProject,
     showCommitModal: deps.isCommitModalOpen,
     commitModalProps: {
@@ -483,6 +495,10 @@ export function buildAppLayoutProps(deps: BuildAppLayoutDeps): AppLayoutParts {
     onConfirmCloseProject: deps.onConfirmCloseProject,
     onMergeComplete: deps.onMergeComplete,
     onTriggerAction: deps.onTriggerAction,
+    onPendingCreateWorktreeNameChange: deps.onPendingCreateWorktreeNameChange,
+    onCreateWorktreeWithDefault: deps.onCreateWorktreeWithDefault,
+    onCreateWorktreeWithCustom: deps.onCreateWorktreeWithCustom,
+    onCancelCreateWorktree: deps.onCancelCreateWorktree,
     onStashAndCreate: deps.onStashAndCreate,
     onCancelStash: deps.onCancelStash,
     onModalOpen: deps.onModalOpen,

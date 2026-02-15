@@ -8,7 +8,7 @@ import { TerminalConfig } from '../../hooks/useConfig';
 import { useTerminalFontSync } from '../../hooks/useTerminalFontSync';
 import { useDrawerXtermTheme } from '../../theme';
 import { useTerminalSearch } from '../../hooks/useTerminalSearch';
-import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode } from '../../lib/terminal';
+import { attachKeyboardHandlers, attachSelectionDragPause, createCursorVisibilityGuard, createTerminalCopyPaste, createImeGuard, createTerminalOutputBuffer, createStreamingSgrColorNormalizer, enableUnicode11Width, getPlatformTerminalOptions, loadWebGLWithRecovery, resolveTerminalFontFamily, resolveTerminalScrollback, resolveTerminalWebglMode, shouldOpenTerminalLink } from '../../lib/terminal';
 import { registerActiveTerminal, unregisterActiveTerminal, registerTerminalInstance, unregisterTerminalInstance } from '../../lib/terminalRegistry';
 import { spawnAction, ptyWrite, ptyResize, ptyKill, watchMergeState, stopMergeWatcher, watchRebaseState, stopRebaseWatcher, cleanupWorktree, MergeOptions, MergeStrategy } from '../../lib/tauri';
 import { TerminalSearchControl } from '../TerminalSearchControl';
@@ -186,7 +186,7 @@ export function ActionTerminal({
       ...getPlatformTerminalOptions(),
       linkHandler: {
         activate: (event, uri) => {
-          if (event.metaKey) {
+          if (shouldOpenTerminalLink(event)) {
             openUrl(uri).catch(console.error);
           }
         },
@@ -196,7 +196,7 @@ export function ActionTerminal({
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon((event, uri) => {
-      if (event.metaKey) {
+      if (shouldOpenTerminalLink(event)) {
         openUrl(uri).catch(console.error);
       }
     });
