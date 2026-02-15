@@ -589,6 +589,55 @@ describe('MainPane', () => {
     });
   });
 
+  describe('active tab completion indicator', () => {
+    it('does not keep idle indicator for active tab after completion', async () => {
+      const sessions = [createSession('scratch-1', 'scratch', 'Terminal 1', '/home')];
+      const sessionTabs = [
+        createSessionTab('scratch-1', 1, true),
+        createSessionTab('scratch-1', 2, false),
+      ];
+
+      render(
+        <MainPane
+          {...defaultProps}
+          sessions={sessions}
+          openSessionIds={new Set(['scratch-1'])}
+          activeSessionId="scratch-1"
+          allSessionTabs={createAllSessionTabs(sessions[0].id, sessionTabs)}
+          activeSessionTabId={sessionTabs[0].id}
+        />,
+      );
+
+      const { MainTerminal } = await import('./MainTerminal');
+      const mainTerminalMock = vi.mocked(MainTerminal);
+
+      const getTabThinkingChange = (tabId: string) => {
+        const tabCall = [...mainTerminalMock.mock.calls]
+          .reverse()
+          .find(([props]) => props.entityId === tabId);
+        expect(tabCall).toBeTruthy();
+        return tabCall![0].onThinkingChange as ((isThinking: boolean) => void);
+      };
+
+      await act(async () => {
+        getTabThinkingChange(sessionTabs[0].id)(true);
+      });
+
+      await act(async () => {
+        getTabThinkingChange(sessionTabs[0].id)(false);
+      });
+
+      const { SessionTabBar } = await import('./SessionTabBar');
+      const sessionTabBarMock = vi.mocked(SessionTabBar);
+      const latestProps = sessionTabBarMock.mock.calls.at(-1)?.[0];
+      expect(latestProps).toBeTruthy();
+
+      const indicators = latestProps!.tabIndicators as Map<string, { idle?: boolean; thinking?: boolean }>;
+      expect(indicators.get(sessionTabs[0].id)?.thinking).toBe(false);
+      expect(indicators.get(sessionTabs[0].id)?.idle).toBe(false);
+    });
+  });
+
   describe('tab bar integration', () => {
     it('passes onSelectSessionTab to SessionTabBar', () => {
       const onSelectSessionTab = vi.fn();

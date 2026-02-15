@@ -346,6 +346,11 @@ export const MainPane = memo(function MainPane({
 
   // Per-tab indicator state (for tab bar display)
   const [tabIndicators, setTabIndicators] = useState<Map<string, TabIndicators>>(new Map());
+  const activeSessionTabIdRef = useRef<string | null>(activeSessionTabId);
+
+  useEffect(() => {
+    activeSessionTabIdRef.current = activeSessionTabId;
+  }, [activeSessionTabId]);
 
   // Clear notification and idle indicators when a tab becomes active (you've seen it)
   // Note: thinking state is NOT cleared here - MainTerminal controls it
@@ -618,8 +623,11 @@ export const MainPane = memo(function MainPane({
         // Clear idle when thinking starts
         next.set(tabId, { ...current, thinking: true, idle: false });
       } else {
-        // Set idle when thinking stops (only if was thinking)
-        next.set(tabId, { ...current, thinking: false, idle: current.thinking });
+        // Set idle when thinking stops only for background tabs.
+        // Active tab completion is already visible to the user and should not
+        // create a "new completion" indicator after switching away.
+        const isBackgroundTab = tabId !== activeSessionTabIdRef.current;
+        next.set(tabId, { ...current, thinking: false, idle: current.thinking && isBackgroundTab });
       }
       return next;
     });
